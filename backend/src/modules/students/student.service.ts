@@ -1220,7 +1220,6 @@ export const setStudentBatches = async (
         studentId,
         batchId,
       })),
-      skipDuplicates: true,
     });
   }
 

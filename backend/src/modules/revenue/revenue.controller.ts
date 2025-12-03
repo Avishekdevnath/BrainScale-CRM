@@ -6,7 +6,7 @@ import * as revenueService from './revenue.service';
 export const createPayment = asyncHandler(async (req: AuthRequest, res: Response) => {
   const payment = await revenueService.createPayment(
     req.user!.workspaceId!,
-    req.user!.id,
+    req.user!.sub,
     req.body
   );
   res.status(201).json(payment);

@@ -395,10 +395,12 @@ export default function GroupDashboardPage() {
       {editingCallListId && editingCallList && (
         <CallListFormDialog
           callList={editingCallList}
-          isOpen={!!editingCallListId}
-          onClose={() => {
-            setEditingCallListId(null);
-            setIsCallListCreatorOpen(false);
+          open={!!editingCallListId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingCallListId(null);
+              setIsCallListCreatorOpen(false);
+            }
           }}
           onSuccess={handleCallListFormSuccess}
         />

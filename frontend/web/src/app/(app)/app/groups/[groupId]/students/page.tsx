@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import { Search, Upload, ChevronLeft, ChevronRight, Loader2 } from "lucide-react
 import { cn } from "@/lib/utils";
 import type { StudentsListParams } from "@/types/students.types";
 
-export default function GroupStudentsPage() {
+function GroupStudentsPageContent() {
   const routeParams = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,9 +39,12 @@ export default function GroupStudentsPage() {
   const [batchId, setBatchId] = useState<string | null>(searchParams.get("batchId") || null);
   const [courseId, setCourseId] = useState<string>(searchParams.get("courseId") || "");
   const [moduleId, setModuleId] = useState<string>(searchParams.get("moduleId") || "");
-  const [status, setStatus] = useState<StudentsListParams["status"] | "">(
-    (searchParams.get("status") as StudentsListParams["status"]) || ""
-  );
+  const [status, setStatus] = useState<StudentsListParams["status"] | "">(() => {
+    const statusParam = searchParams.get("status");
+    if (!statusParam) return "";
+    const validStatuses: StudentsListParams["status"][] = ["NEW", "IN_PROGRESS", "FOLLOW_UP", "CONVERTED", "LOST"];
+    return validStatuses.includes(statusParam as StudentsListParams["status"]) ? (statusParam as StudentsListParams["status"]) : "";
+  });
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [pageSize] = useState(20);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -545,6 +548,23 @@ export default function GroupStudentsPage() {
         onConfirm={handleExportConfirm}
       />
     </div>
+  );
+}
+
+export default function GroupStudentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Group Students</h1>
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <GroupStudentsPageContent />
+    </Suspense>
   );
 }
 

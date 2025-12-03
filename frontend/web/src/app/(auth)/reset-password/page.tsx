@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { validatePassword } from "@/lib/password-utils";
 import { Loader2, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = React.useState("");
@@ -237,6 +238,22 @@ export default function ResetPasswordPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="container max-w-md mx-auto py-8">
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <ResetPasswordPageContent />
+    </Suspense>
   );
 }
 

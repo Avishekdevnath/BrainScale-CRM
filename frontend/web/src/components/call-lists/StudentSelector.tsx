@@ -8,7 +8,7 @@ import { useAvailableStudents } from "@/hooks/useAvailableStudents";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Student } from "@/types/students.types";
+import type { Student, StudentsListParams } from "@/types/students.types";
 
 export interface StudentSelectorProps {
   selectedStudentIds: string[];
@@ -19,7 +19,7 @@ export interface StudentSelectorProps {
   batchId?: string;
   courseId?: string;
   moduleId?: string;
-  status?: string;
+  status?: StudentsListParams["status"];
   disabled?: boolean;
 }
 
@@ -64,7 +64,7 @@ export function StudentSelector({
           batchId,
           courseId,
           moduleId,
-          status,
+          status: status || undefined,
           page,
           size: pageSize,
         }

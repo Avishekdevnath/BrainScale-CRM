@@ -36,7 +36,9 @@ export function WorkspaceCallListCreator({
   const [filters, setFilters] = useState<StudentsListParams>({
     batchId: initialFilters?.batchId || undefined,
     groupId: initialFilters?.groupId || undefined,
-    status: initialFilters?.status || undefined,
+    status: (initialFilters?.status && ["NEW", "IN_PROGRESS", "FOLLOW_UP", "CONVERTED", "LOST"].includes(initialFilters.status))
+      ? (initialFilters.status as StudentsListParams["status"])
+      : undefined,
     q: "",
   });
   const [targetGroupId, setTargetGroupId] = useState<string>("");
@@ -187,7 +189,15 @@ export function WorkspaceCallListCreator({
               </Label>
               <select
                 value={filters.status || ""}
-                onChange={(e) => setFilters({ ...filters, status: e.target.value || undefined })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFilters({ 
+                    ...filters, 
+                    status: value && ["NEW", "IN_PROGRESS", "FOLLOW_UP", "CONVERTED", "LOST"].includes(value)
+                      ? (value as StudentsListParams["status"])
+                      : undefined
+                  });
+                }}
                 className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
               >
                 <option value="">All Statuses</option>

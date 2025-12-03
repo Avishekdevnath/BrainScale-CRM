@@ -93,7 +93,7 @@ export function CallsTable({ callListId, searchQuery = "", onItemsUpdated }: Cal
       <Card variant="groups1">
         <CardHeader variant="groups1">
           <div className="flex items-center justify-between">
-            <CardTitle variant="groups1">
+            <CardTitle>
               Calls Pending ({totalItems})
             </CardTitle>
             <div className="flex items-center gap-3">

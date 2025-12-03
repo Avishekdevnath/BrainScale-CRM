@@ -28,7 +28,7 @@ export function GrantGroupAccessDialog({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const grantAccess = useGrantGroupAccess(workspaceId);
-  const { groups } = useGroups({ isActive: true });
+  const { data: groups } = useGroups({ isActive: true });
 
   React.useEffect(() => {
     if (member) {
@@ -102,7 +102,7 @@ export function GrantGroupAccessDialog({
           <div>
             <Label>Select Groups</Label>
             <div className="mt-2 max-h-64 overflow-y-auto border border-[var(--groups1-border)] rounded-md p-2 space-y-2">
-              {groups.length === 0 ? (
+              {!groups || groups.length === 0 ? (
                 <p className="text-sm text-[var(--groups1-text-secondary)]">
                   No groups available
                 </p>

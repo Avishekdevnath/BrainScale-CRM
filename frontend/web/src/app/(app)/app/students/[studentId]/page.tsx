@@ -652,7 +652,7 @@ export default function StudentProfilePage() {
             setSelectedLogId(null);
           }
         }}
-        callLog={selectedLog}
+        callLog={selectedLog ?? null}
       />
     </div>
   );

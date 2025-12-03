@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,19 @@ import { FollowupsTable } from "@/components/followups/FollowupsTable";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ListFollowupsParams } from "@/types/followups.types";
 
-export default function FollowupsPage() {
+function FollowupsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<ListFollowupsParams>({
     page: parseInt(searchParams.get("page") || "1", 10),
     size: parseInt(searchParams.get("size") || "20", 10),
     callListId: searchParams.get("callListId") || undefined,
-    status: (searchParams.get("status") as "PENDING" | "DONE" | "SKIPPED") || undefined,
+    status: (() => {
+      const statusParam = searchParams.get("status");
+      if (!statusParam) return undefined;
+      const validStatuses: ("PENDING" | "DONE" | "SKIPPED")[] = ["PENDING", "DONE", "SKIPPED"];
+      return validStatuses.includes(statusParam as "PENDING" | "DONE" | "SKIPPED") ? (statusParam as "PENDING" | "DONE" | "SKIPPED") : undefined;
+    })(),
     assignedTo: searchParams.get("assignedTo") || undefined,
     startDate: searchParams.get("startDate") || undefined,
     endDate: searchParams.get("endDate") || undefined,
@@ -150,5 +155,22 @@ export default function FollowupsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function FollowupsPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <FollowupsPageContent />
+    </Suspense>
   );
 }

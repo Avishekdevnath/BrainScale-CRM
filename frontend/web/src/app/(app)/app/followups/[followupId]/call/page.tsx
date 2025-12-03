@@ -169,7 +169,7 @@ export default function FollowupCallPage() {
     }
   };
 
-  const primaryPhone = followup?.student.phones?.find((p) => p.isPrimary) || followup?.student.phones?.[0];
+  const primaryPhone = context?.followup?.student.phones?.find((p) => p.isPrimary) || context?.followup?.student.phones?.[0];
 
   if (isLoading) {
     return (
@@ -181,7 +181,7 @@ export default function FollowupCallPage() {
     );
   }
 
-  if (error || !context) {
+  if (error || !context || !context.followup) {
     return (
       <div className="space-y-6">
         <div>
@@ -231,7 +231,7 @@ export default function FollowupCallPage() {
       {/* Student Information */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle variant="groups1" className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <User className="w-5 h-5" />
             Student Information
           </CardTitle>
@@ -241,16 +241,16 @@ export default function FollowupCallPage() {
             <div>
               <span className="text-gray-500">Name:</span>{" "}
               <Link
-                href={`/app/students/${followup.student.id}`}
+                href={`/app/students/${context.followup.student.id}`}
                 className="font-medium text-[var(--groups1-primary)] hover:underline"
               >
-                {followup.student.name}
+                {context.followup.student.name}
               </Link>
             </div>
-            {followup.student.email && (
+            {context.followup.student.email && (
               <div>
                 <span className="text-gray-500">Email:</span>{" "}
-                <span className="font-medium text-[var(--groups1-text)]">{followup.student.email}</span>
+                <span className="font-medium text-[var(--groups1-text)]">{context.followup.student.email}</span>
               </div>
             )}
             {primaryPhone && (
@@ -264,14 +264,14 @@ export default function FollowupCallPage() {
                 </a>
               </div>
             )}
-            {followup.group && (
+            {context.followup.group && (
               <div>
                 <span className="text-gray-500">Group:</span>{" "}
                 <Link
-                  href={`/app/groups/${followup.group.id}`}
+                  href={`/app/groups/${context.followup.group.id}`}
                   className="font-medium text-[var(--groups1-primary)] hover:underline"
                 >
-                  {followup.group.name}
+                  {context.followup.group.name}
                 </Link>
               </div>
             )}
@@ -302,7 +302,7 @@ export default function FollowupCallPage() {
       {questions.length > 0 && (
         <Card variant="groups1">
           <CardHeader variant="groups1">
-            <CardTitle variant="groups1">Questions</CardTitle>
+            <CardTitle>Questions</CardTitle>
           </CardHeader>
           <CardContent variant="groups1">
             <QuestionAnswerForm
@@ -320,7 +320,7 @@ export default function FollowupCallPage() {
       {/* Call Details Form */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle variant="groups1" className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Phone className="w-5 h-5" />
             Call Details
           </CardTitle>
@@ -406,7 +406,7 @@ export default function FollowupCallPage() {
       {/* Follow-up Options */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle variant="groups1" className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             Follow-up Options
           </CardTitle>

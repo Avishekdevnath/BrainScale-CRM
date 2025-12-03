@@ -33,8 +33,12 @@ export function CallListImportWizard({
   const [file, setFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<ImportPreviewResponse | null>(null);
   const [columnMapping, setColumnMapping] = useState({ name: '', email: '', phone: '' });
-  const [importSettings, setImportSettings] = useState({
-    matchBy: 'email_or_phone' as const,
+  const [importSettings, setImportSettings] = useState<{
+    matchBy: 'email' | 'phone' | 'name' | 'email_or_phone';
+    createNewStudents: boolean;
+    skipDuplicates: boolean;
+  }>({
+    matchBy: 'email_or_phone',
     createNewStudents: true,
     skipDuplicates: true,
   });
@@ -175,7 +179,7 @@ export function CallListImportWizard({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogClose onClose={handleClose} disabled={loading} />
+        <DialogClose onClose={handleClose} />
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Import Students to Call List</span>
@@ -268,7 +272,13 @@ export function CallListImportWizard({
               previewRows={previewData.previewRows}
               suggestions={previewData.suggestions}
               mapping={columnMapping}
-              onMappingChange={setColumnMapping}
+              onMappingChange={(mapping) => {
+                setColumnMapping({
+                  name: mapping.name,
+                  email: mapping.email || '',
+                  phone: mapping.phone || '',
+                });
+              }}
             />
           )}
 

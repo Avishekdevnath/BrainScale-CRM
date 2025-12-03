@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -24,7 +24,7 @@ import type { CallList } from "@/types/call-lists.types";
 // TODO: Replace with actual role check from auth/store
 const isAdmin = true;
 
-export default function CallListsPage() {
+function CallListsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
@@ -343,7 +343,7 @@ export default function CallListsPage() {
       <CallListFormDialog
         open={isFormDialogOpen}
         onOpenChange={setIsFormDialogOpen}
-        callList={editingCallList}
+        callList={editingCallList || undefined}
         onSuccess={handleFormSuccess}
       />
 
@@ -385,5 +385,22 @@ export default function CallListsPage() {
         callListId={viewingCallListId}
       />
     </div>
+  );
+}
+
+export default function CallListsPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Lists</h1>
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <CallListsPageContent />
+    </Suspense>
   );
 }

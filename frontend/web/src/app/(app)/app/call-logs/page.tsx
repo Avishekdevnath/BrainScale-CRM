@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -17,16 +17,19 @@ import { formatCallDuration, getStatusLabel, getStatusColor } from "@/lib/call-l
 import { Loader2, Search, X, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import type { CallLogStatus } from "@/types/call-lists.types";
 
-export default function CallLogsPage() {
+function CallLogsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1", 10));
   const [batchId, setBatchId] = useState<string | null>(searchParams.get("batchId") || null);
   const [groupId, setGroupId] = useState<string | null>(searchParams.get("groupId") || null);
   const [callListId, setCallListId] = useState<string | null>(searchParams.get("callListId") || null);
-  const [status, setStatus] = useState<CallLogStatus | null>(
-    (searchParams.get("status") as CallLogStatus) || null
-  );
+  const [status, setStatus] = useState<CallLogStatus | null>(() => {
+    const statusParam = searchParams.get("status");
+    if (!statusParam) return null;
+    const validStatuses: CallLogStatus[] = ["completed", "missed", "busy", "no_answer", "voicemail", "other"];
+    return validStatuses.includes(statusParam as CallLogStatus) ? (statusParam as CallLogStatus) : null;
+  });
   const [dateFrom, setDateFrom] = useState(searchParams.get("dateFrom") || "");
   const [dateTo, setDateTo] = useState(searchParams.get("dateTo") || "");
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
@@ -185,7 +188,9 @@ export default function CallLogsPage() {
             <select
               value={status || ""}
               onChange={(e) => {
-                setStatus((e.target.value || null) as CallLogStatus | null);
+                const value = e.target.value;
+                const validStatuses: CallLogStatus[] = ["completed", "missed", "busy", "no_answer", "voicemail", "other"];
+                setStatus(value && validStatuses.includes(value as CallLogStatus) ? (value as CallLogStatus) : null);
                 setPage(1);
               }}
               className="min-w-[180px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
@@ -239,7 +244,7 @@ export default function CallLogsPage() {
       {/* Call Logs Table */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle variant="groups1">Call Logs</CardTitle>
+          <CardTitle>Call Logs</CardTitle>
         </CardHeader>
         <CardContent variant="groups1">
           {isLoading ? (
@@ -377,9 +382,26 @@ export default function CallLogsPage() {
             setSelectedLogId(null);
           }
         }}
-        callLog={selectedLog}
+        callLog={selectedLog || null}
       />
     </div>
+  );
+}
+
+export default function CallLogsPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <CallLogsPageContent />
+    </Suspense>
   );
 }
 

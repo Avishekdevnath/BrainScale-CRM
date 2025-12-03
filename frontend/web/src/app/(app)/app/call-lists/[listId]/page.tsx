@@ -196,7 +196,7 @@ export default function CallListDetailPage() {
       {callList.description && (
         <Card variant="groups1">
           <CardHeader variant="groups1">
-            <CardTitle variant="groups1">Description</CardTitle>
+            <CardTitle>Description</CardTitle>
           </CardHeader>
           <CardContent variant="groups1">
             <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap">
@@ -210,7 +210,7 @@ export default function CallListDetailPage() {
       {callList.messages && callList.messages.length > 0 && (
         <Card variant="groups1">
           <CardHeader variant="groups1">
-            <CardTitle variant="groups1" className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
               Messages to Convey
             </CardTitle>
@@ -231,7 +231,7 @@ export default function CallListDetailPage() {
         return questions.length > 0 ? (
           <Card variant="groups1">
             <CardHeader variant="groups1">
-              <CardTitle variant="groups1" className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2">
                 <HelpCircle className="w-5 h-5" />
                 Questions to Ask
               </CardTitle>

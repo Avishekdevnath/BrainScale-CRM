@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -21,16 +21,19 @@ import { Phone, Loader2, Search, X, ChevronLeft, ChevronRight } from "lucide-rea
 import { cn } from "@/lib/utils";
 import type { CallListItem, CallListItemState } from "@/types/call-lists.types";
 
-export default function MyCallsPage() {
+function MyCallsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [page, setPage] = useState(parseInt(searchParams.get("page") || "1", 10));
   const [batchId, setBatchId] = useState<string | null>(searchParams.get("batchId") || null);
   const [groupId, setGroupId] = useState<string | null>(searchParams.get("groupId") || null);
   const [callListId, setCallListId] = useState<string | null>(searchParams.get("callListId") || null);
-  const [state, setState] = useState<CallListItemState | null>(
-    (searchParams.get("state") as CallListItemState) || null
-  );
+  const [state, setState] = useState<CallListItemState | null>(() => {
+    const stateParam = searchParams.get("state");
+    if (!stateParam) return null;
+    const validStates: CallListItemState[] = ["QUEUED", "CALLING", "DONE", "SKIPPED"];
+    return validStates.includes(stateParam as CallListItemState) ? (stateParam as CallListItemState) : null;
+  });
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
@@ -218,7 +221,9 @@ export default function MyCallsPage() {
             <select
               value={state || ""}
               onChange={(e) => {
-                setState((e.target.value || null) as CallListItemState | null);
+                const value = e.target.value;
+                const validStates: CallListItemState[] = ["QUEUED", "CALLING", "DONE", "SKIPPED"];
+                setState(value && validStates.includes(value as CallListItemState) ? (value as CallListItemState) : null);
                 setPage(1);
               }}
               className="min-w-[180px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
@@ -248,7 +253,7 @@ export default function MyCallsPage() {
       {/* Calls Table */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle variant="groups1">Assigned Calls</CardTitle>
+          <CardTitle>Assigned Calls</CardTitle>
         </CardHeader>
         <CardContent variant="groups1">
           {isLoading ? (
@@ -399,6 +404,23 @@ export default function MyCallsPage() {
         onSuccess={handleExecutionSuccess}
       />
     </div>
+  );
+}
+
+export default function MyCallsPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">My Calls</h1>
+        <Card variant="groups1">
+          <CardContent variant="groups1" className="py-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <MyCallsPageContent />
+    </Suspense>
   );
 }
 

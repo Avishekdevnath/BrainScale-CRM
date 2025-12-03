@@ -47,9 +47,12 @@ function StudentsPageContent() {
   const [batchId, setBatchId] = useState<string | null>(searchParams.get("batchId") || null);
   const [courseId, setCourseId] = useState<string>(searchParams.get("courseId") || "");
   const [moduleId, setModuleId] = useState<string>(searchParams.get("moduleId") || "");
-  const [status, setStatus] = useState<StudentsListParams["status"] | "">(
-    (searchParams.get("status") as StudentsListParams["status"]) || ""
-  );
+  const [status, setStatus] = useState<StudentsListParams["status"] | "">(() => {
+    const statusParam = searchParams.get("status");
+    if (!statusParam) return "";
+    const validStatuses: StudentsListParams["status"][] = ["NEW", "IN_PROGRESS", "FOLLOW_UP", "CONVERTED", "LOST"];
+    return validStatuses.includes(statusParam as StudentsListParams["status"]) ? (statusParam as StudentsListParams["status"]) : "";
+  });
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [pageSize] = useState(20);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);

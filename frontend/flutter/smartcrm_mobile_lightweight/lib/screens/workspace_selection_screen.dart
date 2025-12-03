@@ -251,7 +251,6 @@ class _WorkspaceCard extends StatelessWidget {
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),

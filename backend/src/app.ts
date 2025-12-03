@@ -11,8 +11,9 @@ import { apiLimiter } from './middleware/rate-limit';
 export const app: Express = express();
 
 // CORS (must be before helmet to allow preflight requests)
+// Open for testing - allows all origins
 app.use(cors({
-  origin: env.CORS_ORIGINS,
+  origin: true, // Allow all origins for testing
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Workspace-Id', 'X-Cron-Secret'],

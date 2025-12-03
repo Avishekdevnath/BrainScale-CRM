@@ -248,10 +248,10 @@ class _PlanCard extends StatelessWidget {
                   color: AppColors.primary,
                 ),
               ),
-              if (plan.description.isNotEmpty) ...[
+              if (plan.description != null && plan.description!.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
-                  plan.description,
+                  plan.description!,
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,

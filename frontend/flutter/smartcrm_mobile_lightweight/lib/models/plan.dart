@@ -8,6 +8,7 @@ class Plan {
   final String name;
   final double price;
   final String duration; // 'monthly' or 'yearly'
+  final String? description;
   final List<String> features;
   final bool isPopular;
   final int? maxUsers;
@@ -20,6 +21,7 @@ class Plan {
     required this.name,
     required this.price,
     required this.duration,
+    this.description,
     required this.features,
     this.isPopular = false,
     this.maxUsers,

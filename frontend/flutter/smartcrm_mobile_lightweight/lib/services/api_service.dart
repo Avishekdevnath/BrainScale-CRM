@@ -124,8 +124,26 @@ class ApiService {
         if (state != null) 'state': state,
       },
     );
-    return (response.data['data'] as List? ?? response.data as List)
-        .map((json) => CallListItem.fromJson(json))
+    
+    // Handle different response structures
+    dynamic data = response.data;
+    List<dynamic> items;
+    
+    if (data is List) {
+      // Direct array response
+      items = data;
+    } else if (data is Map<String, dynamic>) {
+      // Wrapped response - try common keys
+      items = data['data'] as List? ?? 
+              data['items'] as List? ?? 
+              data['calls'] as List? ?? 
+              [];
+    } else {
+      items = [];
+    }
+    
+    return items
+        .map((json) => CallListItem.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 
@@ -137,8 +155,24 @@ class ApiService {
   // Plans
   Future<List<Plan>> getPlans() async {
     final response = await _dio.get(ApiConfig.plansEndpoint);
-    return (response.data['data'] as List? ?? response.data as List)
-        .map((json) => Plan.fromJson(json))
+    
+    // Handle different response structures
+    dynamic data = response.data;
+    List<dynamic> items;
+    
+    if (data is List) {
+      items = data;
+    } else if (data is Map<String, dynamic>) {
+      items = data['data'] as List? ?? 
+              data['items'] as List? ?? 
+              data['plans'] as List? ?? 
+              [];
+    } else {
+      items = [];
+    }
+    
+    return items
+        .map((json) => Plan.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 
@@ -153,8 +187,24 @@ class ApiService {
 
   Future<List<Workspace>> getWorkspaces() async {
     final response = await _dio.get(ApiConfig.workspacesEndpoint);
-    return (response.data['data'] as List? ?? response.data as List)
-        .map((json) => Workspace.fromJson(json))
+    
+    // Handle different response structures
+    dynamic data = response.data;
+    List<dynamic> items;
+    
+    if (data is List) {
+      items = data;
+    } else if (data is Map<String, dynamic>) {
+      items = data['data'] as List? ?? 
+              data['items'] as List? ?? 
+              data['workspaces'] as List? ?? 
+              [];
+    } else {
+      items = [];
+    }
+    
+    return items
+        .map((json) => Workspace.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 
@@ -183,8 +233,24 @@ class ApiService {
       ApiConfig.dashboardRecentActivityEndpoint,
       queryParameters: {'limit': limit},
     );
-    return (response.data as List)
-        .map((json) => ActivityItem.fromJson(json))
+    
+    // Handle different response structures
+    dynamic data = response.data;
+    List<dynamic> items;
+    
+    if (data is List) {
+      items = data;
+    } else if (data is Map<String, dynamic>) {
+      items = data['data'] as List? ?? 
+              data['items'] as List? ?? 
+              data['activity'] as List? ?? 
+              [];
+    } else {
+      items = [];
+    }
+    
+    return items
+        .map((json) => ActivityItem.fromJson(json as Map<String, dynamic>))
         .toList();
   }
 

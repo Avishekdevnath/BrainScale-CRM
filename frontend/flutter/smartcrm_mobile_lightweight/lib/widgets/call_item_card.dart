@@ -78,7 +78,7 @@ class CallItemCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              _formatDateTime(item.scheduledAt),
+              _formatDateTime(item.createdAt),
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
@@ -104,18 +104,7 @@ class CallItemCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (item.notes != null && item.notes!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                item.notes!,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            // Notes from call list item can be displayed here if available
           ],
         ),
       ),

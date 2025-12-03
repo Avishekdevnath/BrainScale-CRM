@@ -8,6 +8,9 @@ import '../widgets/bottom_navigation.dart';
 import '../widgets/loading_indicator.dart';
 import 'my_calls_screen.dart';
 import 'students_list_screen.dart';
+import 'profile_screen.dart';
+import 'more_screen.dart';
+import 'groups_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -31,6 +34,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final dashboardProvider =
         Provider.of<DashboardProvider>(context, listen: false);
     dashboardProvider.loadDashboardData();
+    
+    // Also ensure workspaces are loaded
+    final workspaceProvider =
+        Provider.of<WorkspaceProvider>(context, listen: false);
+    if (workspaceProvider.workspaces.isEmpty) {
+      workspaceProvider.loadWorkspaces();
+    }
   }
 
   String _getUserInitials(String? name) {
@@ -57,16 +67,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
           MaterialPageRoute(builder: (_) => const StudentsListScreen()),
         );
         break;
-      case 2:
-        // Groups - TODO: Navigate when screen is created
+      case 2: // Groups
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const GroupsScreen()),
+        );
         break;
-      case 3:
+      case 3: // Calls
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const MyCallsScreen()),
         );
         break;
-      case 4:
-        // More - TODO: Navigate when screen is created
+      case 4: // More
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MoreScreen()),
+        );
         break;
     }
   }
@@ -97,19 +111,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Consumer<WorkspaceProvider>(
-                  builder: (context, workspaceProvider, _) {
-                    final workspaceName =
-                        workspaceProvider.selectedWorkspace?.name ?? 'Workspace';
-                    return Text(
-                      workspaceName,
-                      style: const TextStyle(
+                const Row(
+                  children: [
+                    Text(
+                      'BrainScale',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Text(
+                      ' CRM',
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: AppColors.text,
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
                 Row(
                   children: [
@@ -139,24 +159,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, _) {
                         final userName = authProvider.user?.name ?? 'User';
-                        return Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                            );
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                              ),
+                              shape: BoxShape.circle,
                             ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              _getUserInitials(userName),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            child: Center(
+                              child: Text(
+                                _getUserInitials(userName),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),

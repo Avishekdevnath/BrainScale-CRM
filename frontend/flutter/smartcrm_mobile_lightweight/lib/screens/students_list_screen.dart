@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/students_provider.dart';
+import '../providers/auth_provider.dart';
 import '../config/theme_config.dart';
 import '../widgets/bottom_navigation.dart';
 import '../widgets/student_card.dart';
@@ -8,6 +9,9 @@ import '../widgets/loading_indicator.dart';
 import 'dashboard_screen.dart';
 import 'my_calls_screen.dart';
 import 'student_detail_screen.dart';
+import 'profile_screen.dart';
+import 'more_screen.dart';
+import 'groups_screen.dart';
 
 class StudentsListScreen extends StatefulWidget {
   const StudentsListScreen({super.key});
@@ -52,6 +56,15 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
     provider.searchStudents(query);
   }
 
+  String _getUserInitials(String? name) {
+    if (name == null || name.isEmpty) return 'U';
+    final parts = name.split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
   void _handleNavTap(int index) {
     setState(() {
       _currentNavIndex = index;
@@ -67,7 +80,9 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
         // Already on Students
         break;
       case 2: // Groups
-        // TODO: Navigate to Groups List Screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const GroupsScreen()),
+        );
         break;
       case 3: // Calls
         Navigator.of(context).pushReplacement(
@@ -75,7 +90,9 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
         );
         break;
       case 4: // More
-        // TODO: Navigate to More/Menu Screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MoreScreen()),
+        );
         break;
     }
   }
@@ -106,34 +123,59 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Students',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                Row(
+                const Row(
                   children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: AppColors.gray200,
-                        borderRadius: BorderRadius.circular(4),
+                    Text(
+                      'BrainScale',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: AppColors.gray200,
-                        borderRadius: BorderRadius.circular(4),
+                    Text(
+                      ' CRM',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
                       ),
                     ),
                   ],
+                ),
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
+                    final userName = authProvider.user?.name ?? 'User';
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                        );
+                      },
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _getUserInitials(userName),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

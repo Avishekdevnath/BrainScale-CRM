@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
 import '../models/user.dart';
 import '../models/call_list_item.dart';
@@ -143,7 +144,15 @@ class ApiService {
     }
     
     return items
-        .map((json) => CallListItem.fromJson(json as Map<String, dynamic>))
+        .map((json) {
+          try {
+            return CallListItem.fromJson(json as Map<String, dynamic>);
+          } catch (e) {
+            debugPrint('Error parsing CallListItem: $e');
+            debugPrint('JSON: $json');
+            rethrow;
+          }
+        })
         .toList();
   }
 

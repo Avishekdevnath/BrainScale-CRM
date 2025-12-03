@@ -7,14 +7,14 @@ part of 'call_list_item.dart';
 // **************************************************************************
 
 CallListItem _$CallListItemFromJson(Map<String, dynamic> json) => CallListItem(
-      id: json['id'] as String,
-      callListId: json['callListId'] as String,
-      studentId: json['studentId'] as String,
+      id: json['id'] as String? ?? '',
+      callListId: CallListItem._stringFromJson(json['callListId']),
+      studentId: CallListItem._stringFromJson(json['studentId']),
       assignedTo: json['assignedTo'] as String?,
       callLogId: json['callLogId'] as String?,
-      state: json['state'] as String,
-      priority: (json['priority'] as num).toInt(),
-      student: Student.fromJson(json['student'] as Map<String, dynamic>),
+      state: CallListItem._stringFromJson(json['state']),
+      priority: (json['priority'] as num?)?.toInt() ?? 0,
+      student: CallListItem._studentFromJson(json['student']),
       createdAt: CallListItem._dateTimeFromJson(json['createdAt']),
       updatedAt: CallListItem._dateTimeFromJson(json['updatedAt']),
     );

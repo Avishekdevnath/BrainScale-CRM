@@ -14,6 +14,9 @@ import 'screens/my_calls_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/workspace_selection_screen.dart';
 import 'screens/students_list_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/more_screen.dart';
+import 'screens/groups_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +49,8 @@ class MyApp extends StatelessWidget {
           '/dashboard': (context) => const DashboardScreen(),
           '/calls': (context) => const MyCallsScreen(),
           '/students': (context) => const StudentsListScreen(),
+          '/profile': (context) => const ProfileScreen(),
+          '/more': (context) => const MoreScreen(),
         },
       ),
     );

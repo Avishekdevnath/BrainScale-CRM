@@ -53,16 +53,16 @@ Map<String, dynamic> _$CallLogRequestToJson(CallLogRequest instance) =>
     };
 
 MyCallsStats _$MyCallsStatsFromJson(Map<String, dynamic> json) => MyCallsStats(
-      total: (json['total'] as num).toInt(),
+      total: MyCallsStats._intFromJson(json['totalAssigned']),
       completed: (json['completed'] as num).toInt(),
       pending: (json['pending'] as num).toInt(),
-      queued: (json['queued'] as num).toInt(),
-      skipped: (json['skipped'] as num).toInt(),
+      queued: (json['queued'] as num?)?.toInt() ?? 0,
+      skipped: (json['skipped'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$MyCallsStatsToJson(MyCallsStats instance) =>
     <String, dynamic>{
-      'total': instance.total,
+      'totalAssigned': instance.total,
       'completed': instance.completed,
       'pending': instance.pending,
       'queued': instance.queued,

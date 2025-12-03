@@ -18,8 +18,10 @@ enum StudentStatusType {
 @JsonSerializable()
 class Student {
   final String id;
+  @JsonKey(fromJson: _stringFromJson)
   final String name;
   final String? email;
+  @JsonKey(fromJson: _phonesFromJson)
   final List<PhoneNumber> phones;
   final List<String>? tags;
   final List<Enrollment>? enrollments;
@@ -32,17 +34,33 @@ class Student {
     required this.id,
     required this.name,
     this.email,
-    required this.phones,
+    List<PhoneNumber>? phones,
     this.tags,
     this.enrollments,
     this.statuses,
     this.counts,
     this.studentBatches,
-  });
+  }) : phones = phones ?? [];
 
   factory Student.fromJson(Map<String, dynamic> json) =>
       _$StudentFromJson(json);
   Map<String, dynamic> toJson() => _$StudentToJson(this);
+
+  static String _stringFromJson(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    return value.toString();
+  }
+
+  static List<PhoneNumber> _phonesFromJson(dynamic value) {
+    if (value == null) return [];
+    if (value is List) {
+      return value
+          .map((e) => PhoneNumber.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
 }
 
 @JsonSerializable()
@@ -82,8 +100,8 @@ class BatchInfo {
 
   BatchInfo({
     required this.id,
-    required this.name,
-  });
+    String? name,
+  }) : name = name ?? '';
 
   factory BatchInfo.fromJson(Map<String, dynamic> json) =>
       _$BatchInfoFromJson(json);
@@ -94,13 +112,14 @@ class BatchInfo {
 class PhoneNumber {
   final String id;
   final String number;
+  @JsonKey(defaultValue: false)
   final bool isPrimary;
 
   PhoneNumber({
     required this.id,
     required this.number,
-    required this.isPrimary,
-  });
+    bool? isPrimary,
+  }) : isPrimary = isPrimary ?? false;
 
   factory PhoneNumber.fromJson(Map<String, dynamic> json) =>
       _$PhoneNumberFromJson(json);
@@ -135,8 +154,8 @@ class GroupInfo {
 
   GroupInfo({
     required this.id,
-    required this.name,
-  });
+    String? name,
+  }) : name = name ?? '';
 
   factory GroupInfo.fromJson(Map<String, dynamic> json) =>
       _$GroupInfoFromJson(json);
@@ -150,8 +169,8 @@ class CourseInfo {
 
   CourseInfo({
     required this.id,
-    required this.name,
-  });
+    String? name,
+  }) : name = name ?? '';
 
   factory CourseInfo.fromJson(Map<String, dynamic> json) =>
       _$CourseInfoFromJson(json);

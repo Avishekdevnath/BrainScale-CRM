@@ -8,11 +8,9 @@ part of 'student.dart';
 
 Student _$StudentFromJson(Map<String, dynamic> json) => Student(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: Student._stringFromJson(json['name']),
       email: json['email'] as String?,
-      phones: (json['phones'] as List<dynamic>)
-          .map((e) => PhoneNumber.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      phones: Student._phonesFromJson(json['phones']),
       tags: (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList(),
       enrollments: (json['enrollments'] as List<dynamic>?)
           ?.map((e) => Enrollment.fromJson(e as Map<String, dynamic>))
@@ -67,7 +65,7 @@ Map<String, dynamic> _$StudentBatchToJson(StudentBatch instance) =>
 
 BatchInfo _$BatchInfoFromJson(Map<String, dynamic> json) => BatchInfo(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: json['name'] as String?,
     );
 
 Map<String, dynamic> _$BatchInfoToJson(BatchInfo instance) => <String, dynamic>{
@@ -78,7 +76,7 @@ Map<String, dynamic> _$BatchInfoToJson(BatchInfo instance) => <String, dynamic>{
 PhoneNumber _$PhoneNumberFromJson(Map<String, dynamic> json) => PhoneNumber(
       id: json['id'] as String,
       number: json['number'] as String,
-      isPrimary: json['isPrimary'] as bool,
+      isPrimary: json['isPrimary'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$PhoneNumberToJson(PhoneNumber instance) =>
@@ -111,7 +109,7 @@ Map<String, dynamic> _$EnrollmentToJson(Enrollment instance) =>
 
 GroupInfo _$GroupInfoFromJson(Map<String, dynamic> json) => GroupInfo(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: json['name'] as String?,
     );
 
 Map<String, dynamic> _$GroupInfoToJson(GroupInfo instance) => <String, dynamic>{
@@ -121,7 +119,7 @@ Map<String, dynamic> _$GroupInfoToJson(GroupInfo instance) => <String, dynamic>{
 
 CourseInfo _$CourseInfoFromJson(Map<String, dynamic> json) => CourseInfo(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: json['name'] as String?,
     );
 
 Map<String, dynamic> _$CourseInfoToJson(CourseInfo instance) =>

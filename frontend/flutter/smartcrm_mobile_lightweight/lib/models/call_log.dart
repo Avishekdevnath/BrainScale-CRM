@@ -70,21 +70,32 @@ class CallLogRequest {
 
 @JsonSerializable()
 class MyCallsStats {
+  @JsonKey(name: 'totalAssigned', fromJson: _intFromJson)
   final int total;
   final int completed;
   final int pending;
+  @JsonKey(defaultValue: 0)
   final int queued;
+  @JsonKey(defaultValue: 0)
   final int skipped;
 
   MyCallsStats({
     required this.total,
     required this.completed,
     required this.pending,
-    required this.queued,
-    required this.skipped,
-  });
+    int? queued,
+    int? skipped,
+  }) : queued = queued ?? 0,
+       skipped = skipped ?? 0;
 
   factory MyCallsStats.fromJson(Map<String, dynamic> json) =>
       _$MyCallsStatsFromJson(json);
+
+  static int _intFromJson(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return 0;
+  }
 }
 

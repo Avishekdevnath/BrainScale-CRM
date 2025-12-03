@@ -7,9 +7,15 @@ import '../providers/workspace_provider.dart';
 import '../config/theme_config.dart';
 import '../widgets/call_item_card.dart';
 import '../widgets/loading_indicator.dart';
+import '../widgets/bottom_navigation.dart';
 import '../utils/constants.dart';
 import 'call_item_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
+import 'more_screen.dart';
+import 'groups_screen.dart';
+import 'dashboard_screen.dart';
+import 'students_list_screen.dart';
 
 class MyCallsScreen extends StatefulWidget {
   const MyCallsScreen({super.key});
@@ -20,6 +26,7 @@ class MyCallsScreen extends StatefulWidget {
 
 class _MyCallsScreenState extends State<MyCallsScreen> {
   String? _selectedFilter;
+  int _currentNavIndex = 3; // Calls tab
 
   @override
   void initState() {
@@ -71,18 +78,25 @@ class _MyCallsScreenState extends State<MyCallsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Consumer<WorkspaceProvider>(
-                  builder: (context, workspaceProvider, _) {
-                    final workspaceName = workspaceProvider.selectedWorkspace?.name ?? 'Workspace';
-                    return Text(
-                      workspaceName,
-                      style: const TextStyle(
+                const Row(
+                  children: [
+                    Text(
+                      'BrainScale',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    Text(
+                      ' CRM',
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         color: AppColors.text,
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
                 Row(
                   children: [
@@ -112,24 +126,31 @@ class _MyCallsScreenState extends State<MyCallsScreen> {
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, _) {
                         final userName = authProvider.user?.name ?? 'User';
-                        return Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                        return GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                            );
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                              ),
+                              shape: BoxShape.circle,
                             ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              _getUserInitials(userName),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            child: Center(
+                              child: Text(
+                                _getUserInitials(userName),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -337,7 +358,43 @@ class _MyCallsScreenState extends State<MyCallsScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: BottomNavigation(
+        currentIndex: _currentNavIndex,
+        onTap: _handleNavTap,
+      ),
     );
+  }
+
+  void _handleNavTap(int index) {
+    setState(() {
+      _currentNavIndex = index;
+    });
+
+    switch (index) {
+      case 0: // Dashboard
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardScreen()),
+        );
+        break;
+      case 1: // Students
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const StudentsListScreen()),
+        );
+        break;
+      case 2: // Groups
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const GroupsScreen()),
+        );
+        break;
+      case 3: // Calls
+        // Already on Calls
+        break;
+      case 4: // More
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MoreScreen()),
+        );
+        break;
+    }
   }
 }
 

@@ -49,9 +49,21 @@ class StudentsProvider with ChangeNotifier {
         size: 20,
       );
 
-      final List<dynamic> studentsData = response['students'] as List<dynamic>;
+      // Handle different response structures
+      final List<dynamic> studentsData = response['students'] as List<dynamic>? ?? 
+                                          response['data'] as List<dynamic>? ?? 
+                                          response['items'] as List<dynamic>? ?? 
+                                          [];
+
       final List<Student> newStudents = studentsData
-          .map((json) => Student.fromJson(json as Map<String, dynamic>))
+          .map((json) {
+            try {
+              return Student.fromJson(json as Map<String, dynamic>);
+            } catch (e) {
+              debugPrint('Error parsing student: $e, json: $json');
+              rethrow;
+            }
+          })
           .toList();
 
       if (refresh) {

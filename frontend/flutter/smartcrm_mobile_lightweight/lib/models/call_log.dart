@@ -74,12 +74,14 @@ class MyCallsStats {
   final int completed;
   final int pending;
   final int queued;
+  final int skipped;
 
   MyCallsStats({
     required this.total,
     required this.completed,
     required this.pending,
     required this.queued,
+    required this.skipped,
   });
 
   factory MyCallsStats.fromJson(Map<String, dynamic> json) =>

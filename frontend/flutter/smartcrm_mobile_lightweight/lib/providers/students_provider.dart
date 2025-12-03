@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/student.dart';
 import '../services/api_service.dart';
+import '../utils/api_error_handler.dart';
 
 class StudentsProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -67,7 +68,7 @@ class StudentsProvider with ChangeNotifier {
 
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       if (refresh) {
         _students = [];
       }

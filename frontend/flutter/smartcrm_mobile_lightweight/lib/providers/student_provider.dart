@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/student.dart';
 import '../services/api_service.dart';
+import '../utils/api_error_handler.dart';
 
 class StudentProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -21,7 +22,7 @@ class StudentProvider with ChangeNotifier {
       _student = await _apiService.getStudent(studentId);
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _student = null;
     }
 
@@ -43,7 +44,7 @@ class StudentProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       notifyListeners();
       return false;
     }

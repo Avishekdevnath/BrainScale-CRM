@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/call_list_item.dart';
 import '../models/call_log.dart';
 import '../services/api_service.dart';
+import '../utils/api_error_handler.dart';
 
 class CallsProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -32,7 +33,7 @@ class CallsProvider with ChangeNotifier {
       _callItems = await _apiService.getMyCalls(state: state);
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _callItems = [];
     }
 
@@ -45,7 +46,8 @@ class CallsProvider with ChangeNotifier {
       _stats = await _apiService.getMyCallsStats();
       notifyListeners();
     } catch (e) {
-      // Silently fail stats loading
+      // Silently fail stats loading but keep an internal error message
+      _error ??= ApiErrorHandler.getErrorMessage(e);
     }
   }
 
@@ -57,7 +59,7 @@ class CallsProvider with ChangeNotifier {
       await loadStats();
       return true;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       notifyListeners();
       return false;
     }

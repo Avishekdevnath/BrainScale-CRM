@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/dashboard_stats.dart';
 import '../services/api_service.dart';
+import '../utils/api_error_handler.dart';
 
 class DashboardProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -30,7 +31,7 @@ class DashboardProvider with ChangeNotifier {
       _recentActivity = results[1] as List<ActivityItem>;
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       _kpis = null;
       _recentActivity = [];
       debugPrint('Error loading dashboard data: $e');
@@ -49,7 +50,7 @@ class DashboardProvider with ChangeNotifier {
       _kpis = await _apiService.getDashboardKPIs();
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       debugPrint('Error loading KPIs: $e');
       notifyListeners();
     }
@@ -60,7 +61,7 @@ class DashboardProvider with ChangeNotifier {
       _recentActivity = await _apiService.getRecentActivity(limit: limit);
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
+      _error = ApiErrorHandler.getErrorMessage(e);
       debugPrint('Error loading recent activity: $e');
       notifyListeners();
     }

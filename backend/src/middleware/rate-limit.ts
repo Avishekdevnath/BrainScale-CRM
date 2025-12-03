@@ -7,7 +7,7 @@ import { env } from '../config/env';
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 requests per window per IP
+  max: 20, // 20 requests per window per IP
   message: {
     error: {
       code: 'TOO_MANY_REQUESTS',

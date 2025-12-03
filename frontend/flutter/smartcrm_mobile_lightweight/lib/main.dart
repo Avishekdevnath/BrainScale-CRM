@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => StudentProvider()),
       ],
       child: MaterialApp(
-        title: 'BrainScale CRM Mobile',
+        title: 'BrainScale CRM',
         theme: AppTheme.lightTheme,
         home: const AuthWrapper(),
         routes: {

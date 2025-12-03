@@ -631,7 +631,7 @@ export default function StudentProfilePage() {
             <CardHeader variant="groups1">
               <CardTitle>Raw API Payload</CardTitle>
               <p className="text-xs text-[var(--groups1-text-secondary)]">
-                Data returned from <code className="font-mono text-[11px]">/api/v1/students/{student.id}</code>
+                Data returned from <code className="font-mono text-[11px]">https://brainscale-crm-backend.onrender.com/api/v1/students/{student.id}</code>
               </p>
             </CardHeader>
             <CardContent>

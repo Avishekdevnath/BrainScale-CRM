@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
@@ -60,26 +61,13 @@ export function AppSidebar() {
           href="/app"
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
-          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-[var(--groups1-primary)] flex items-center justify-center">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 32 32"
-              fill="none"
-              className="text-[var(--groups1-btn-primary-text)]"
-            >
-              <path
-                d="M8 16L14 10L18 14L24 8"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="14" cy="10" r="2" fill="currentColor" />
-              <circle cx="18" cy="14" r="2" fill="currentColor" />
-              <circle cx="24" cy="8" r="2" fill="currentColor" />
-            </svg>
-          </div>
+          <Image
+            src="/assets/logo.png"
+            alt="BrainScale CRM"
+            width={32}
+            height={32}
+            className="flex-shrink-0 w-8 h-8 object-contain"
+          />
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <div className="text-base font-bold text-[var(--groups1-text)] truncate">

@@ -78,9 +78,16 @@ class _MyCallsScreenState extends State<MyCallsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Text(
+                    Image.asset(
+                      'assets/images/logo_fav.png',
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
                       'BrainScale',
                       style: TextStyle(
                         fontSize: 18,
@@ -88,7 +95,7 @@ class _MyCallsScreenState extends State<MyCallsScreen> {
                         color: AppColors.primary,
                       ),
                     ),
-                    Text(
+                    const Text(
                       ' CRM',
                       style: TextStyle(
                         fontSize: 18,

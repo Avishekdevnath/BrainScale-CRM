@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserMenu } from "@/components/common/UserMenu";
 import { Button } from "@/components/ui/button";
@@ -29,9 +30,17 @@ export function PublicNavbar() {
     <header className="sticky top-0 z-40 w-full border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] backdrop-blur-md supports-[backdrop-filter]:backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded bg-[var(--groups1-primary)]" />
-          <Link href="/" className="text-sm font-semibold tracking-tight md:text-base text-[var(--groups1-text)]">
-            BrainScale CRM
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <Image
+              src="/assets/logo.png"
+              alt="BrainScale CRM"
+              width={32}
+              height={32}
+              className="h-8 w-8 object-contain"
+            />
+            <span className="text-sm font-semibold tracking-tight md:text-base text-[var(--groups1-text)]">
+              BrainScale CRM
+            </span>
           </Link>
         </div>
         <nav className="hidden items-center gap-6 text-sm md:flex">

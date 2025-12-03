@@ -1,0 +1,203 @@
+"use client";
+
+import { Search, Plus, Phone, Bell, Building2, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/common/UserMenu";
+import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from "@/store/workspace";
+import { useGroupStore } from "@/store/group";
+import { useGroups } from "@/hooks/useGroups";
+import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+
+interface TopbarProps {
+  showWorkspaceName?: boolean;
+  showGroupSelector?: boolean;
+}
+
+export function Topbar({ showWorkspaceName = false, showGroupSelector = false }: TopbarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const workspaceName = useWorkspaceStore((state) => state.getCurrentName());
+  const { current: currentGroup, setCurrent } = useGroupStore();
+  const { data: groups, isLoading: groupsLoading } = useGroups();
+  
+  // Extract groupId from URL if on group detail page
+  const urlGroupId = pathname?.match(/^\/app\/groups\/([^/]+)$/)?.[1];
+  const hasGroups = groups && groups.length > 0;
+  const isGroupsRoute = pathname?.startsWith("/app/groups");
+  const showGroupsButton = hasGroups || isGroupsRoute;
+  
+  // Use real groups data or fallback to current group
+  const availableGroups = groups || [];
+  const initialGroupId = urlGroupId || currentGroup?.id || (availableGroups[0]?.id);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId || "");
+
+  useEffect(() => {
+    // Update selected group from URL or store
+    if (urlGroupId && availableGroups.length > 0) {
+      const group = availableGroups.find((g) => g.id === urlGroupId);
+      if (group && currentGroup?.id !== group.id) {
+        setCurrent({ id: group.id, name: group.name });
+      }
+      setSelectedGroupId(urlGroupId);
+    } else if (currentGroup) {
+      setSelectedGroupId(currentGroup.id);
+    } else if (showGroupSelector && !urlGroupId && availableGroups.length > 0) {
+      // If no group selected and on groups page, default to first active group
+      const defaultGroup = availableGroups.find((g) => g.isActive) || availableGroups[0];
+      if (defaultGroup) {
+        setCurrent({ id: defaultGroup.id, name: defaultGroup.name });
+        setSelectedGroupId(defaultGroup.id);
+        router.push(`/app/groups/${defaultGroup.id}`);
+      }
+    }
+  }, [urlGroupId, currentGroup, setCurrent, showGroupSelector, availableGroups, router]);
+
+  const handleGroupChange = (groupId: string) => {
+    const group = availableGroups.find((g) => g.id === groupId);
+    if (group) {
+      setCurrent({ id: group.id, name: group.name });
+      setSelectedGroupId(groupId);
+      router.push(`/app/groups/${groupId}`);
+    }
+  };
+
+  // Determine active state for workspace and groups buttons
+  const isWorkspaceRoute = pathname === "/app" || pathname === "/app/" || (pathname?.startsWith("/app/") && !pathname?.startsWith("/app/groups"));
+  
+  // Get the groups link - use current group if available, otherwise use first group or group-management
+  const groupsLink = currentGroup?.id 
+    ? `/app/groups/${currentGroup.id}` 
+    : (availableGroups.length > 0 
+      ? `/app/groups/${availableGroups[0].id}` 
+      : "/app/group-management");
+
+  return (
+    <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] flex items-center px-4 gap-4 flex-shrink-0">
+      {/* Left: Workspace/Groups Toggle Buttons */}
+      <div className="flex items-center gap-2">
+        <Link href="/app">
+          <Button
+            size="sm"
+            variant={isWorkspaceRoute ? "default" : "ghost"}
+            className={cn(
+              "gap-2",
+              isWorkspaceRoute
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+            )}
+          >
+            <Building2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Workspace</span>
+          </Button>
+        </Link>
+        {showGroupsButton && !groupsLoading && (
+          <Link href={groupsLink}>
+            <Button
+              size="sm"
+              variant={isGroupsRoute ? "default" : "ghost"}
+              className={cn(
+                "gap-2",
+                isGroupsRoute
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                  : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+              )}
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Groups</span>
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {/* Workspace Name or Group Selector */}
+      <div className="flex items-center gap-3">
+        <div className="min-w-[180px]">
+          {showWorkspaceName ? (
+            <div className="px-3 py-2 text-sm font-medium text-[var(--groups1-text)]">
+              {workspaceName}
+            </div>
+          ) : showGroupSelector ? (
+            <select
+              value={selectedGroupId}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              className={cn(
+                "w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-background)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+              )}
+              aria-label="Select group"
+            >
+              <option value="">Select a group</option>
+              {availableGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              className={cn(
+                "w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-background)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+              )}
+              aria-label="Select workspace"
+            >
+              <option>DreamEd Academy</option>
+              <option>Nova Institute</option>
+            </select>
+          )}
+        </div>
+      </div>
+
+      {/* Center: Search Box */}
+      <div className="flex-1 flex justify-center max-w-md mx-auto">
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+          <input
+            type="text"
+            placeholder="Search students, calls..."
+            className={cn(
+              "w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+              "bg-[var(--groups1-background)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] focus:border-[var(--groups1-primary)]"
+            )}
+          />
+        </div>
+      </div>
+
+      {/* Right: Actions */}
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Add Student</span>
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="bg-[var(--groups1-secondary)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary-hover)]"
+        >
+          <Phone className="w-4 h-4" />
+          <span className="hidden sm:inline">Log Call</span>
+        </Button>
+        <button
+          type="button"
+          className="relative w-10 h-10 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          aria-label="Notifications"
+        >
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--groups1-error)] rounded-full" />
+        </button>
+        <UserMenu />
+      </div>
+    </header>
+  );
+}

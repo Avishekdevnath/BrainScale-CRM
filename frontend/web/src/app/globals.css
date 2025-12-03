@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+:root {
+  /* BrainScale CRM HSL token palette */
+  --background: 0 0% 100%;
+  --foreground: 224 71% 4%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --border: 220 13% 91%;
+  --ring: 222 84% 56%;
+
+  --primary: 222 84% 56%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 220 9% 46%;
+  --secondary-foreground: 0 0% 100%;
+  --accent: 174 70% 45%;
+  --accent-foreground: 0 0% 100%;
+
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+
+  /* ========== GROUPS1 COLOR PALETTE (RGBA-based) ========== */
+  /* Primitive Color Tokens */
+  --color-white: rgba(255, 255, 255, 1);
+  --color-black: rgba(0, 0, 0, 1);
+  --color-cream-50: rgba(252, 252, 249, 1);
+  --color-cream-100: rgba(255, 255, 253, 1);
+  --color-gray-200: rgba(245, 245, 245, 1);
+  --color-gray-300: rgba(167, 169, 169, 1);
+  --color-gray-400: rgba(119, 124, 124, 1);
+  --color-slate-500: rgba(98, 108, 113, 1);
+  --color-brown-600: rgba(94, 82, 64, 1);
+  --color-charcoal-700: rgba(31, 33, 33, 1);
+  --color-charcoal-800: rgba(38, 40, 40, 1);
+  --color-slate-900: rgba(19, 52, 59, 1);
+  --color-teal-300: rgba(50, 184, 198, 1);
+  --color-teal-400: rgba(45, 166, 178, 1);
+  --color-teal-500: rgba(33, 128, 141, 1);
+  --color-teal-600: rgba(29, 116, 128, 1);
+  --color-teal-700: rgba(26, 104, 115, 1);
+  --color-teal-800: rgba(41, 150, 161, 1);
+  --color-red-400: rgba(255, 84, 89, 1);
+  --color-red-500: rgba(192, 21, 47, 1);
+  --color-orange-400: rgba(230, 129, 97, 1);
+  --color-orange-500: rgba(168, 75, 47, 1);
+
+  /* RGB versions for opacity control */
+  --color-brown-600-rgb: 94, 82, 64;
+  --color-teal-500-rgb: 33, 128, 141;
+  --color-slate-900-rgb: 19, 52, 59;
+  --color-slate-500-rgb: 98, 108, 113;
+  --color-red-500-rgb: 192, 21, 47;
+  --color-red-400-rgb: 255, 84, 89;
+  --color-orange-500-rgb: 168, 75, 47;
+  --color-orange-400-rgb: 230, 129, 97;
+
+  /* Background color tokens (Light Mode) */
+  --color-bg-1: rgba(59, 130, 246, 0.08); /* Light blue */
+  --color-bg-2: rgba(245, 158, 11, 0.08); /* Light yellow */
+  --color-bg-3: rgba(34, 197, 94, 0.08); /* Light green */
+  --color-bg-4: rgba(239, 68, 68, 0.08); /* Light red */
+  --color-bg-5: rgba(147, 51, 234, 0.08); /* Light purple */
+  --color-bg-6: rgba(249, 115, 22, 0.08); /* Light orange */
+  --color-bg-7: rgba(236, 72, 153, 0.08); /* Light pink */
+  --color-bg-8: rgba(6, 182, 212, 0.08); /* Light cyan */
+
+  /* Semantic Color Tokens (Light Mode) - Groups1 */
+  --groups1-background: var(--color-cream-50);
+  --groups1-surface: var(--color-cream-100);
+  --groups1-text: var(--color-slate-900);
+  --groups1-text-secondary: var(--color-slate-500);
+  --groups1-primary: var(--color-teal-500);
+  --groups1-primary-hover: var(--color-teal-600);
+  --groups1-primary-active: var(--color-teal-700);
+  --groups1-secondary: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
+  --groups1-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
+  --groups1-border: rgba(var(--color-brown-600-rgb), 0.2);
+  --groups1-btn-primary-text: var(--color-cream-50);
+  --groups1-card-border: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-card-border-inner: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-error: var(--color-red-500);
+  --groups1-success: var(--color-teal-500);
+  --groups1-warning: var(--color-orange-500);
+  --groups1-info: var(--color-slate-500);
+  --groups1-focus-ring: rgba(var(--color-teal-500-rgb), 0.4);
+
+  /* RGB versions for opacity control */
+  --groups1-success-rgb: 33, 128, 141;
+  --groups1-error-rgb: 192, 21, 47;
+  --groups1-warning-rgb: 168, 75, 47;
+  --groups1-info-rgb: 98, 108, 113;
+
+  /* Common style patterns - Groups1 */
+  --groups1-status-bg-opacity: 0.15;
+  --groups1-status-border-opacity: 0.25;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 224 71% 4%;
+    --foreground: 210 40% 98%;
+    --muted: 215 16% 16%;
+    --muted-foreground: 217 15% 65%;
+    --card: 224 71% 4%;
+    --card-foreground: 210 40% 98%;
+    --border: 215 19% 27%;
+    --ring: 217 91% 60%;
+
+    /* RGB versions for opacity control (Dark Mode) - Groups1 */
+    --color-gray-400-rgb: 119, 124, 124;
+    --color-teal-300-rgb: 50, 184, 198;
+    --color-gray-300-rgb: 167, 169, 169;
+    --color-gray-200-rgb: 245, 245, 245;
+
+    /* Background color tokens (Dark Mode) - Groups1 */
+    --color-bg-1: rgba(29, 78, 216, 0.15); /* Dark blue */
+    --color-bg-2: rgba(180, 83, 9, 0.15); /* Dark yellow */
+    --color-bg-3: rgba(21, 128, 61, 0.15); /* Dark green */
+    --color-bg-4: rgba(185, 28, 28, 0.15); /* Dark red */
+    --color-bg-5: rgba(107, 33, 168, 0.15); /* Dark purple */
+    --color-bg-6: rgba(194, 65, 12, 0.15); /* Dark orange */
+    --color-bg-7: rgba(190, 24, 93, 0.15); /* Dark pink */
+    --color-bg-8: rgba(8, 145, 178, 0.15); /* Dark cyan */
+
+    /* Semantic Color Tokens (Dark Mode) - Groups1 */
+    --groups1-background: var(--color-charcoal-700);
+    --groups1-surface: var(--color-charcoal-800);
+    --groups1-text: var(--color-gray-200);
+    --groups1-text-secondary: rgba(var(--color-gray-300-rgb), 0.7);
+    --groups1-primary: var(--color-teal-300);
+    --groups1-primary-hover: var(--color-teal-400);
+    --groups1-primary-active: var(--color-teal-800);
+    --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
+    --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
+    --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
+    --groups1-border: rgba(var(--color-gray-400-rgb), 0.3);
+    --groups1-error: var(--color-red-400);
+    --groups1-success: var(--color-teal-300);
+    --groups1-warning: var(--color-orange-400);
+    --groups1-info: var(--color-gray-300);
+    --groups1-focus-ring: rgba(var(--color-teal-300-rgb), 0.4);
+    --groups1-btn-primary-text: var(--color-slate-900);
+    --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.2);
+    --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
+
+    /* RGB versions for dark mode - Groups1 */
+    --groups1-success-rgb: var(--color-teal-300-rgb);
+    --groups1-error-rgb: var(--color-red-400-rgb);
+    --groups1-warning-rgb: var(--color-orange-400-rgb);
+    --groups1-info-rgb: var(--color-gray-300-rgb);
+  }
+}
+
+/* Data attribute for manual theme switching - Groups1 */
+[data-color-scheme="dark"] {
+  /* RGB versions for opacity control (dark mode) */
+  --color-gray-400-rgb: 119, 124, 124;
+  --color-teal-300-rgb: 50, 184, 198;
+  --color-gray-300-rgb: 167, 169, 169;
+  --color-gray-200-rgb: 245, 245, 245;
+
+  /* Background color tokens - Dark Mode */
+  --color-bg-1: rgba(29, 78, 216, 0.15);
+  --color-bg-2: rgba(180, 83, 9, 0.15);
+  --color-bg-3: rgba(21, 128, 61, 0.15);
+  --color-bg-4: rgba(185, 28, 28, 0.15);
+  --color-bg-5: rgba(107, 33, 168, 0.15);
+  --color-bg-6: rgba(194, 65, 12, 0.15);
+  --color-bg-7: rgba(190, 24, 93, 0.15);
+  --color-bg-8: rgba(8, 145, 178, 0.15);
+
+  /* Semantic Color Tokens (Dark Mode) - Groups1 */
+  --groups1-background: var(--color-charcoal-700);
+  --groups1-surface: var(--color-charcoal-800);
+  --groups1-text: var(--color-gray-200);
+  --groups1-text-secondary: rgba(var(--color-gray-300-rgb), 0.7);
+  --groups1-primary: var(--color-teal-300);
+  --groups1-primary-hover: var(--color-teal-400);
+  --groups1-primary-active: var(--color-teal-800);
+  --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
+  --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
+  --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
+  --groups1-border: rgba(var(--color-gray-400-rgb), 0.3);
+  --groups1-error: var(--color-red-400);
+  --groups1-success: var(--color-teal-300);
+  --groups1-warning: var(--color-orange-400);
+  --groups1-info: var(--color-gray-300);
+  --groups1-focus-ring: rgba(var(--color-teal-300-rgb), 0.4);
+  --groups1-btn-primary-text: var(--color-slate-900);
+  --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.2);
+  --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
+
+  /* RGB versions for dark mode */
+  --groups1-success-rgb: var(--color-teal-300-rgb);
+  --groups1-error-rgb: var(--color-red-400-rgb);
+  --groups1-warning-rgb: var(--color-orange-400-rgb);
+  --groups1-info-rgb: var(--color-gray-300-rgb);
+}
+
+[data-color-scheme="light"] {
+  /* RGB versions for opacity control (light mode) */
+  --color-brown-600-rgb: 94, 82, 64;
+  --color-teal-500-rgb: 33, 128, 141;
+  --color-slate-900-rgb: 19, 52, 59;
+
+  /* Semantic Color Tokens (Light Mode) - Groups1 */
+  --groups1-background: var(--color-cream-50);
+  --groups1-surface: var(--color-cream-100);
+  --groups1-text: var(--color-slate-900);
+  --groups1-text-secondary: var(--color-slate-500);
+  --groups1-primary: var(--color-teal-500);
+  --groups1-primary-hover: var(--color-teal-600);
+  --groups1-primary-active: var(--color-teal-700);
+  --groups1-secondary: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
+  --groups1-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
+  --groups1-border: rgba(var(--color-brown-600-rgb), 0.2);
+  --groups1-btn-primary-text: var(--color-cream-50);
+  --groups1-card-border: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-card-border-inner: rgba(var(--color-brown-600-rgb), 0.12);
+  --groups1-error: var(--color-red-500);
+  --groups1-success: var(--color-teal-500);
+  --groups1-warning: var(--color-orange-500);
+  --groups1-info: var(--color-slate-500);
+  --groups1-focus-ring: rgba(var(--color-teal-500-rgb), 0.4);
+
+  /* RGB versions for light mode */
+  --groups1-success-rgb: var(--color-teal-500-rgb);
+  --groups1-error-rgb: var(--color-red-500-rgb);
+  --groups1-warning-rgb: var(--color-orange-500-rgb);
+  --groups1-info-rgb: var(--color-slate-500-rgb);
+}
+
+body {
+  color: hsl(var(--foreground));
+  /* colorful twilight gradient + soft texture, avoiding pure white/black */
+  background:
+    radial-gradient(1200px 600px at 10% -10%, hsl(var(--ring) / .22), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, hsl(var(--accent) / .22), transparent 60%),
+    radial-gradient(800px 500px at 50% 120%, hsl(var(--primary) / .16), transparent 60%),
+    linear-gradient(135deg, hsl(220 40% 97%), hsl(210 60% 96%) 40%, hsl(190 55% 95%) 70%, hsl(170 60% 94%));
+  overflow-x: hidden;
+}
+
+/* Futuristic utilities */
+.text-gradient {
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)) 50%, hsl(var(--ring)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: hue 10s linear infinite;
+}
+
+.glass {
+  background: color-mix(in oklab, white 60%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.bg-grid {
+  background-image: radial-gradient(hsl(var(--border)) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.orb { position: absolute; border-radius: 9999px; filter: blur(60px); opacity: .5; pointer-events: none; }
+.orb-1 { width: 36rem; height: 36rem; background: radial-gradient(closest-side, hsl(var(--primary) / .35), transparent 70%); }
+.orb-2 { width: 28rem; height: 28rem; background: radial-gradient(closest-side, hsl(var(--accent) / .35), transparent 70%); }
+
+.marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent); }
+.marquee-track { display: flex; gap: 2rem; width: max-content; animation: marquee 22s linear infinite; }
+
+@keyframes hue { to { filter: hue-rotate(360deg); } }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+.section-alt {
+  background: linear-gradient(180deg, hsl(var(--muted) / .35), transparent 60%);
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, hsl(var(--border)) 70%, transparent);
+}

@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BrainScale CRM Mobile UI Screens - Design Reference</title>
+    <style>
+        :root {
+  /* Primitive Color Tokens */
+  --color-white: rgba(255, 255, 255, 1);
+  --color-black: rgba(0, 0, 0, 1);
+  --color-cream-50: rgba(252, 252, 249, 1);
+  --color-cream-100: rgba(255, 255, 253, 1);
+  --color-gray-200: rgba(245, 245, 245, 1);
+  --color-gray-300: rgba(167, 169, 169, 1);
+  --color-gray-400: rgba(119, 124, 124, 1);
+  --color-slate-500: rgba(98, 108, 113, 1);
+  --color-brown-600: rgba(94, 82, 64, 1);
+  --color-charcoal-700: rgba(31, 33, 33, 1);
+  --color-charcoal-800: rgba(38, 40, 40, 1);
+  --color-slate-900: rgba(19, 52, 59, 1);
+  --color-teal-300: rgba(50, 184, 198, 1);
+  --color-teal-400: rgba(45, 166, 178, 1);
+  --color-teal-500: rgba(33, 128, 141, 1);
+  --color-teal-600: rgba(29, 116, 128, 1);
+  --color-teal-700: rgba(26, 104, 115, 1);
+  --color-teal-800: rgba(41, 150, 161, 1);
+  --color-red-400: rgba(255, 84, 89, 1);
+  --color-red-500: rgba(192, 21, 47, 1);
+  --color-orange-400: rgba(230, 129, 97, 1);
+  --color-orange-500: rgba(168, 75, 47, 1);
+
+  --color-brown-600-rgb: 94, 82, 64;
+  --color-teal-500-rgb: 33, 128, 141;
+  --color-slate-900-rgb: 19, 52, 59;
+  --color-slate-500-rgb: 98, 108, 113;
+  --color-red-500-rgb: 192, 21, 47;
+  --color-red-400-rgb: 255, 84, 89;
+  --color-orange-500-rgb: 168, 75, 47;
+  --color-orange-400-rgb: 230, 129, 97;
+
+  --color-bg-1: rgba(59, 130, 246, 0.08);
+  --color-bg-2: rgba(245, 158, 11, 0.08);
+  --color-bg-3: rgba(34, 197, 94, 0.08);
+  --color-bg-4: rgba(239, 68, 68, 0.08);
+  --color-bg-5: rgba(147, 51, 234, 0.08);
+  --color-bg-6: rgba(249, 115, 22, 0.08);
+  --color-bg-7: rgba(236, 72, 153, 0.08);
+  --color-bg-8: rgba(6, 182, 212, 0.08);
+
+  --color-background: var(--color-cream-50);
+  --color-surface: var(--color-cream-100);
+  --color-text: var(--color-slate-900);
+  --color-text-secondary: var(--color-slate-500);
+  --color-primary: var(--color-teal-500);
+  --color-primary-hover: var(--color-teal-600);
+  --color-primary-active: var(--color-teal-700);
+  --color-secondary: rgba(var(--color-brown-600-rgb), 0.12);
+  --color-secondary-hover: rgba(var(--color-brown-600-rgb), 0.2);
+  --color-secondary-active: rgba(var(--color-brown-600-rgb), 0.25);
+  --color-border: rgba(var(--color-brown-600-rgb), 0.2);
+  --color-btn-primary-text: var(--color-cream-50);
+  --color-card-border: rgba(var(--color-brown-600-rgb), 0.12);
+  --color-card-border-inner: rgba(var(--color-brown-600-rgb), 0.12);
+  --color-error: var(--color-red-500);
+  --color-success: var(--color-teal-500);
+  --color-warning: var(--color-orange-500);
+  --color-info: var(--color-slate-500);
+  --color-focus-ring: rgba(var(--color-teal-500-rgb), 0.4);
+  --color-select-caret: rgba(var(--color-slate-900-rgb), 0.8);
+
+  --font-family-base: "FKGroteskNeue", "Geist", "Inter", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+  --font-size-4xl: 30px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 550;
+  --font-weight-bold: 600;
+
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  --radius-sm: 6px;
+  --radius-base: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+}
+
+@font-face {
+  font-family: 'FKGroteskNeue';
+  src: url('https://r2cdn.perplexity.ai/fonts/FKGroteskNeue.woff2') format('woff2');
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family-base);
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecef 100%);
+  padding: var(--space-32);
+  color: var(--color-text);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--space-32);
+}
+
+.header h1 {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  margin-bottom: var(--space-8);
+}
+
+.header p {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+}
+
+.mockups-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(375px, 1fr));
+  gap: var(--space-32);
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.mockup-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.phone-frame {
+  width: 375px;
+  height: 812px;
+  background: #1a1a1a;
+  border-radius: 40px;
+  padding: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.phone-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  height: 30px;
+  background: #1a1a1a;
+  border-radius: 0 0 20px 20px;
+  z-index: 10;
+}
+
+.phone-screen {
+  width: 100%;
+  height: 100%;
+  background: white;
+  border-radius: 32px;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen-label {
+  margin-top: var(--space-16);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  text-align: center;
+}
+
+/* Screen Content Styles */
+.screen-content {
+  height: 100%;
+  overflow: hidden;
+  background: white;
+}
+
+.top-bar {
+  padding: 50px 20px 16px;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bottom-nav {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0 24px;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #777;
+}
+
+.nav-item.active {
+  color: #3B82F6;
+}
+
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+.nav-item.active .nav-icon {
+  opacity: 1;
+}
+
+.fab {
+  position: absolute;
+  bottom: 90px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  background: #3B82F6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* Login Screen */
+.login-content {
+  padding: 100px 32px;
+  text-align: center;
+}
+
+.logo {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  border-radius: 20px;
+  margin: 0 auto 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.input-field {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: #3B82F6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.link {
+  color: #3B82F6;
+  font-size: 14px;
+  margin-top: 16px;
+  display: block;
+}
+
+/* Dashboard */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+}
+
+.kpi-card {
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: #777;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 0 16px;
+  margin: 20px 0 12px;
+}
+
+.activity-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f5f5f5;
+  font-size: 13px;
+}
+
+/* Student List & Cards */
+.search-bar {
+  margin: 16px;
+  padding: 12px 16px;
+  background: #f8f8f8;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+}
+
+.student-card {
+  margin: 0 16px 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.avatar-large {
+  width: 96px;
+  height: 96px;
+  font-size: 36px;
+  margin: 0 auto 16px;
+}
+
+.student-info {
+  flex: 1;
+}
+
+.student-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.student-email {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 8px;
+}
+
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.badge-blue {
+  background: #EEF2FF;
+  color: #3B82F6;
+}
+
+.badge-green {
+  background: #ECFDF5;
+  color: #10B981;
+}
+
+.badge-yellow {
+  background: #FEF3C7;
+  color: #F59E0B;
+}
+
+.badge-red {
+  background: #FEE2E2;
+  color: #EF4444;
+}
+
+/* Student Detail */
+.detail-header {
+  padding: 50px 16px 24px;
+  text-align: center;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-name {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.contact-info {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 4px;
+}
+
+.detail-section {
+  padding: 16px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #777;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 16px;
+}
+
+.btn-outline {
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Groups */
+.group-card {
+  margin: 0 16px 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  border-radius: 12px;
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.group-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.group-meta {
+  font-size: 12px;
+  color: #777;
+}
+
+.progress-bar {
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #3B82F6;
+}
+
+/* Calls */
+.date-filter {
+  padding: 12px 16px;
+  background: #f8f8f8;
+  font-size: 13px;
+  color: #777;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.call-item {
+  padding: 16px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.call-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.call-time {
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 8px;
+}
+
+.call-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: #999;
+}
+
+/* Follow-ups */
+.tabs {
+  display: flex;
+  padding: 16px 16px 0;
+  gap: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tab {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #777;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab.active {
+  color: #3B82F6;
+  border-bottom-color: #3B82F6;
+}
+
+.followup-item {
+  padding: 16px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.followup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.followup-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.due-date {
+  font-size: 12px;
+  color: #EF4444;
+  font-weight: 600;
+}
+
+/* Menu */
+.user-section {
+  padding: 60px 16px 24px;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.user-email {
+  font-size: 12px;
+  color: #777;
+}
+
+.menu-list {
+  padding: 8px 0;
+}
+
+.menu-item {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.menu-icon {
+  width: 20px;
+  height: 20px;
+  background: #e0e0e0;
+  border-radius: 4px;
+}
+
+.content-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 100px;
+}
+
+@media (max-width: 1600px) {
+  .mockups-grid {
+    grid-template-columns: repeat(3, minmax(375px, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .mockups-grid {
+    grid-template-columns: repeat(2, minmax(375px, 1fr));
+  }
+}
+
+@media (max-width: 800px) {
+  .mockups-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  body {
+    padding: var(--space-16);
+  }
+}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BrainScale CRM Mobile UI Screens</h1>
+        <p>Design Reference Sheet - All Key Mobile Screens</p>
+    </div>
+
+    <div class="mockups-grid">
+        <!-- 1. Login Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="login-content">
+                            <div class="logo">S</div>
+                            <h2 style="font-size: 24px; margin-bottom: 32px; font-weight: 600;">BrainScale CRM</h2>
+                            <input type="email" class="input-field" placeholder="Email">
+                            <input type="password" class="input-field" placeholder="Password">
+                            <button class="btn-primary">Login</button>
+                            <a href="#" class="link">Forgot Password?</a>
+                            <div style="margin-top: 32px; color: #777; font-size: 14px;">
+                                Don't have an account? <a href="#" class="link" style="display: inline;">Sign Up</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Login</div>
+        </div>
+
+        <!-- 2. Dashboard Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="top-bar">
+                                <div style="font-size: 18px; font-weight: 600;">DreamEd Academy</div>
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px; position: relative;">
+                                        <span style="position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; background: #EF4444; border-radius: 50%;"></span>
+                                    </div>
+                                    <div class="avatar" style="width: 32px; height: 32px; font-size: 12px;">AM</div>
+                                </div>
+                            </div>
+                            <div class="kpi-grid">
+                                <div class="kpi-card">
+                                    <div class="kpi-value">242</div>
+                                    <div class="kpi-label">Total Students</div>
+                                </div>
+                                <div class="kpi-card">
+                                    <div class="kpi-value">119</div>
+                                    <div class="kpi-label">Calls</div>
+                                </div>
+                                <div class="kpi-card">
+                                    <div class="kpi-value">34</div>
+                                    <div class="kpi-label">Follow-ups</div>
+                                </div>
+                                <div class="kpi-card">
+                                    <div class="kpi-value">21.6%</div>
+                                    <div class="kpi-label">Conversion Rate</div>
+                                </div>
+                            </div>
+                            <div class="section-title">Recent Activity</div>
+                            <div class="activity-item">Added new student: Maria Lopez</div>
+                            <div class="activity-item">Logged call with John Doe</div>
+                            <div class="activity-item">Status changed: Jane Smith</div>
+                            <div class="activity-item">Follow-up completed</div>
+                        </div>
+                        <div class="bottom-nav">
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Dashboard</div>
+        </div>
+
+        <!-- 3. Students List Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="top-bar">
+                                <div style="font-size: 20px; font-weight: 600;">Students</div>
+                                <div style="display: flex; gap: 12px;">
+                                    <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                                    <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                            <input type="text" class="search-bar" placeholder="Search students...">
+                            <div class="student-card">
+                                <div class="avatar">ML</div>
+                                <div class="student-info">
+                                    <div class="student-name">Maria Lopez</div>
+                                    <div class="student-email">maria.lopez@example.com</div>
+                                    <div class="badges">
+                                        <span class="badge badge-blue">AI/ML Batch 1</span>
+                                        <span class="badge badge-green">NEW</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="student-card">
+                                <div class="avatar" style="background: linear-gradient(135deg, #10B981, #059669);">JD</div>
+                                <div class="student-info">
+                                    <div class="student-name">John Doe</div>
+                                    <div class="student-email">john.doe@example.com</div>
+                                    <div class="badges">
+                                        <span class="badge badge-blue">Enterprise Q4</span>
+                                        <span class="badge badge-yellow">IN_PROGRESS</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="student-card">
+                                <div class="avatar" style="background: linear-gradient(135deg, #F59E0B, #D97706);">JS</div>
+                                <div class="student-info">
+                                    <div class="student-name">Jane Smith</div>
+                                    <div class="student-email">jane.smith@example.com</div>
+                                    <div class="badges">
+                                        <span class="badge badge-blue">VIP Prospects</span>
+                                        <span class="badge badge-red">FOLLOW_UP</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fab">+</div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Students List</div>
+        </div>
+
+        <!-- 4. Student Detail Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div style="padding: 50px 16px 16px; background: white;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                                    <div style="width: 32px; height: 32px; background: #f0f0f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px;">←</div>
+                                    <div style="flex: 1;"></div>
+                                </div>
+                            </div>
+                            <div class="detail-header">
+                                <div class="avatar-large">ML</div>
+                                <div class="detail-name">Maria Lopez</div>
+                                <div class="contact-info">✉️ maria.lopez@example.com</div>
+                                <div class="contact-info">📞 (666) 999-5555</div>
+                                <div class="contact-info">💬 @myrialopez</div>
+                                <div class="badges" style="justify-content: center; margin-top: 12px;">
+                                    <span class="badge badge-blue">No tags</span>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="section-label">Groups Enrolled</div>
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <span style="font-size: 14px;">AI/ML Batch 1</span>
+                                    <span class="badge badge-green">Active</span>
+                                </div>
+                            </div>
+                            <div class="detail-section">
+                                <div class="section-label">Quick Stats</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: bold;">0</div>
+                                        <div style="font-size: 12px; color: #777;">Calls</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 24px; font-weight: bold;">0</div>
+                                        <div style="font-size: 12px; color: #777;">Follow-ups</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="action-buttons">
+                                <button class="btn-outline">📞 Log Call</button>
+                                <button class="btn-outline">⏰ Follow-up</button>
+                            </div>
+                            <div class="detail-section">
+                                <div class="section-label">Notes</div>
+                                <div style="font-size: 13px; color: #999; text-align: center; padding: 20px 0;">No notes yet</div>
+                            </div>
+                        </div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Student Detail</div>
+        </div>
+
+        <!-- 5. Groups List Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="top-bar">
+                                <div style="font-size: 20px; font-weight: 600;">Groups</div>
+                                <div style="display: flex; gap: 12px;">
+                                    <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                                    <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                            <div class="group-card">
+                                <div class="group-header">
+                                    <div>
+                                        <div class="group-name">AI/ML Batch 1</div>
+                                        <div class="group-meta">35 students</div>
+                                    </div>
+                                    <span class="badge badge-green">Active</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 65%;"></div>
+                                </div>
+                            </div>
+                            <div class="group-card">
+                                <div class="group-header">
+                                    <div>
+                                        <div class="group-name">Enterprise Leads Q4</div>
+                                        <div class="group-meta">18 students</div>
+                                    </div>
+                                    <span class="badge badge-green">Active</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 80%;"></div>
+                                </div>
+                            </div>
+                            <div class="group-card">
+                                <div class="group-header">
+                                    <div>
+                                        <div class="group-name">VIP Prospects</div>
+                                        <div class="group-meta">12 students</div>
+                                    </div>
+                                    <span class="badge badge-green">Active</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 90%;"></div>
+                                </div>
+                            </div>
+                            <div class="group-card">
+                                <div class="group-header">
+                                    <div>
+                                        <div class="group-name">Summer 2025</div>
+                                        <div class="group-meta">22 students</div>
+                                    </div>
+                                    <span class="badge badge-blue">Completed</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 100%; background: #10B981;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fab">+</div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Groups List</div>
+        </div>
+
+        <!-- 6. Calls Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="top-bar">
+                                <div style="font-size: 20px; font-weight: 600;">Calls</div>
+                                <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                            </div>
+                            <div class="date-filter">📅 Last 7 days</div>
+                            <div class="call-item">
+                                <div class="call-name">Maria Lopez</div>
+                                <div class="call-time">Today, 2:30 PM</div>
+                                <div class="call-meta">
+                                    <span>⏱️ 15 min</span>
+                                    <span>✅ Answered</span>
+                                </div>
+                                <div style="font-size: 12px; color: #777; margin-top: 8px;">Discussed enrollment options...</div>
+                            </div>
+                            <div class="call-item">
+                                <div class="call-name">John Doe</div>
+                                <div class="call-time">Yesterday, 11:00 AM</div>
+                                <div class="call-meta">
+                                    <span>⏱️ 8 min</span>
+                                    <span>✅ Answered</span>
+                                </div>
+                                <div style="font-size: 12px; color: #777; margin-top: 8px;">Follow-up on pricing questions</div>
+                            </div>
+                            <div class="call-item">
+                                <div class="call-name">Jane Smith</div>
+                                <div class="call-time">Nov 22, 3:45 PM</div>
+                                <div class="call-meta">
+                                    <span>⏱️ 0 min</span>
+                                    <span style="color: #EF4444;">❌ Not Answered</span>
+                                </div>
+                                <div style="font-size: 12px; color: #777; margin-top: 8px;">No answer, left voicemail</div>
+                            </div>
+                            <div class="call-item">
+                                <div class="call-name">Ahmed Khan</div>
+                                <div class="call-time">Nov 21, 10:15 AM</div>
+                                <div class="call-meta">
+                                    <span>⏱️ 22 min</span>
+                                    <span>✅ Answered</span>
+                                </div>
+                                <div style="font-size: 12px; color: #777; margin-top: 8px;">Initial consultation call</div>
+                            </div>
+                        </div>
+                        <div class="fab">+</div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Calls</div>
+        </div>
+
+        <!-- 7. Follow-ups Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="top-bar">
+                                <div style="font-size: 20px; font-weight: 600;">Follow-ups</div>
+                                <div style="width: 24px; height: 24px; background: #e0e0e0; border-radius: 4px;"></div>
+                            </div>
+                            <div class="tabs">
+                                <div class="tab active">All</div>
+                                <div class="tab">Pending</div>
+                                <div class="tab">Done</div>
+                                <div class="tab">Skipped</div>
+                            </div>
+                            <div class="followup-item">
+                                <div class="followup-header">
+                                    <div>
+                                        <div class="followup-name">Maria Lopez</div>
+                                        <div style="font-size: 12px; color: #777; margin-top: 4px;">Check course interest</div>
+                                    </div>
+                                    <div class="due-date">Due in 2h</div>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                    <span class="badge badge-yellow">Pending</span>
+                                    <span class="badge badge-blue">Assigned to: You</span>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                    <button class="btn-outline" style="flex: 1; padding: 8px; font-size: 12px;">✅ Done</button>
+                                    <button class="btn-outline" style="flex: 1; padding: 8px; font-size: 12px;">⏭️ Skip</button>
+                                </div>
+                            </div>
+                            <div class="followup-item">
+                                <div class="followup-header">
+                                    <div>
+                                        <div class="followup-name">John Doe</div>
+                                        <div style="font-size: 12px; color: #777; margin-top: 4px;">Send pricing details</div>
+                                    </div>
+                                    <div class="due-date">Tomorrow</div>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                    <span class="badge badge-yellow">Pending</span>
+                                    <span class="badge badge-blue">Assigned to: S. Rahman</span>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                    <button class="btn-outline" style="flex: 1; padding: 8px; font-size: 12px;">✅ Done</button>
+                                    <button class="btn-outline" style="flex: 1; padding: 8px; font-size: 12px;">⏭️ Skip</button>
+                                </div>
+                            </div>
+                            <div class="followup-item">
+                                <div class="followup-header">
+                                    <div>
+                                        <div class="followup-name">Ahmed Khan</div>
+                                        <div style="font-size: 12px; color: #777; margin-top: 4px;">Schedule demo session</div>
+                                    </div>
+                                    <div style="font-size: 12px; color: #10B981; font-weight: 600;">✓ Done</div>
+                                </div>
+                                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                                    <span class="badge badge-green">Done</span>
+                                    <span style="font-size: 11px; color: #999;">Completed today</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="fab">+</div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Follow-ups</div>
+        </div>
+
+        <!-- 8. Menu/More Screen -->
+        <div class="mockup-item">
+            <div class="phone-frame">
+                <div class="phone-notch"></div>
+                <div class="phone-screen">
+                    <div class="screen-content">
+                        <div class="content-scroll">
+                            <div class="user-section">
+                                <div class="avatar" style="width: 56px; height: 56px; font-size: 20px;">AM</div>
+                                <div class="user-info">
+                                    <div class="user-name">Admin User</div>
+                                    <div class="user-email">admin@dreamed.academy</div>
+                                </div>
+                            </div>
+                            <div class="menu-list">
+                                <div class="menu-item">
+                                    <div class="menu-icon"></div>
+                                    <span>Workspace Settings</span>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="menu-icon"></div>
+                                    <span>Members &amp; Roles</span>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="menu-icon"></div>
+                                    <span>Imports/Exports</span>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="menu-icon"></div>
+                                    <span>Notifications</span>
+                                </div>
+                                <div class="menu-item">
+                                    <div class="menu-icon"></div>
+                                    <span>Help &amp; Docs</span>
+                                </div>
+                                <div class="menu-item" style="color: #EF4444;">
+                                    <div class="menu-icon" style="background: #FEE2E2;"></div>
+                                    <span>Logout</span>
+                                </div>
+                            </div>
+                            <div style="padding: 24px; text-align: center; color: #999; font-size: 12px;">
+                                BrainScale CRM v1.0.0
+                            </div>
+                        </div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Dashboard</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Students</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Groups</span>
+                            </div>
+                            <div class="nav-item">
+                                <div class="nav-icon"></div>
+                                <span>Calls</span>
+                            </div>
+                            <div class="nav-item active">
+                                <div class="nav-icon"></div>
+                                <span>More</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="screen-label">Menu/More</div>
+        </div>
+    </div>
+</body>
+</html>

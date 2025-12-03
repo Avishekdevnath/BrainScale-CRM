@@ -1,0 +1,46 @@
+# IDE and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+.cursorignore
+**/.cursor*
+
+# Dependencies
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+
+# Build and dist
+dist/
+build/
+.next/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.new
+.env.*
+!.env.example
+
+# Guides and documentation (keep local only)
+**/guides/
+**/guide/
+guides/
+guide/
+
+# All documentation files
+**/*.md
+*.md
+
+# OS executables
+*.exe
+
+# Misc
+.DS_Store
+*.log
+*.backup
+archive/
+archive.zip

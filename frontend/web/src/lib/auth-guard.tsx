@@ -1,0 +1,25 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+    } catch {}
+    setReady(true);
+  }, [router]);
+
+  if (!ready) return null;
+  return <>{children}</>;
+}
+
+

@@ -1,0 +1,550 @@
+// BrainScale CRM SaaS - Multi-Tenant Customer/Student Relationship Manager
+// Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGO_URL")
+}
+
+// ============================================
+// Core Entities
+// ============================================
+
+model User {
+  id                         String    @id @default(cuid()) @map("_id")
+  email                      String    @unique
+  passwordHash               String
+  name                       String?
+  phone                      String?
+  emailVerified              Boolean   @default(false)
+  verificationToken          String?   @unique
+  verificationTokenExpiresAt DateTime?
+  mustChangePassword         Boolean   @default(false)
+  temporaryPassword          Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  // Relations
+  memberships        WorkspaceMember[]
+  callsCreated       Call[]
+  followupsCreated   Followup[]
+  auditLogs          AuditLog[]
+  emailVerifications EmailVerification[]
+}
+
+model Workspace {
+  id                       String   @id @default(cuid()) @map("_id")
+  name                     String
+  logo                     String?
+  timezone                 String   @default("Asia/Dhaka")
+  plan                     String   @default("FREE")
+  // Email digest preferences
+  dailyDigestEnabled       Boolean  @default(true)
+  dailyDigestTime          String?  @default("09:00") // HH:MM format in workspace timezone
+  weeklyDigestEnabled      Boolean  @default(true)
+  weeklyDigestDay          String?  @default("MONDAY") // MONDAY, TUESDAY, etc.
+  weeklyDigestTime         String?  @default("09:00") // HH:MM format
+  followupRemindersEnabled Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  // Relations
+  members     WorkspaceMember[]
+  groups      Group[]
+  batches     Batch[]
+  courses     Course[]
+  students    Student[]
+  calls       Call[]
+  followups   Followup[]
+  callLists   CallList[]
+  imports     Import[]
+  auditLogs   AuditLog[]
+  invitations Invitation[]
+  customRoles CustomRole[]
+  payments    Payment[]
+}
+
+model WorkspaceMember {
+  id                   String    @id @default(cuid()) @map("_id")
+  userId               String
+  workspaceId          String
+  role                 String    @default("MEMBER") // Legacy role for backward compatibility
+  customRoleId         String? // Custom role reference
+  setupCompleted       Boolean   @default(false) // Whether member has completed initial setup
+  agreementAccepted    Boolean   @default(false) // Whether member has accepted agreement/terms
+  agreementAcceptedAt  DateTime? // Timestamp when agreement was accepted
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace             Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customRole            CustomRole?    @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+  groupAccess           GroupAccess[]
+  assignedCallListItems CallListItem[]
+  assignedFollowups     Followup[]
+  callLogs              CallLog[]
+
+  @@unique([userId, workspaceId])
+}
+
+model Batch {
+  id          String    @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  groups         Group[]
+  studentBatches StudentBatch[]
+  payments       Payment[]
+
+  @@unique([workspaceId, name])
+}
+
+model StudentBatch {
+  id        String   @id @default(cuid()) @map("_id")
+  studentId String
+  batchId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, batchId])
+}
+
+model Group {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  batchId     String?
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  batch       Batch?               @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  access      GroupAccess[]
+  enrollments Enrollment[]
+  statuses    StudentGroupStatus[]
+  calls       Call[]
+  followups   Followup[]
+  callLists   CallList[]
+  payments    Payment[]
+
+  @@unique([workspaceId, name])
+}
+
+model GroupAccess {
+  id        String   @id @default(cuid()) @map("_id")
+  memberId  String
+  groupId   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  group  Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, groupId])
+}
+
+model Course {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  modules     Module[]
+  enrollments Enrollment[]
+
+  @@unique([workspaceId, name])
+}
+
+model Module {
+  id          String   @id @default(cuid()) @map("_id")
+  courseId    String
+  name        String
+  description String?
+  orderIndex  Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+  progress    ModuleProgress[]
+
+  @@unique([courseId, name])
+}
+
+model Student {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  email       String?
+  discordId   String?
+  tags        String[] @default([])
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  studentBatches StudentBatch[]
+  phones         StudentPhone[]
+  enrollments    Enrollment[]
+  statuses       StudentGroupStatus[]
+  calls          Call[]
+  followups      Followup[]
+  callListItems  CallListItem[]
+  callLogs       CallLog[]
+  progress       ModuleProgress[]
+  payments       Payment[]
+}
+
+model StudentPhone {
+  id          String   @id @default(cuid()) @map("_id")
+  studentId   String
+  workspaceId String
+  phone       String
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, phone])
+}
+
+model Enrollment {
+  id        String   @id @default(cuid()) @map("_id")
+  studentId String
+  groupId   String
+  courseId  String?
+  moduleId  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  course  Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  module  Module? @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, groupId, courseId, moduleId])
+}
+
+model StudentGroupStatus {
+  id        String   @id @default(cuid()) @map("_id")
+  studentId String
+  groupId   String
+  status    String   @default("NEW")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, groupId])
+}
+
+model ModuleProgress {
+  id          String   @id @default(cuid()) @map("_id")
+  studentId   String
+  moduleId    String
+  isCompleted Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  module  Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, moduleId])
+}
+
+model Call {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  studentId   String
+  groupId     String
+  createdBy   String
+  callDate    DateTime @default(now())
+  callStatus  String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator   User      @relation(fields: [createdBy], references: [id])
+}
+
+model Followup {
+  id                String   @id @default(cuid()) @map("_id")
+  workspaceId       String
+  studentId         String
+  groupId           String
+  callListId        String? // Link to originating call list
+  previousCallLogId String? // Reference to call log that triggered this follow-up
+  createdBy         String
+  assignedTo        String?
+  dueAt             DateTime
+  status            String   @default("PENDING")
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group           Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  callList        CallList?        @relation(fields: [callListId], references: [id], onDelete: SetNull)
+  previousCallLog CallLog?         @relation(fields: [previousCallLogId], references: [id], onDelete: SetNull)
+  creator         User             @relation(fields: [createdBy], references: [id])
+  assignee        WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, callListId, dueAt]) // For efficient call list filtering
+  @@index([previousCallLogId]) // For quick access to previous call
+  @@index([workspaceId, groupId, dueAt])
+}
+
+model CallList {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  groupId     String?
+  name        String
+  source      String
+  description String? // Optional description for the call list
+  messages    String[] @default([]) // Array of messages to convey during calls
+  meta        Json? // Custom fields configuration (includes questions structure)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  group     Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  items     CallListItem[]
+  callLogs  CallLog[]
+  followups Followup[] // Follow-ups created from this call list
+}
+
+model CallListItem {
+  id         String   @id @default(cuid()) @map("_id")
+  callListId String
+  studentId  String
+  assignedTo String?
+  callLogId  String? // Reference to CallLog when call is completed
+  state      String   @default("QUEUED")
+  priority   Int      @default(0)
+  custom     Json? // Custom field values
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  callList CallList         @relation(fields: [callListId], references: [id], onDelete: Cascade)
+  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignee WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  callLog  CallLog?
+
+  @@unique([callListId, studentId])
+}
+
+model CallLog {
+  id               String    @id @default(cuid()) @map("_id")
+  callListItemId   String    @unique // Links to CallListItem
+  callListId       String // Quick access to call list
+  studentId        String // Quick access to student
+  assignedTo       String // WorkspaceMember who made the call
+  callDate         DateTime  @default(now())
+  callDuration     Int? // Duration in seconds
+  status           String // Enum: 'completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other'
+  answers          Json // Array of { questionId, question, answer, answerType }
+  notes            String? // Additional notes
+  callerNote       String? // Caller's manual notes (separate from AI-generated summary)
+  summaryNote      String? // AI-generated summary (optional)
+  followUpDate     DateTime? // When to follow up
+  followUpRequired Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  callListItem CallListItem    @relation(fields: [callListItemId], references: [id], onDelete: Cascade)
+  callList     CallList        @relation(fields: [callListId], references: [id], onDelete: Cascade)
+  student      Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignee     WorkspaceMember @relation(fields: [assignedTo], references: [id])
+  followups    Followup[] // Follow-ups created from this call log
+
+  @@index([assignedTo, callDate]) // For My Calls queries
+  @@index([studentId, callDate]) // For student call history
+  @@index([callListId, callDate]) // For call list history
+}
+
+model Import {
+  id             String   @id @default(cuid()) @map("_id")
+  workspaceId    String
+  fileName       String
+  totalRows      Int
+  successCount   Int      @default(0)
+  duplicateCount Int      @default(0)
+  errorCount     Int      @default(0)
+  status         String   @default("PENDING")
+  meta           Json? // Store parsed file data for commit
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  userId      String
+  action      String
+  entity      String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+// ============================================
+// Invitation & Custom Roles System
+// ============================================
+
+model Invitation {
+  id           String    @id @default(cuid()) @map("_id")
+  workspaceId  String
+  email        String
+  token        String    @unique // Secure invitation token
+  customRoleId String? // Optional custom role
+  role         String    @default("MEMBER") // Fallback to enum role
+  invitedBy    String // User ID who sent invitation
+  status       String    @default("PENDING")
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  meta         Json? // Store groupIds and other metadata
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customRole CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, email, status])
+}
+
+model CustomRole {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  members     WorkspaceMember[]
+  invitations Invitation[]
+
+  @@unique([workspaceId, name])
+}
+
+model Permission {
+  id          String   @id @default(cuid()) @map("_id")
+  resource    String // e.g., "students", "calls", "workspaces"
+  action      String // e.g., "create", "read", "update", "delete", "manage"
+  description String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model RolePermission {
+  id           String   @id @default(cuid()) @map("_id")
+  customRoleId String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  customRole CustomRole @relation(fields: [customRoleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([customRoleId, permissionId])
+}
+
+model EmailVerification {
+  id          String   @id @default(cuid()) @map("_id")
+  userId      String
+  purpose     String   @default("verify_email")
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  resendCount Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, purpose])
+}
+
+// ============================================
+// Revenue & Payment Tracking
+// ============================================
+
+model Payment {
+  id            String   @id @default(cuid()) @map("_id")
+  workspaceId   String
+  studentId     String
+  groupId       String
+  batchId       String? // Optional direct batch link (can also derive from group)
+  amount        Float // Payment amount
+  currency      String   @default("USD")
+  paymentDate   DateTime @default(now())
+  paymentMethod String? // e.g., "CASH", "CARD", "BANK_TRANSFER", "ONLINE", etc.
+  status        String   @default("PENDING") // PENDING, COMPLETED, REFUNDED, CANCELLED
+  reference     String? // Payment reference number/invoice number
+  notes         String?
+  createdBy     String? // User who recorded the payment
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  batch     Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+}

@@ -1359,7 +1359,24 @@ export const forgotPassword = async (data: ForgotPasswordInput) => {
       }
       throw error;
     }
-    logger.error({ error, userId: user.id }, 'Failed to send password reset OTP');
+    // Enhanced error logging for email failures
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ 
+      error: errorMessage,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      userId: user.id,
+      email: user.email,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+    }, 'Failed to send password reset OTP - check SMTP configuration');
+    
+    // In development, log more details
+    if (process.env.NODE_ENV === 'development') {
+      logger.error({ 
+        fullError: error,
+        hint: 'Check your .env file for SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD)',
+      }, 'Email sending failed - development mode details');
+    }
+    
     // Still return generic message to prevent enumeration
     return {
       message: 'If an account exists with this email and is verified, a password reset code has been sent.',

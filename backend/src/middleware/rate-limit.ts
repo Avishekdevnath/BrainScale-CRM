@@ -67,3 +67,20 @@ export const resendVerificationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * Rate limiter for password reset
+ * Allows 50 requests per 15 minutes per IP
+ */
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 50 requests per 15 minutes per IP
+  message: {
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many password reset attempts, please try again later',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+

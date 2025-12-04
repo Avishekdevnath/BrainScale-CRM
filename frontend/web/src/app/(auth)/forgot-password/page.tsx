@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,41 +121,41 @@ export default function ForgotPasswordPage() {
 
   if (step === "email") {
     return (
-      <div className="container max-w-md mx-auto py-8">
-        <Card variant="groups1">
-          <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <Link href="/login">
-                <Button variant="ghost" size="sm" className="p-0 h-auto">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              </Link>
-              <CardTitle>Forgot Password</CardTitle>
+      <div className="space-y-6 rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-8 shadow-sm">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Link href="/login">
+              <Button variant="ghost" size="sm" className="p-0 h-auto">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Forgot Password</h1>
+          </div>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Enter your email address and we'll send you a verification code to reset your password.
+          </p>
+        </div>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                disabled={isRequestingReset}
+                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
+              />
             </div>
-          </CardHeader>
-          <CardContent variant="groups1" className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email Address</Label>
-              <div className="mt-1 flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  disabled={isRequestingReset}
-                />
-              </div>
-              <p className="mt-2 text-xs text-[var(--groups1-text-secondary)]">
-                Enter your email address and we'll send you a verification code to reset your password.
-              </p>
-            </div>
-
             {errors.email && (
-              <p className="text-sm text-red-600">{errors.email}</p>
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.email}</p>
             )}
+          </div>
 
+          <div className="space-y-4 pt-2">
             <Button
               onClick={handleRequestReset}
               disabled={!email || isRequestingReset}
@@ -180,48 +179,49 @@ export default function ForgotPasswordPage() {
                 Back to login
               </Link>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container max-w-md mx-auto py-8">
-      <Card variant="groups1">
-        <CardHeader>
-          <div className="flex items-center gap-2 mb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStep("email")}
-              className="p-0 h-auto"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <CardTitle>Reset Password</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent variant="groups1">
-          <form onSubmit={handleReset} className="space-y-4">
+    <div className="space-y-6 rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-8 shadow-sm">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setStep("email")}
+            className="p-0 h-auto"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Reset Password</h1>
+        </div>
+        <p className="text-sm text-[var(--groups1-text-secondary)]">
+          Enter the verification code and your new password
+        </p>
+      </div>
+      <form onSubmit={handleReset} className="space-y-5">
             {/* Email Display */}
-            <div>
+            <div className="space-y-2">
               <Label>Email</Label>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
                 <Input
                   type="email"
                   value={email}
                   disabled
-                  className="bg-[var(--groups1-secondary)]"
+                  className="bg-[var(--groups1-secondary)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
                 />
               </div>
             </div>
 
             {/* OTP Input */}
-            <div>
+            <div className="space-y-2">
               <Label>Verification Code</Label>
-              <div className="mt-2">
+              <div>
                 <OtpInput
                   value={otp}
                   onChange={setOtp}
@@ -230,7 +230,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
               {errors.otp && (
-                <p className="mt-1 text-sm text-red-600">{errors.otp}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.otp}</p>
               )}
               <div className="mt-2 flex items-center justify-between">
                 <p className="text-xs text-[var(--groups1-text-secondary)]">
@@ -252,71 +252,71 @@ export default function ForgotPasswordPage() {
             </div>
 
             {/* New Password */}
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1"
+                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
                 disabled={isResettingPassword}
               />
               {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.newPassword}</p>
               )}
               {newPassword && (
-                <div className="mt-2">
+                <div>
                   <PasswordStrengthIndicator password={newPassword} />
                 </div>
               )}
             </div>
 
             {/* Confirm Password */}
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1"
+                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
                 disabled={isResettingPassword}
               />
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.confirmPassword}</p>
               )}
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("email")}
-                disabled={isResettingPassword}
-                className="flex-1"
-              >
-                Back
-              </Button>
-              <Button
-                type="submit"
-                disabled={isResettingPassword}
-                className="flex-1"
-              >
-                {isResettingPassword ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Resetting...
-                  </>
-                ) : (
-                  "Reset Password"
-                )}
-              </Button>
+            <div className="space-y-3 pt-4">
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep("email")}
+                  disabled={isResettingPassword}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="flex-1"
+                >
+                  {isResettingPassword ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    "Reset Password"
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
-        </CardContent>
-      </Card>
     </div>
   );
 }

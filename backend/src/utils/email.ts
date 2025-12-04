@@ -2,6 +2,35 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 
+// Validate SMTP configuration (warns but doesn't prevent server startup)
+const validateSmtpConfig = () => {
+  const missing: string[] = [];
+  
+  if (!env.SMTP_USER || env.SMTP_USER.trim() === '') {
+    missing.push('SMTP_USER (or GMAIL_USER)');
+  }
+  
+  if (!env.SMTP_PASS || env.SMTP_PASS.trim() === '') {
+    missing.push('SMTP_PASS (or GMAIL_APP_PASSWORD)');
+  }
+  
+  if (missing.length > 0) {
+    const warningMsg = `⚠️  Missing SMTP configuration: ${missing.join(', ')}. Email functionality will not work. Please set these environment variables in your .env file. See EMAIL_SETUP_GUIDE.md for details.`;
+    logger.warn({ missing }, warningMsg);
+    return false;
+  }
+  
+  logger.info({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER?.substring(0, 3) + '***', // Log partial email for debugging
+  }, 'SMTP configuration validated');
+  return true;
+};
+
+// Validate on module load (non-blocking)
+const isSmtpConfigured = validateSmtpConfig();
+
 // Create reusable transporter
 // For port 587: use secure: false (STARTTLS)
 // For port 465: use secure: true (SSL/TLS)
@@ -18,7 +47,35 @@ const transporter = nodemailer.createTransport({
     // Do not fail on invalid certificates (useful for development)
     rejectUnauthorized: env.NODE_ENV === 'production',
   },
+  // Connection timeout settings (in milliseconds)
+  connectionTimeout: 60000, // 60 seconds for initial connection
+  greetingTimeout: 30000, // 30 seconds for SMTP greeting
+  socketTimeout: 60000, // 60 seconds for socket operations
+  // Connection pooling for better performance and reliability
+  pool: true,
+  maxConnections: 5, // Maximum concurrent connections
+  maxMessages: 100, // Maximum messages per connection before closing
 });
+
+// Verify transporter connection on startup (non-blocking, only if configured)
+if (isSmtpConfigured) {
+  transporter.verify((error, success) => {
+    if (error) {
+      const errorDetails: any = {
+        error: error.message,
+      };
+      
+      // Add nodemailer-specific error properties if they exist
+      if ('code' in error) errorDetails.code = (error as any).code;
+      if ('command' in error) errorDetails.command = (error as any).command;
+      if ('response' in error) errorDetails.response = (error as any).response;
+      
+      logger.error(errorDetails, 'SMTP connection verification failed. Emails may not be sent. Check your SMTP credentials and network connectivity.');
+    } else {
+      logger.info('SMTP connection verified successfully');
+    }
+  });
+}
 
 export interface EmailOptions {
   to: string;
@@ -28,6 +85,17 @@ export interface EmailOptions {
 }
 
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
+  // Check if SMTP is configured before attempting to send
+  if (!env.SMTP_USER || !env.SMTP_PASS) {
+    const error = new Error('SMTP configuration is missing. Please set SMTP_USER and SMTP_PASS environment variables.');
+    logger.error({ 
+      error: error.message,
+      to: options.to,
+      subject: options.subject,
+    }, 'Cannot send email: SMTP not configured');
+    throw error;
+  }
+
   try {
     const info = await transporter.sendMail({
       from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM}>`,
@@ -38,9 +106,44 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       html: options.html,
     });
 
-    logger.info({ messageId: info.messageId }, 'Email sent successfully');
-  } catch (error) {
-    logger.error({ error }, 'Failed to send email');
+    logger.info({ 
+      messageId: info.messageId,
+      to: options.to,
+      subject: options.subject,
+    }, 'Email sent successfully');
+  } catch (error: any) {
+    // Enhanced error logging
+    const errorDetails: any = {
+      to: options.to,
+      subject: options.subject,
+      error: error.message,
+    };
+
+    // Add nodemailer-specific error details
+    if (error.code) {
+      errorDetails.code = error.code;
+    }
+    if (error.command) {
+      errorDetails.command = error.command;
+    }
+    if (error.response) {
+      errorDetails.response = error.response;
+    }
+    if (error.responseCode) {
+      errorDetails.responseCode = error.responseCode;
+    }
+
+    logger.error(errorDetails, 'Failed to send email');
+    
+    // Provide more helpful error messages
+    if (error.code === 'EAUTH') {
+      throw new Error('SMTP authentication failed. Please check your SMTP_USER and SMTP_PASS credentials.');
+    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+      throw new Error(`Cannot connect to SMTP server at ${env.SMTP_HOST}:${env.SMTP_PORT}. Please check your SMTP_HOST and SMTP_PORT settings.`);
+    } else if (error.code === 'EENVELOPE') {
+      throw new Error(`Invalid email address: ${options.to}`);
+    }
+    
     throw error;
   }
 };

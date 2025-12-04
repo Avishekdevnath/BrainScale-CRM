@@ -4,7 +4,6 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,17 +113,18 @@ function ResetPasswordPageContent() {
   };
 
   return (
-    <div className="container max-w-md mx-auto py-8">
-      <Card variant="groups1">
-        <CardHeader>
-          <CardTitle>Reset Password</CardTitle>
-        </CardHeader>
-        <CardContent variant="groups1">
-          <form onSubmit={handleReset} className="space-y-4">
+    <div className="space-y-6 rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-8 shadow-sm">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Reset Password</h1>
+        <p className="text-sm text-[var(--groups1-text-secondary)]">
+          Enter the verification code and your new password
+        </p>
+      </div>
+      <form onSubmit={handleReset} className="space-y-5">
             {/* Email Input */}
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
                 <Input
                   id="email"
@@ -133,17 +133,18 @@ function ResetPasswordPageContent() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   disabled={isResettingPassword}
+                  className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
                 />
               </div>
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.email}</p>
               )}
             </div>
 
             {/* OTP Input */}
-            <div>
+            <div className="space-y-2">
               <Label>Verification Code</Label>
-              <div className="mt-2">
+              <div>
                 <OtpInput
                   value={otp}
                   onChange={setOtp}
@@ -152,7 +153,7 @@ function ResetPasswordPageContent() {
                 />
               </div>
               {errors.otp && (
-                <p className="mt-1 text-sm text-red-600">{errors.otp}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.otp}</p>
               )}
               <div className="mt-2 flex items-center justify-between">
                 <p className="text-xs text-[var(--groups1-text-secondary)]">
@@ -174,69 +175,69 @@ function ResetPasswordPageContent() {
             </div>
 
             {/* New Password */}
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1"
+                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
                 disabled={isResettingPassword}
               />
               {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.newPassword}</p>
               )}
               {newPassword && (
-                <div className="mt-2">
+                <div>
                   <PasswordStrengthIndicator password={newPassword} />
                 </div>
               )}
             </div>
 
             {/* Confirm Password */}
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1"
+                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
                 disabled={isResettingPassword}
               />
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">{errors.confirmPassword}</p>
               )}
             </div>
 
             {/* Actions */}
-            <Button
-              type="submit"
-              disabled={isResettingPassword}
-              className="w-full"
-            >
-              {isResettingPassword ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Resetting...
-                </>
-              ) : (
-                "Reset Password"
-              )}
-            </Button>
-
-            <div className="text-center">
-              <Link
-                href="/login"
-                className="text-sm text-[var(--groups1-primary)] hover:underline"
+            <div className="space-y-4 pt-2">
+              <Button
+                type="submit"
+                disabled={isResettingPassword}
+                className="w-full"
               >
-                Back to login
-              </Link>
+                {isResettingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  "Reset Password"
+                )}
+              </Button>
+
+              <div className="text-center">
+                <Link
+                  href="/login"
+                  className="text-sm text-[var(--groups1-primary)] hover:underline"
+                >
+                  Back to login
+                </Link>
+              </div>
             </div>
           </form>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -244,12 +245,10 @@ function ResetPasswordPageContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="container max-w-md mx-auto py-8">
-        <Card variant="groups1">
-          <CardContent variant="groups1" className="py-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
-          </CardContent>
-        </Card>
+      <div className="space-y-6 rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-8 shadow-sm">
+        <div className="py-12 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+        </div>
       </div>
     }>
       <ResetPasswordPageContent />

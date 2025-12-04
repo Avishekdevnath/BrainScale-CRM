@@ -17,6 +17,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "BrainScale CRM",
   description: "BrainScale CRM helps teams manage students, enrollments, and follow-ups.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/assets/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/assets/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/assets/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({

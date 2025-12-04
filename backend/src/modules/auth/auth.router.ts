@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as authController from './auth.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
-import { authLimiter, resendVerificationLimiter } from '../../middleware/rate-limit';
+import { authLimiter, resendVerificationLimiter, resetPasswordLimiter } from '../../middleware/rate-limit';
 import {
   SignupSchema,
   LoginSchema,
@@ -561,7 +561,7 @@ router.post(
  */
 router.post(
   '/reset-password',
-  authLimiter,
+  resetPasswordLimiter,
   zodValidator(ResetPasswordSchema),
   authController.resetPassword
 );

@@ -10,6 +10,10 @@ import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
 // Create Express app
 export const app: Express = express();
 
+// Trust proxy - required when behind reverse proxy/load balancer (Kubernetes, Render, etc.)
+// This allows Express to correctly identify client IPs from X-Forwarded-For headers
+app.set('trust proxy', true);
+
 // CORS (must be before helmet to allow preflight requests)
 // Open for testing - allows all origins
 app.use(cors({

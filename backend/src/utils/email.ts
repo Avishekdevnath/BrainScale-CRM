@@ -47,14 +47,17 @@ const transporter = nodemailer.createTransport({
     // Do not fail on invalid certificates (useful for development)
     rejectUnauthorized: env.NODE_ENV === 'production',
   },
-  // Connection timeout settings (in milliseconds)
-  connectionTimeout: 60000, // 60 seconds for initial connection
-  greetingTimeout: 30000, // 30 seconds for SMTP greeting
-  socketTimeout: 60000, // 60 seconds for socket operations
+  // Connection timeout settings (in milliseconds) - increased for better reliability
+  connectionTimeout: 120000, // 120 seconds (2 minutes) for initial connection
+  greetingTimeout: 60000, // 60 seconds for SMTP greeting
+  socketTimeout: 120000, // 120 seconds (2 minutes) for socket operations
   // Connection pooling for better performance and reliability
   pool: true,
   maxConnections: 5, // Maximum concurrent connections
   maxMessages: 100, // Maximum messages per connection before closing
+  // Retry configuration
+  rateDelta: 1000, // Time between connection attempts
+  rateLimit: 5, // Maximum number of connections per rateDelta
 });
 
 // Verify transporter connection on startup (non-blocking, only if configured)
@@ -84,7 +87,13 @@ export interface EmailOptions {
   text?: string;
 }
 
-export const sendEmail = async (options: EmailOptions): Promise<void> => {
+/**
+ * Send email with retry logic for connection timeouts
+ */
+export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<void> => {
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY = 2000; // 2 seconds between retries
+
   // Check if SMTP is configured before attempting to send
   if (!env.SMTP_USER || !env.SMTP_PASS) {
     const error = new Error('SMTP configuration is missing. Please set SMTP_USER and SMTP_PASS environment variables.');
@@ -97,6 +106,27 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
   }
 
   try {
+    // Verify connection before sending (only on retries to check connectivity)
+    if (retryCount > 0) {
+      try {
+        await transporter.verify();
+        logger.info({ 
+          attempt: retryCount + 1,
+          host: env.SMTP_HOST,
+          port: env.SMTP_PORT,
+        }, 'SMTP connection verified, retrying send');
+      } catch (verifyError: any) {
+        logger.warn({ 
+          error: verifyError.message,
+          code: verifyError.code,
+          attempt: retryCount + 1,
+          host: env.SMTP_HOST,
+          port: env.SMTP_PORT,
+        }, 'SMTP connection verification failed on retry, will attempt to send anyway');
+        // Continue with send attempt even if verify fails
+      }
+    }
+
     const info = await transporter.sendMail({
       from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM}>`,
       replyTo: env.EMAIL_REPLY_TO,
@@ -110,6 +140,7 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       messageId: info.messageId,
       to: options.to,
       subject: options.subject,
+      retryAttempt: retryCount,
     }, 'Email sent successfully');
   } catch (error: any) {
     // Enhanced error logging
@@ -117,6 +148,9 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       to: options.to,
       subject: options.subject,
       error: error.message,
+      retryAttempt: retryCount,
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
     };
 
     // Add nodemailer-specific error details
@@ -133,13 +167,33 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       errorDetails.responseCode = error.responseCode;
     }
 
+    // Retry logic for connection/timeout errors
+    const isRetryableError = 
+      error.code === 'ETIMEDOUT' || 
+      error.code === 'ECONNECTION' || 
+      error.code === 'ESOCKET' ||
+      (error.command === 'CONN' && retryCount < MAX_RETRIES);
+
+    if (isRetryableError && retryCount < MAX_RETRIES) {
+      logger.warn({
+        ...errorDetails,
+        nextRetryIn: RETRY_DELAY,
+      }, 'Email send failed with retryable error, will retry');
+
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+
+      // Retry the send
+      return sendEmail(options, retryCount + 1);
+    }
+
     logger.error(errorDetails, 'Failed to send email');
     
     // Provide more helpful error messages
     if (error.code === 'EAUTH') {
       throw new Error('SMTP authentication failed. Please check your SMTP_USER and SMTP_PASS credentials.');
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-      throw new Error(`Cannot connect to SMTP server at ${env.SMTP_HOST}:${env.SMTP_PORT}. Please check your SMTP_HOST and SMTP_PORT settings.`);
+      throw new Error(`Cannot connect to SMTP server at ${env.SMTP_HOST}:${env.SMTP_PORT}. Please check your SMTP_HOST and SMTP_PORT settings, and ensure the server is reachable from your network.`);
     } else if (error.code === 'EENVELOPE') {
       throw new Error(`Invalid email address: ${options.to}`);
     }

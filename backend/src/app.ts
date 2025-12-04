@@ -5,7 +5,7 @@ import { env } from './config/env';
 import { logger } from './config/logger';
 import { mountSwagger } from './config/swagger';
 import { errorHandler } from './middleware/error-handler';
-import { apiLimiter } from './middleware/rate-limit';
+import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
 
 // Create Express app
 export const app: Express = express();
@@ -55,7 +55,8 @@ app.use((req, res, next) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+// Recommended interval: 10 minutes (configure in Kubernetes liveness/readiness probes)
+app.get('/health', healthCheckLimiter, (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 

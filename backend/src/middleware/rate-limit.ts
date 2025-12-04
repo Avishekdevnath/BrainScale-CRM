@@ -84,3 +84,22 @@ export const resetPasswordLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * Rate limiter for health check endpoint
+ * Recommended interval: 10 minutes
+ * Allows 10 requests per 10 minutes per IP to accommodate monitoring systems
+ */
+export const healthCheckLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 10, // 10 requests per 10 minutes per IP
+  message: {
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Health check rate limit exceeded. Recommended interval: 10 minutes',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful health checks
+});
+

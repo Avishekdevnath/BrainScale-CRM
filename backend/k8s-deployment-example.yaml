@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brainscale-crm-backend
+  labels:
+    app: brainscale-crm-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: brainscale-crm-backend
+  template:
+    metadata:
+      labels:
+        app: brainscale-crm-backend
+    spec:
+      containers:
+      - name: backend
+        image: your-registry/brainscale-crm-backend:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        # Add other environment variables as needed
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 600  # Check every 10 minutes
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 600  # Check every 10 minutes
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: brainscale-crm-backend-service
+spec:
+  selector:
+    app: brainscale-crm-backend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 3000
+  type: ClusterIP
+

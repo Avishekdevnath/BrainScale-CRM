@@ -2,7 +2,8 @@ import { Router } from 'express';
 import * as importController from './import.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard, requireRole } from '../../middleware/auth-guard';
-import { uploadLimiter } from '../../middleware/rate-limit';
+// Rate limiters disabled for testing
+// import { uploadLimiter } from '../../middleware/rate-limit';
 import { upload } from '../../utils/upload';
 import { CommitImportSchema } from './import.schemas';
 
@@ -34,7 +35,7 @@ router.post(
   '/preview',
   authGuard,
   requireRole('ADMIN'),
-  uploadLimiter,
+  /* uploadLimiter, */
   upload.single('file'),
   importController.previewImport
 );

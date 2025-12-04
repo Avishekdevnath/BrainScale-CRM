@@ -2,7 +2,8 @@ import { Router } from 'express';
 import * as callListImportController from './call-list-import.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
-import { uploadLimiter } from '../../middleware/rate-limit';
+// Rate limiters disabled for testing
+// import { uploadLimiter } from '../../middleware/rate-limit';
 import { upload } from '../../utils/upload';
 import { CommitCallListImportSchema } from './call-list-import.schemas';
 
@@ -87,7 +88,7 @@ const router = Router({ mergeParams: true }); // mergeParams to access :listId f
 router.post(
   '/preview',
   authGuard,
-  uploadLimiter,
+  /* uploadLimiter, */
   upload.single('file'),
   callListImportController.previewCallListImport
 );

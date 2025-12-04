@@ -23,6 +23,8 @@ export const env = {
   SMTP_PASS: process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS!,
   
   // Email
+  // EMAIL_FROM: Uses EMAIL_FROM env var, or falls back to GMAIL_USER, or default
+  // IMPORTANT: Set GMAIL_USER or EMAIL_FROM in production to control sender email
   EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || 'noreply@brainscale.crm',
   EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'BrainScale CRM',
   EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO || process.env.GMAIL_USER || 'support@brainscale.crm',

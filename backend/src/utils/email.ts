@@ -61,8 +61,16 @@ const transporter = nodemailer.createTransport({
 });
 
 // Verify transporter connection on startup (non-blocking, only if configured)
+// Note: In production/Kubernetes environments, this may timeout due to network policies
+// The verification failure is non-blocking - emails will still attempt to send
 if (isSmtpConfigured) {
+  // Use a timeout to prevent hanging on verification
+  const verifyTimeout = setTimeout(() => {
+    logger.warn('SMTP verification is taking longer than expected. This is non-blocking and emails will still attempt to send.');
+  }, 10000); // 10 second warning
+
   transporter.verify((error, success) => {
+    clearTimeout(verifyTimeout);
     if (error) {
       const errorDetails: any = {
         error: error.message,
@@ -73,7 +81,9 @@ if (isSmtpConfigured) {
       if ('command' in error) errorDetails.command = (error as any).command;
       if ('response' in error) errorDetails.response = (error as any).response;
       
-      logger.error(errorDetails, 'SMTP connection verification failed. Emails may not be sent. Check your SMTP credentials and network connectivity.');
+      // Log as warning instead of error since this is non-blocking
+      // In Kubernetes, network policies may block SMTP connections
+      logger.warn(errorDetails, 'SMTP connection verification failed (non-blocking). Emails will still attempt to send when needed. If emails fail, check SMTP credentials and network connectivity.');
     } else {
       logger.info('SMTP connection verified successfully');
     }

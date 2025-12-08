@@ -37,7 +37,9 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json ./
+# Copy package-lock.json from builder stage (guaranteed to exist there after npm ci)
+COPY --from=builder /app/package-lock.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies only

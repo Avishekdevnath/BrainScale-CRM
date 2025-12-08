@@ -4,7 +4,10 @@ config();
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: parseInt(process.env.PORT || '3000', 10),
+  PORT: parseInt(process.env.PORT || '3000', 10), // Optional for serverless, kept for local dev
+  
+  // Vercel detection
+  IS_VERCEL: process.env.VERCEL === '1',
   
   // Database - MongoDB
   MONGODB_URL: process.env.MONGO_URL || process.env.MONGODB_URL!,

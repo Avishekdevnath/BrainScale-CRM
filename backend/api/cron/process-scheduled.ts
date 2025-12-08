@@ -1,0 +1,55 @@
+import { VercelRequest, VercelResponse } from '@vercel/node';
+import { processScheduledDigests } from '../../src/modules/emails/cron.service';
+import { env } from '../../src/config/env';
+import { logger } from '../../src/config/logger';
+
+/**
+ * Vercel cron function handler for processing scheduled email digests
+ * Runs every hour as configured in vercel.json
+ */
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+): Promise<void> {
+  // Verify cron secret for security
+  // Support both X-Cron-Secret header and Authorization Bearer token
+  const cronSecret = req.headers['x-cron-secret'] as string;
+  const authHeader = req.headers.authorization;
+  
+  // Extract Bearer token if present
+  const bearerToken = authHeader?.startsWith('Bearer ') 
+    ? authHeader.substring(7) 
+    : null;
+
+  // Validate cron secret
+  const isValid =
+    (cronSecret && cronSecret === env.CRON_SECRET) ||
+    (bearerToken && bearerToken === env.CRON_SECRET);
+
+  if (!isValid && env.CRON_SECRET) {
+    logger.warn('Unauthorized cron job attempt');
+    return res.status(401).json({ 
+      error: 'Unauthorized',
+      message: 'Invalid or missing cron secret' 
+    });
+  }
+
+  try {
+    logger.info('Starting scheduled digest processing (Vercel cron)');
+    const results = await processScheduledDigests();
+    logger.info(results, 'Cron job completed successfully');
+    
+    return res.status(200).json({ 
+      success: true, 
+      results,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error({ error }, 'Cron job failed');
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+

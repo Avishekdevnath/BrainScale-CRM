@@ -4,6 +4,13 @@ import { env } from '../config/env';
 /**
  * Rate limiter for authentication endpoints
  * Prevents brute force attacks
+ * 
+ * NOTE: In serverless environments (Vercel), memory-based rate limiting
+ * won't work across function instances. Each instance maintains its own counter.
+ * For production serverless, consider using:
+ * - Vercel's built-in rate limiting
+ * - Redis-based rate limiting (e.g., Upstash)
+ * - External rate limiting service
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -20,6 +27,9 @@ export const authLimiter = rateLimit({
 
 /**
  * Rate limiter for general API endpoints
+ * 
+ * NOTE: In serverless environments, this uses memory-based storage
+ * which doesn't persist across function instances. See authLimiter notes.
  */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

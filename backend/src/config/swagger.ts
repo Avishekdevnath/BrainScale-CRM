@@ -78,34 +78,72 @@ export const mountSwagger = (app: Express) => {
   }
 
   // Try to load pre-generated Swagger spec from dist/swagger.json
-  // Fallback to generating at runtime if file doesn't exist (for development)
+  // Fallback to generating at runtime if file doesn't exist
   let swaggerSpec: swaggerJSDoc.OAS3Definition;
   
-  const swaggerJsonPath = path.join(__dirname, '../swagger.json');
+  // Try multiple possible paths for swagger.json (works in both traditional and serverless environments)
+  // In Vercel, the working directory and __dirname may differ from traditional servers
+  const possiblePaths = [
+    path.join(__dirname, '../swagger.json'), // Traditional server: dist/swagger.json (from dist/config/swagger.js)
+    path.join(__dirname, '../../swagger.json'), // Alternative: from dist/
+    path.join(process.cwd(), 'dist', 'swagger.json'), // Serverless: from project root
+    path.join(process.cwd(), 'backend', 'dist', 'swagger.json'), // If backend is subdirectory
+    path.join(process.cwd(), 'swagger.json'), // Alternative location
+  ];
   
-  if (fs.existsSync(swaggerJsonPath)) {
+  let swaggerJsonPath: string | null = null;
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      swaggerJsonPath = possiblePath;
+      console.log(`✅ Found Swagger spec at: ${swaggerJsonPath}`);
+      break;
+    }
+  }
+  
+  if (!swaggerJsonPath) {
+    console.warn('⚠️  Swagger spec file not found. Attempted paths:', possiblePaths);
+  }
+  
+  if (swaggerJsonPath) {
     // Load pre-generated spec from build
     try {
       const swaggerJson = fs.readFileSync(swaggerJsonPath, 'utf-8');
       swaggerSpec = JSON.parse(swaggerJson) as swaggerJSDoc.OAS3Definition;
     } catch (error) {
       console.warn('Failed to load pre-generated Swagger spec, generating at runtime:', error);
-      swaggerSpec = swaggerJSDoc(options) as swaggerJSDoc.OAS3Definition;
+      // Update apis paths for runtime generation (use dist files in production)
+      const runtimeOptions = {
+        ...options,
+        apis: process.env.NODE_ENV === 'production' 
+          ? ['./dist/modules/**/*.js'] // Use compiled JS files in production
+          : options.apis, // Use TS files in development
+      };
+      swaggerSpec = swaggerJSDoc(runtimeOptions) as swaggerJSDoc.OAS3Definition;
     }
   } else {
-    // Fallback: generate at runtime (for development)
-    swaggerSpec = swaggerJSDoc(options) as swaggerJSDoc.OAS3Definition;
+    // Generate at runtime (fallback)
+    // Update apis paths based on environment
+    const runtimeOptions = {
+      ...options,
+      apis: process.env.NODE_ENV === 'production' 
+        ? ['./dist/modules/**/*.js'] // Use compiled JS files in production
+        : options.apis, // Use TS files in development
+    };
+    swaggerSpec = swaggerJSDoc(runtimeOptions) as swaggerJSDoc.OAS3Definition;
   }
   
-  app.use('/api/docs', swaggerUi.serve);
-  app.get('/api/docs', swaggerUi.setup(swaggerSpec, {
+  // Mount Swagger UI
+  // Note: swagger-ui-express works in serverless, but we need to ensure proper setup
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
     customSiteTitle: 'BrainScale CRM API Docs',
     customCss: '.swagger-ui .topbar { display: none }',
+    customfavIcon: '/favicon.ico',
   }));
   
+  // JSON endpoint for Swagger spec
   app.get('/api/docs.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
+    res.json(swaggerSpec);
   });
 };
 

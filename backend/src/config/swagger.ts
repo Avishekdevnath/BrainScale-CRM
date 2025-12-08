@@ -145,10 +145,11 @@ export const mountSwagger = (app: Express) => {
     },
   };
   
-  // Mount Swagger UI - serveFiles handles static assets, setup handles the main page
-  // swagger-ui-express serves all JS/CSS from node_modules, so they're served from 'self'
-  app.use('/api/docs', swaggerUi.serveFiles(swaggerSpec, swaggerUiOptions));
-  app.get('/api/docs', swaggerUi.setup(swaggerSpec, swaggerUiOptions));
+  // Mount Swagger UI - IMPORTANT: chain swaggerUi.serve and swaggerUi.setup
+  // swaggerUi.serve serves JS/CSS files from node_modules with correct MIME types
+  // swaggerUi.setup handles the main HTML page
+  // Chaining ensures static assets are served before the main route handler
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
   
   // JSON endpoint for Swagger spec
   app.get('/api/docs.json', (req, res) => {

@@ -14,7 +14,8 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Use npm install since package-lock.json may not exist in repo
+RUN npm install
 
 # Copy source code
 COPY . .

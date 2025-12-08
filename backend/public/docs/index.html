@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>BrainScale CRM API Docs</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="/api/docs/swagger-ui.css" rel="stylesheet">
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="/api/docs/swagger-ui-bundle.js"></script>
+    <script src="/api/docs/swagger-ui-standalone-preset.js"></script>
+    <script>
+      window.onload = function() {
+        window.ui = SwaggerUIBundle({
+          url: '/api/docs.json',   // Load spec from JSON endpoint
+          dom_id: '#swagger-ui',
+          presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+          layout: "StandaloneLayout",
+          persistAuthorization: true
+        });
+      };
+    </script>
+  </body>
+</html>
+

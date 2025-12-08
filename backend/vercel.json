@@ -17,12 +17,6 @@
     "api/cron/process-scheduled.ts": {
       "maxDuration": 60
     }
-  },
-  "crons": [
-    {
-      "path": "/api/v1/emails/process-scheduled",
-      "schedule": "0 * * * *"
-    }
-  ]
+  }
 }
 

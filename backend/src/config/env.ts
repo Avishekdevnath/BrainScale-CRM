@@ -65,10 +65,9 @@ if (!process.env.MONGO_URL && !process.env.MONGODB_URL) {
   );
 }
 
-// Validate CRON_SECRET in production
-if (env.NODE_ENV === 'production' && !process.env.CRON_SECRET) {
-  throw new Error('CRON_SECRET is required in production');
-}
+// CRON_SECRET validation
+// In production, CRON_SECRET is required for security (enforced in cron handler)
+// In development, it's optional but recommended
 
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {

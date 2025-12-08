@@ -22,16 +22,35 @@ export default async function handler(
     : null;
 
   // Validate cron secret
+  // Check if CRON_SECRET is actually configured (not empty)
+  const hasSecret = Boolean(env.CRON_SECRET && env.CRON_SECRET.trim());
   const isValid =
     (cronSecret && cronSecret === env.CRON_SECRET) ||
     (bearerToken && bearerToken === env.CRON_SECRET);
 
-  if (!isValid && env.CRON_SECRET) {
+  // If CRON_SECRET is configured, require valid authentication
+  if (hasSecret && !isValid) {
     logger.warn('Unauthorized cron job attempt');
-    return res.status(401).json({ 
+    res.status(401).json({ 
       error: 'Unauthorized',
       message: 'Invalid or missing cron secret' 
     });
+    return;
+  }
+
+  // Security: In production, require CRON_SECRET to be configured
+  if (!hasSecret && env.NODE_ENV === 'production') {
+    logger.error('CRON_SECRET not configured in production - rejecting request for security');
+    res.status(500).json({ 
+      error: 'Configuration Error',
+      message: 'CRON_SECRET must be configured in production for security' 
+    });
+    return;
+  }
+
+  // In development, allow without secret but warn
+  if (!hasSecret) {
+    logger.warn('CRON_SECRET not configured - allowing access in development mode only');
   }
 
   try {
@@ -39,17 +58,18 @@ export default async function handler(
     const results = await processScheduledDigests();
     logger.info(results, 'Cron job completed successfully');
     
-    return res.status(200).json({ 
+    res.status(200).json({ 
       success: true, 
       results,
       timestamp: new Date().toISOString()
     });
+    return;
   } catch (error) {
     logger.error({ error }, 'Cron job failed');
-    return res.status(500).json({ 
+    res.status(500).json({ 
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
+    return;
   }
 }
-

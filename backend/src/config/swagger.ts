@@ -155,7 +155,7 @@ export const mountSwagger = (app: Express) => {
   
   // Mount Swagger UI
   // Handle static asset requests first (before the main docs route)
-  // These routes catch requests for swagger-ui assets and prevent them from hitting the catch-all route
+  // These routes catch requests for swagger-ui assets and redirect to CDN
   app.get('/api/docs/swagger-ui.css', (req, res) => {
     res.setHeader('Content-Type', 'text/css');
     res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css');
@@ -167,6 +167,14 @@ export const mountSwagger = (app: Express) => {
   app.get('/api/docs/swagger-ui-standalone-preset.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
     res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js');
+  });
+  
+  // Handle favicon requests (Swagger UI tries to load these)
+  app.get('/api/docs/favicon-32x32.png', (req, res) => {
+    res.status(204).end(); // No content
+  });
+  app.get('/api/docs/favicon-16x16.png', (req, res) => {
+    res.status(204).end(); // No content
   });
   
   // Mount the main Swagger UI page

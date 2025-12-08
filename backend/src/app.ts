@@ -27,7 +27,16 @@ app.use(cors({
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: env.NODE_ENV === 'production',
+  contentSecurityPolicy: env.NODE_ENV === 'production' ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
+      connectSrc: ["'self'", "https://unpkg.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      fontSrc: ["'self'", "https://unpkg.com"],
+    },
+  } : false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 

@@ -77,6 +77,41 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Email configuration diagnostic endpoint (development/debugging only)
+// Only accessible if SMTP_DEBUG_SECRET is set and matches the query parameter
+app.get('/api/debug/email-config', (req, res) => {
+  const debugSecret = process.env.SMTP_DEBUG_SECRET;
+  
+  // Only allow in development or with secret
+  if (env.NODE_ENV === 'production' && (!debugSecret || req.query.secret !== debugSecret)) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  
+  // Check SMTP configuration
+  const smtpConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
+  const config = {
+    smtpConfigured,
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT,
+    smtpSecure: env.SMTP_SECURE,
+    hasSmtpUser: Boolean(env.SMTP_USER),
+    hasSmtpPass: Boolean(env.SMTP_PASS),
+    emailFrom: env.EMAIL_FROM,
+    emailFromName: env.EMAIL_FROM_NAME,
+    // Don't expose actual credentials
+    smtpUserPreview: env.SMTP_USER ? `${env.SMTP_USER.substring(0, 3)}***` : 'not set',
+  };
+  
+  res.json({
+    status: smtpConfigured ? 'configured' : 'not_configured',
+    config,
+    message: smtpConfigured 
+      ? 'SMTP is configured. Check Vercel function logs if emails are not being sent.'
+      : 'SMTP is not configured. Set SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD) in Vercel environment variables.',
+  });
+});
+
 // Mount Swagger docs
 mountSwagger(app);
 

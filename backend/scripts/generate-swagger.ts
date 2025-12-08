@@ -1,9 +1,6 @@
-import { Express } from 'express';
 import swaggerJSDoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
 import fs from 'fs';
 import path from 'path';
-import { env } from './env';
 
 const options: swaggerJSDoc.Options = {
   definition: {
@@ -72,40 +69,18 @@ const options: swaggerJSDoc.Options = {
   apis: ['./src/modules/**/*.ts', './src/modules/**/*.router.ts'],
 };
 
-export const mountSwagger = (app: Express) => {
-  if (!env.SWAGGER_ENABLED) {
-    return;
-  }
+// Generate Swagger spec
+const swaggerSpec = swaggerJSDoc(options);
 
-  // Try to load pre-generated Swagger spec from dist/swagger.json
-  // Fallback to generating at runtime if file doesn't exist (for development)
-  let swaggerSpec: swaggerJSDoc.OAS3Definition;
-  
-  const swaggerJsonPath = path.join(__dirname, '../swagger.json');
-  
-  if (fs.existsSync(swaggerJsonPath)) {
-    // Load pre-generated spec from build
-    try {
-      const swaggerJson = fs.readFileSync(swaggerJsonPath, 'utf-8');
-      swaggerSpec = JSON.parse(swaggerJson);
-    } catch (error) {
-      console.warn('Failed to load pre-generated Swagger spec, generating at runtime:', error);
-      swaggerSpec = swaggerJSDoc(options);
-    }
-  } else {
-    // Fallback: generate at runtime (for development)
-    swaggerSpec = swaggerJSDoc(options);
-  }
-  
-  app.use('/api/docs', swaggerUi.serve);
-  app.get('/api/docs', swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: 'BrainScale CRM API Docs',
-    customCss: '.swagger-ui .topbar { display: none }',
-  }));
-  
-  app.get('/api/docs.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
-  });
-};
+// Ensure dist directory exists
+const distDir = path.join(process.cwd(), 'dist');
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true });
+}
+
+// Write Swagger spec to dist/swagger.json
+const outputPath = path.join(distDir, 'swagger.json');
+fs.writeFileSync(outputPath, JSON.stringify(swaggerSpec, null, 2), 'utf-8');
+
+console.log(`✅ Swagger spec generated successfully at ${outputPath}`);
 

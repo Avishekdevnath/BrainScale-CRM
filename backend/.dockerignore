@@ -8,6 +8,7 @@ yarn.lock
 # Build output
 dist
 *.tsbuildinfo
+*.map
 
 # Environment files
 .env
@@ -28,7 +29,7 @@ dist
 *.swp
 *.swo
 *~
-
+# next
 # OS
 .DS_Store
 Thumbs.db

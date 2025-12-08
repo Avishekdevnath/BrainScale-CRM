@@ -37,8 +37,9 @@ const isSmtpConfigured = validateSmtpConfig();
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
-  secure: env.SMTP_PORT === 465, // Auto-detect: 465 = SSL, 587 = STARTTLS
-  requireTLS: env.SMTP_PORT === 587, // Require TLS for port 587
+  // Allow explicit override via SMTP_SECURE; otherwise infer from port
+  secure: typeof env.SMTP_SECURE === 'boolean' ? env.SMTP_SECURE : env.SMTP_PORT === 465,
+  requireTLS: env.SMTP_PORT === 587, // Require TLS for port 587 (STARTTLS)
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,

@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: brainscale-crm-backend
+    runtime: docker
+    plan: starter  # Options: free, starter, standard, pro
+    region: oregon  # Options: oregon, singapore, frankfurt, tokyo, etc.
+    buildCommand: ""  # Docker handles build automatically
+    startCommand: ""  # Docker handles start automatically
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Note: Add other environment variables in Render dashboard
+      # Do not put secrets here - use Render's environment variables UI
+      # Required variables to set in dashboard:
+      # - MONGO_URL or MONGODB_URL
+      # - JWT_SECRET
+      # - REFRESH_SECRET
+      # - EMAIL_FROM
+      # - GMAIL_USER or SMTP_USER
+      # - GMAIL_APP_PASSWORD or SMTP_PASS
+      # - APP_URL
+      # - EMAIL_FROM_NAME
+      # - EMAIL_REPLY_TO
+      # - CORS_ORIGINS (if needed)
+      # - CRON_SECRET (if using cron jobs)
+    healthCheckPath: /health
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+

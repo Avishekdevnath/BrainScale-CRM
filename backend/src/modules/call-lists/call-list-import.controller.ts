@@ -3,7 +3,11 @@ import { AuthRequest } from '../../middleware/auth-guard';
 import { asyncHandler } from '../../middleware/error-handler';
 import * as callListImportService from './call-list-import.service';
 
-// Store parsed data temporarily in memory (in production, consider using Redis or similar)
+// Store parsed data temporarily in memory
+// NOTE: This in-memory cache has limitations:
+// - Not shared across multiple instances (won't work in multi-instance deployments)
+// - Data is lost on server restart
+// - For production with horizontal scaling, consider using Redis or a database-backed cache
 const importCache = new Map<string, { parsedData: any; expiresAt: number }>();
 
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes

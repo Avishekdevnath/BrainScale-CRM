@@ -90,11 +90,11 @@ export const mountSwagger = (app: Express) => {
       swaggerSpec = JSON.parse(swaggerJson) as swaggerJSDoc.OAS3Definition;
     } catch (error) {
       console.warn('Failed to load pre-generated Swagger spec, generating at runtime:', error);
-      swaggerSpec = swaggerJSDoc(options);
+      swaggerSpec = swaggerJSDoc(options) as swaggerJSDoc.OAS3Definition;
     }
   } else {
     // Fallback: generate at runtime (for development)
-    swaggerSpec = swaggerJSDoc(options);
+    swaggerSpec = swaggerJSDoc(options) as swaggerJSDoc.OAS3Definition;
   }
   
   app.use('/api/docs', swaggerUi.serve);

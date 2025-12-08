@@ -8,7 +8,11 @@ const PORT = env.PORT;
 // Start server
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`);
-  logger.info(`📚 API Docs available at http://localhost:${PORT}/api/docs`);
+  // Use APP_URL if available, otherwise construct from request (for production)
+  const docsUrl = env.APP_URL 
+    ? `${env.APP_URL}/api/docs` 
+    : `http://localhost:${PORT}/api/docs`;
+  logger.info(`📚 API Docs available at ${docsUrl}`);
   logger.info(`🌍 Environment: ${env.NODE_ENV}`);
 });
 

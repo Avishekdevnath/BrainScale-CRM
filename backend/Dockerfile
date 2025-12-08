@@ -20,6 +20,14 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Set dummy MONGO_URL for Prisma Client generation (not used, just for validation)
+# The actual MONGO_URL will be provided at runtime
+ENV MONGO_URL="mongodb://dummy:dummy@dummy:27017/dummy?authSource=admin"
+
+# Set NODE_ENV to development during build to avoid production-only validations
+# The actual NODE_ENV will be provided at runtime by Render
+ENV NODE_ENV=development
+
 # Generate Prisma Client
 RUN npx prisma generate
 

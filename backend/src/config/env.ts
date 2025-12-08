@@ -19,18 +19,20 @@ export const env = {
   REFRESH_EXPIRES_IN: process.env.REFRESH_EXPIRES_IN || '604800', // 7 days
   
   // SMTP (supports both old and new variable names)
+  // Trim whitespace from credentials to handle copy/paste issues
   SMTP_HOST: process.env.EMAIL_HOST || process.env.SMTP_HOST || 'smtp.gmail.com',
   SMTP_PORT: parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT || '587', 10),
   SMTP_SECURE: process.env.EMAIL_SECURE === 'true' || process.env.SMTP_SECURE === 'true',
-  SMTP_USER: process.env.GMAIL_USER || process.env.SMTP_USER!,
-  SMTP_PASS: process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS!,
+  SMTP_USER: (process.env.GMAIL_USER || process.env.SMTP_USER || '').trim(),
+  SMTP_PASS: (process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || '').trim(),
   
   // Email
   // EMAIL_FROM: Uses EMAIL_FROM env var, or falls back to GMAIL_USER, or default
   // IMPORTANT: Set GMAIL_USER or EMAIL_FROM in production to control sender email
-  EMAIL_FROM: process.env.EMAIL_FROM || process.env.GMAIL_USER || 'noreply@brainscale.crm',
-  EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'BrainScale CRM',
-  EMAIL_REPLY_TO: process.env.EMAIL_REPLY_TO || process.env.GMAIL_USER || 'support@brainscale.crm',
+  // Trim whitespace from email addresses
+  EMAIL_FROM: (process.env.EMAIL_FROM || process.env.GMAIL_USER || 'noreply@brainscale.crm').trim(),
+  EMAIL_FROM_NAME: (process.env.EMAIL_FROM_NAME || 'BrainScale CRM').trim(),
+  EMAIL_REPLY_TO: (process.env.EMAIL_REPLY_TO || process.env.GMAIL_USER || 'support@brainscale.crm').trim(),
   DOMAIN: process.env.DOMAIN || 'gmail.com',
   
   // App

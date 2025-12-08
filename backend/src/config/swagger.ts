@@ -87,7 +87,7 @@ export const mountSwagger = (app: Express) => {
     // Load pre-generated spec from build
     try {
       const swaggerJson = fs.readFileSync(swaggerJsonPath, 'utf-8');
-      swaggerSpec = JSON.parse(swaggerJson);
+      swaggerSpec = JSON.parse(swaggerJson) as swaggerJSDoc.OAS3Definition;
     } catch (error) {
       console.warn('Failed to load pre-generated Swagger spec, generating at runtime:', error);
       swaggerSpec = swaggerJSDoc(options);

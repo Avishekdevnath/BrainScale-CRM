@@ -133,12 +133,46 @@ export const mountSwagger = (app: Express) => {
   }
   
   // Mount Swagger UI
-  // Note: swagger-ui-express works in serverless, but we need to ensure proper setup
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  // Use CDN for static assets to avoid serverless static file serving issues
+  // In Vercel serverless, static files from node_modules aren't served correctly,
+  // so we use CDN-hosted assets instead
+  const swaggerUiOptions = {
     customSiteTitle: 'BrainScale CRM API Docs',
     customCss: '.swagger-ui .topbar { display: none }',
-    customfavIcon: '/favicon.ico',
-  }));
+    // Use CDN for Swagger UI assets (fixes MIME type issues in serverless)
+    // This tells swagger-ui-express to use external CDN instead of trying to serve from node_modules
+    customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css',
+    customJs: [
+      'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-bundle.js',
+      'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js',
+    ],
+    swaggerOptions: {
+      // Load spec from JSON endpoint
+      url: '/api/docs.json',
+      persistAuthorization: true,
+    },
+  };
+  
+  // Mount Swagger UI
+  // Handle static asset requests first (before the main docs route)
+  // These routes catch requests for swagger-ui assets and prevent them from hitting the catch-all route
+  app.get('/api/docs/swagger-ui.css', (req, res) => {
+    res.setHeader('Content-Type', 'text/css');
+    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css');
+  });
+  app.get('/api/docs/swagger-ui-bundle.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-bundle.js');
+  });
+  app.get('/api/docs/swagger-ui-standalone-preset.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js');
+  });
+  
+  // Mount the main Swagger UI page
+  // Use serveFiles for static assets, then setup for the main route
+  app.use('/api/docs', swaggerUi.serveFiles(swaggerSpec, swaggerUiOptions));
+  app.get('/api/docs', swaggerUi.setup(swaggerSpec, swaggerUiOptions));
   
   // JSON endpoint for Swagger spec
   app.get('/api/docs.json', (req, res) => {

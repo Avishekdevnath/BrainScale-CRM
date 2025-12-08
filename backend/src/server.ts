@@ -6,7 +6,8 @@ import { prisma } from './db/client';
 const PORT = env.PORT;
 
 // Start server
-const server = app.listen(PORT, () => {
+// Explicitly bind to 0.0.0.0 to allow external connections (required for Fly.io)
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`🚀 Server running on port ${PORT}`);
   // Use APP_URL if available, otherwise construct from request (for production)
   const docsUrl = env.APP_URL 

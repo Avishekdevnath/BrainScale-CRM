@@ -30,13 +30,13 @@ app.use(helmet({
   contentSecurityPolicy: env.NODE_ENV === 'production' ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://unpkg.com"], // Explicitly for <script> elements
-      styleSrc: ["'self'", "'unsafe-inline'", "https://unpkg.com"],
-      styleSrcElem: ["'self'", "'unsafe-inline'", "https://unpkg.com"], // Explicitly for <style> elements
-      connectSrc: ["'self'", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcElem: ["'self'", "'unsafe-inline'"], // For <script> elements
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrcElem: ["'self'", "'unsafe-inline'"], // For <style> elements
+      connectSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      fontSrc: ["'self'", "https://unpkg.com"],
+      fontSrc: ["'self'"],
     },
   } : false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -79,23 +79,6 @@ app.get('/health', (req, res) => {
 
 // Mount Swagger docs
 mountSwagger(app);
-
-// Disable CSP for Swagger docs route (allows CDN assets to load)
-// This is safe as Swagger UI is read-only documentation
-app.use('/api/docs', (req, res, next) => {
-  // Remove or override CSP header for Swagger UI
-  res.setHeader('Content-Security-Policy', 
-    "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; " +
-    "script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; " +
-    "style-src 'self' 'unsafe-inline' https://unpkg.com; " +
-    "style-src-elem 'self' 'unsafe-inline' https://unpkg.com; " +
-    "connect-src 'self' https://unpkg.com; " +
-    "img-src 'self' data: https:; " +
-    "font-src 'self' https://unpkg.com;"
-  );
-  next();
-});
 
 // API Routes
 app.get('/api/v1', (req, res) => {

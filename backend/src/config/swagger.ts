@@ -133,19 +133,11 @@ export const mountSwagger = (app: Express) => {
   }
   
   // Mount Swagger UI
-  // Use CDN for static assets to avoid serverless static file serving issues
-  // In Vercel serverless, static files from node_modules aren't served correctly,
-  // so we use CDN-hosted assets instead
+  // Serve assets locally from swagger-ui-express (no CDN needed)
+  // This avoids CSP issues since all assets are served from 'self'
   const swaggerUiOptions = {
     customSiteTitle: 'BrainScale CRM API Docs',
     customCss: '.swagger-ui .topbar { display: none }',
-    // Use CDN for Swagger UI assets (fixes MIME type issues in serverless)
-    // This tells swagger-ui-express to use external CDN instead of trying to serve from node_modules
-    customCssUrl: 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css',
-    customJs: [
-      'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-bundle.js',
-      'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js',
-    ],
     swaggerOptions: {
       // Load spec from JSON endpoint
       url: '/api/docs.json',
@@ -153,32 +145,8 @@ export const mountSwagger = (app: Express) => {
     },
   };
   
-  // Mount Swagger UI
-  // Handle static asset requests first (before the main docs route)
-  // These routes catch requests for swagger-ui assets and redirect to CDN
-  app.get('/api/docs/swagger-ui.css', (req, res) => {
-    res.setHeader('Content-Type', 'text/css');
-    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui.css');
-  });
-  app.get('/api/docs/swagger-ui-bundle.js', (req, res) => {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-bundle.js');
-  });
-  app.get('/api/docs/swagger-ui-standalone-preset.js', (req, res) => {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.redirect(302, 'https://unpkg.com/swagger-ui-dist@5.10.5/swagger-ui-standalone-preset.js');
-  });
-  
-  // Handle favicon requests (Swagger UI tries to load these)
-  app.get('/api/docs/favicon-32x32.png', (req, res) => {
-    res.status(204).end(); // No content
-  });
-  app.get('/api/docs/favicon-16x16.png', (req, res) => {
-    res.status(204).end(); // No content
-  });
-  
-  // Mount the main Swagger UI page
-  // Use serveFiles for static assets, then setup for the main route
+  // Mount Swagger UI - serveFiles handles static assets, setup handles the main page
+  // swagger-ui-express serves all JS/CSS from node_modules, so they're served from 'self'
   app.use('/api/docs', swaggerUi.serveFiles(swaggerSpec, swaggerUiOptions));
   app.get('/api/docs', swaggerUi.setup(swaggerSpec, swaggerUiOptions));
   

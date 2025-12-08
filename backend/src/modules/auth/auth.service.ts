@@ -789,9 +789,9 @@ export const changePassword = async (userId: string, data: ChangePasswordInput) 
     select: {
       id: true,
       passwordHash: true,
-      mustChangePassword: true as any, // Type assertion until Prisma Client regenerates
-    } as any,
-  }) as { id: string; passwordHash: string; mustChangePassword: boolean } | null;
+      mustChangePassword: true,
+    },
+  });
 
   if (!user) {
     throw new AppError(404, 'User not found');

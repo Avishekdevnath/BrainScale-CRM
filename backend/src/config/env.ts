@@ -34,9 +34,13 @@ export const env = {
   EMAIL_FROM_NAME: (process.env.EMAIL_FROM_NAME || 'BrainScale CRM').trim(),
   EMAIL_REPLY_TO: (process.env.EMAIL_REPLY_TO || process.env.GMAIL_USER || 'support@brainscale.crm').trim(),
   DOMAIN: process.env.DOMAIN || 'gmail.com',
+  // Email provider selection: 'sendgrid' (recommended) or 'smtp'
+  EMAIL_PROVIDER: (process.env.EMAIL_PROVIDER || 'sendgrid').trim().toLowerCase(),
+  // SendGrid
+  SENDGRID_API_KEY: (process.env.SENDGRID_API_KEY || '').trim(),
   
   // App
-  APP_URL: process.env.APP_URL || 'http://localhost:3001',
+  APP_URL: process.env.APP_URL || `http://localhost:${parseInt(process.env.PORT || '3000', 10)}`,
   
   // CORS
   // Allow both backend and typical frontend dev ports by default

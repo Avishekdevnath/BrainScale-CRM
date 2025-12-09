@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
+import { sendEmailWithSendGrid } from './email-sendgrid';
 
 // Validate SMTP configuration (warns but doesn't prevent server startup)
 const validateSmtpConfig = () => {
@@ -105,7 +106,14 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
   const MAX_RETRIES = 2;
   const RETRY_DELAY = 2000; // 2 seconds between retries
 
-  // Check if SMTP is configured before attempting to send
+  const provider = (env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
+
+  // Prefer SendGrid when configured
+  if (provider === 'sendgrid') {
+    return sendEmailWithSendGrid(options, retryCount);
+  }
+
+  // SMTP fallback
   if (!env.SMTP_USER || !env.SMTP_PASS) {
     const error = new Error('SMTP configuration is missing. Please set SMTP_USER and SMTP_PASS environment variables.');
     logger.error({ 

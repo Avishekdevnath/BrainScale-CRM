@@ -1361,20 +1361,36 @@ export const forgotPassword = async (data: ForgotPasswordInput) => {
     }
     // Enhanced error logging for email failures
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ 
+    const errorDetails: any = {
       error: errorMessage,
       errorStack: error instanceof Error ? error.stack : undefined,
       userId: user.id,
       email: user.email,
       errorType: error instanceof Error ? error.constructor.name : typeof error,
-    }, 'Failed to send password reset OTP - check SMTP configuration');
+      isVercel: process.env.VERCEL === '1',
+      nodeEnv: process.env.NODE_ENV,
+    };
     
-    // In development, log more details
-    if (process.env.NODE_ENV === 'development') {
+    // Add nodemailer-specific error details if available
+    if (error && typeof error === 'object' && 'code' in error) {
+      errorDetails.smtpErrorCode = (error as any).code;
+      errorDetails.smtpCommand = (error as any).command;
+      errorDetails.smtpResponse = (error as any).response;
+      errorDetails.smtpResponseCode = (error as any).responseCode;
+    }
+    
+    logger.error(errorDetails, 'Failed to send password reset OTP - check SMTP configuration');
+    
+    // Log more details in development or Vercel (for debugging)
+    if (process.env.NODE_ENV === 'development' || process.env.VERCEL === '1') {
       logger.error({ 
         fullError: error,
-        hint: 'Check your .env file for SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD)',
-      }, 'Email sending failed - development mode details');
+        hint: process.env.VERCEL === '1' 
+          ? 'Check Vercel environment variables: SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD) must be set in Vercel project settings'
+          : 'Check your .env file for SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD)',
+        smtpUserSet: Boolean(process.env.SMTP_USER || process.env.GMAIL_USER),
+        smtpPassSet: Boolean(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD),
+      }, 'Email sending failed - detailed error information');
     }
     
     // Still return generic message to prevent enumeration

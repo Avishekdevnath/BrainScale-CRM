@@ -49,12 +49,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate limiting (apply to all API routes) - DISABLED FOR TESTING
 // app.use('/api/v1', apiLimiter);
 
-// HTTPS enforcement in production
-if (env.NODE_ENV === 'production') {
+// HTTPS enforcement only in production deployments (Vercel, etc.), not for local development
+// Skip HTTPS enforcement if running locally (not in Vercel) or if localhost
+if (env.NODE_ENV === 'production' && env.IS_VERCEL) {
   app.use((req, res, next) => {
-    const proto = req.headers['x-forwarded-proto'] || req.protocol;
-    if (proto !== 'https') {
-      return res.redirect(`https://${req.headers.host}${req.url}`);
+    // Skip HTTPS enforcement for localhost/127.0.0.1 (local development)
+    const host = req.headers.host || '';
+    const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1') || host.includes('0.0.0.0');
+    
+    if (!isLocalhost) {
+      const proto = req.headers['x-forwarded-proto'] || req.protocol;
+      if (proto !== 'https') {
+        return res.redirect(`https://${req.headers.host}${req.url}`);
+      }
     }
     next();
   });

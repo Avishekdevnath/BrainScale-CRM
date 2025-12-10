@@ -37,7 +37,9 @@ const isSmtpConfigured = validateSmtpConfig();
 // For port 465: use secure: true (SSL/TLS)
 // In serverless (Vercel), disable connection pooling and reduce timeouts
 const isServerless = process.env.VERCEL === '1';
-const transporter = nodemailer.createTransport({
+
+// Base SMTP configuration
+const smtpConfig: any = {
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
   // Allow explicit override via SMTP_SECURE; otherwise infer from port
@@ -55,14 +57,18 @@ const transporter = nodemailer.createTransport({
   connectionTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
   greetingTimeout: isServerless ? 5000 : 60000, // 5 seconds for serverless, 60 seconds for traditional
   socketTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
-  // Connection pooling - disabled for serverless (each function instance is isolated)
-  pool: !isServerless, // Disable pooling in serverless
-  maxConnections: isServerless ? 1 : 5, // Single connection for serverless
-  maxMessages: isServerless ? 1 : 100, // Single message per connection for serverless
-  // Retry configuration
-  rateDelta: 1000, // Time between connection attempts
-  rateLimit: isServerless ? 1 : 5, // Reduced rate limit for serverless
-});
+};
+
+// Add pooling options only if not serverless
+if (!isServerless) {
+  smtpConfig.pool = true;
+  smtpConfig.maxConnections = 5;
+  smtpConfig.maxMessages = 100;
+  smtpConfig.rateDelta = 1000;
+  smtpConfig.rateLimit = 5;
+}
+
+const transporter = nodemailer.createTransport(smtpConfig);
 
 // Verify transporter connection on startup (non-blocking, only if configured)
 // Note: In production/Kubernetes environments, this may timeout due to network policies

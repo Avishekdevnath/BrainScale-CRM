@@ -2,6 +2,12 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { sendEmailWithSendGrid } from './email-sendgrid';
+import {
+  emailVerificationTemplate,
+  resendVerificationTemplate,
+  passwordChangeOtpTemplate,
+  resetPasswordOtpTemplate,
+} from './email-templates';
 
 // Validate SMTP configuration (warns but doesn't prevent server startup)
 const validateSmtpConfig = () => {
@@ -331,7 +337,6 @@ export const sendVerificationEmail = async (
   }
 
   const verificationUrl = `${env.APP_URL}/verify-email?token=${verificationToken}`;
-  const { emailVerificationTemplate, resendVerificationTemplate } = await import('./email-templates');
 
   const html = (options.isResend ? resendVerificationTemplate : emailVerificationTemplate)(
     verificationUrl,
@@ -424,7 +429,6 @@ export const sendPasswordChangeOtpEmail = async (
   otpExpiresAt: Date,
   userName?: string
 ): Promise<void> => {
-  const { passwordChangeOtpTemplate } = await import('./email-templates');
   const html = passwordChangeOtpTemplate(otpCode, otpExpiresAt, userName);
 
   await sendEmail({
@@ -440,7 +444,6 @@ export const sendResetPasswordOtpEmail = async (
   otpExpiresAt: Date,
   userName?: string
 ): Promise<void> => {
-  const { resetPasswordOtpTemplate } = await import('./email-templates');
   const html = resetPasswordOtpTemplate(otpCode, otpExpiresAt, userName);
 
   await sendEmail({

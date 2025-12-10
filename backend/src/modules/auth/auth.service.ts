@@ -500,7 +500,7 @@ export const signup = async (data: SignupInput) => {
   await prisma.emailVerification.upsert({
     where: {
       userId_purpose: {
-        userId: user.id,
+      userId: user.id,
         purpose: EMAIL_VERIFICATION_PURPOSE,
       },
     },

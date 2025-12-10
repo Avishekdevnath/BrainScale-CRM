@@ -19,7 +19,11 @@ import {
   ResendResetPasswordOtpInput,
 } from './auth.schemas';
 import { acceptInvitation } from '../invitations/invitation.service';
-import { sendVerificationEmail } from '../../utils/email';
+import { 
+  sendVerificationEmail,
+  sendResetPasswordOtpEmail,
+  sendPasswordChangeOtpEmail 
+} from '../../utils/email';
 import { randomBytes, randomInt } from 'crypto';
 import { logger } from '../../config/logger';
 import bcrypt from 'bcryptjs';
@@ -313,7 +317,6 @@ const issuePasswordChangeOtp = async ({
 
   // IMPORTANT: Send email FIRST before creating OTP record
   try {
-    const { sendPasswordChangeOtpEmail } = await import('../../utils/email');
     await sendPasswordChangeOtpEmail(email, otpCode, expiresAt, name || undefined);
   } catch (error) {
     // If email fails, don't create OTP record
@@ -404,7 +407,6 @@ const issueResetPasswordOtp = async ({
 
   // IMPORTANT: Send email FIRST before creating OTP record
   try {
-    const { sendResetPasswordOtpEmail } = await import('../../utils/email');
     await sendResetPasswordOtpEmail(email, otpCode, expiresAt, name || undefined);
   } catch (error) {
     // If email fails, don't create OTP record
@@ -464,7 +466,6 @@ export const signup = async (data: SignupInput) => {
 
   // IMPORTANT: Send email FIRST before creating user account
   try {
-    const { sendVerificationEmail } = await import('../../utils/email');
     await sendVerificationEmail(data.email, verificationToken, data.name, {
       otpCode,
       otpExpiresAt: expiresAt,

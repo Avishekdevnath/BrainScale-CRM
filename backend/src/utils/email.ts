@@ -35,6 +35,8 @@ const isSmtpConfigured = validateSmtpConfig();
 // Create reusable transporter
 // For port 587: use secure: false (STARTTLS)
 // For port 465: use secure: true (SSL/TLS)
+// In serverless (Vercel), disable connection pooling and reduce timeouts
+const isServerless = process.env.VERCEL === '1';
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT,
@@ -49,17 +51,17 @@ const transporter = nodemailer.createTransport({
     // Do not fail on invalid certificates (useful for development)
     rejectUnauthorized: env.NODE_ENV === 'production',
   },
-  // Connection timeout settings (in milliseconds) - increased for better reliability
-  connectionTimeout: 120000, // 120 seconds (2 minutes) for initial connection
-  greetingTimeout: 60000, // 60 seconds for SMTP greeting
-  socketTimeout: 120000, // 120 seconds (2 minutes) for socket operations
-  // Connection pooling for better performance and reliability
-  pool: true,
-  maxConnections: 5, // Maximum concurrent connections
-  maxMessages: 100, // Maximum messages per connection before closing
+  // Connection timeout settings - reduced for serverless environments
+  connectionTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
+  greetingTimeout: isServerless ? 5000 : 60000, // 5 seconds for serverless, 60 seconds for traditional
+  socketTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
+  // Connection pooling - disabled for serverless (each function instance is isolated)
+  pool: !isServerless, // Disable pooling in serverless
+  maxConnections: isServerless ? 1 : 5, // Single connection for serverless
+  maxMessages: isServerless ? 1 : 100, // Single message per connection for serverless
   // Retry configuration
   rateDelta: 1000, // Time between connection attempts
-  rateLimit: 5, // Maximum number of connections per rateDelta
+  rateLimit: isServerless ? 1 : 5, // Reduced rate limit for serverless
 });
 
 // Verify transporter connection on startup (non-blocking, only if configured)
@@ -196,7 +198,7 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
       retryAttempt: retryCount,
     }, 'Email sent successfully');
   } catch (error: any) {
-    // Enhanced error logging
+    // Enhanced error logging with full details for debugging
     const errorDetails: any = {
       to: options.to,
       subject: options.subject,
@@ -204,6 +206,9 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
       retryAttempt: retryCount,
       host: env.SMTP_HOST,
       port: env.SMTP_PORT,
+      provider: env.EMAIL_PROVIDER,
+      isServerless: process.env.VERCEL === '1',
+      nodeEnv: process.env.NODE_ENV,
     };
 
     // Add nodemailer-specific error details
@@ -218,6 +223,9 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
     }
     if (error.responseCode) {
       errorDetails.responseCode = error.responseCode;
+    }
+    if (error.stack) {
+      errorDetails.stack = error.stack;
     }
 
     // Retry logic for connection/timeout errors

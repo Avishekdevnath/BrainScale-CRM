@@ -95,27 +95,79 @@ app.get('/api/debug/email-config', (req, res) => {
     return;
   }
   
-  // Check SMTP configuration
+  // Check current email provider
+  const currentProvider = env.EMAIL_PROVIDER;
+  const sendgridConfigured = Boolean(env.SENDGRID_API_KEY && env.SENDGRID_API_KEY.length > 0);
   const smtpConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
+  
   const config = {
-    smtpConfigured,
-    smtpHost: env.SMTP_HOST,
-    smtpPort: env.SMTP_PORT,
-    smtpSecure: env.SMTP_SECURE,
-    hasSmtpUser: Boolean(env.SMTP_USER),
-    hasSmtpPass: Boolean(env.SMTP_PASS),
-    emailFrom: env.EMAIL_FROM,
-    emailFromName: env.EMAIL_FROM_NAME,
-    // Don't expose actual credentials
-    smtpUserPreview: env.SMTP_USER ? `${env.SMTP_USER.substring(0, 3)}***` : 'not set',
+    currentProvider,
+    sendgrid: {
+      configured: sendgridConfigured,
+      hasApiKey: Boolean(env.SENDGRID_API_KEY),
+      apiKeyPreview: env.SENDGRID_API_KEY 
+        ? `SG.${env.SENDGRID_API_KEY.substring(3, 6)}***${env.SENDGRID_API_KEY.slice(-4)}` 
+        : 'not set',
+    },
+    smtp: {
+      configured: smtpConfigured,
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
+      hasUser: Boolean(env.SMTP_USER),
+      hasPass: Boolean(env.SMTP_PASS),
+      userPreview: env.SMTP_USER ? `${env.SMTP_USER.substring(0, 3)}***` : 'not set',
+    },
+    email: {
+      from: env.EMAIL_FROM,
+      fromName: env.EMAIL_FROM_NAME,
+      replyTo: env.EMAIL_REPLY_TO,
+    },
   };
   
+  // Determine status
+  let status = 'not_configured';
+  let message = '';
+  
+  if (currentProvider === 'sendgrid') {
+    if (sendgridConfigured) {
+      status = 'configured';
+      message = 'SendGrid API is configured. Check SendGrid Activity page if emails are not being delivered.';
+    } else {
+      status = 'not_configured';
+      message = 'SendGrid API is selected but SENDGRID_API_KEY is missing. Set it in Vercel environment variables.';
+    }
+  } else if (currentProvider === 'sendgrid-smtp') {
+    if (sendgridConfigured && smtpConfigured) {
+      status = 'configured';
+      message = 'SendGrid SMTP is configured. Using smtp.sendgrid.net with API key authentication.';
+    } else if (!sendgridConfigured) {
+      status = 'not_configured';
+      message = 'SendGrid SMTP is selected but SENDGRID_API_KEY is missing. Set it in Vercel environment variables.';
+    } else {
+      status = 'not_configured';
+      message = 'SendGrid SMTP configuration incomplete. Check SMTP settings.';
+    }
+  } else if (currentProvider === 'smtp') {
+    if (smtpConfigured) {
+      status = 'configured';
+      message = 'SMTP is configured. Check Vercel function logs if emails are not being sent.';
+    } else {
+      status = 'not_configured';
+      message = 'SMTP is selected but credentials are missing. Set SMTP_USER and SMTP_PASS in Vercel environment variables.';
+    }
+  } else {
+    status = 'invalid_provider';
+    message = `Invalid EMAIL_PROVIDER: ${currentProvider}. Must be 'sendgrid', 'sendgrid-smtp', or 'smtp'.`;
+  }
+  
   res.json({
-    status: smtpConfigured ? 'configured' : 'not_configured',
+    status,
     config,
-    message: smtpConfigured 
-      ? 'SMTP is configured. Check Vercel function logs if emails are not being sent.'
-      : 'SMTP is not configured. Set SMTP_USER (or GMAIL_USER) and SMTP_PASS (or GMAIL_APP_PASSWORD) in Vercel environment variables.',
+    message,
+    recommendations: !sendgridConfigured && !smtpConfigured 
+      ? ['Set SENDGRID_API_KEY for SendGrid, or SMTP_USER/SMTP_PASS for SMTP']
+      : [],
   });
 });
 

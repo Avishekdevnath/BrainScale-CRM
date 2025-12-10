@@ -82,15 +82,43 @@ export const sendEmailWithSendGrid = async (
 
     logger.error(errorDetails, 'Failed to send email via SendGrid');
 
+    // Provide specific error messages for common issues
     if (error?.response?.statusCode === 401) {
-      throw new Error('SendGrid API key is invalid. Check SENDGRID_API_KEY.');
+      throw new Error('SendGrid API key is invalid. Check SENDGRID_API_KEY in your environment variables.');
     }
     if (error?.response?.statusCode === 403) {
-      throw new Error('SendGrid API key lacks permission to send emails.');
+      const body = error?.response?.body;
+      if (body && Array.isArray(body) && body.length > 0) {
+        const firstError = body[0];
+        if (firstError?.message?.includes('sender')) {
+          throw new Error(`SendGrid sender verification issue: ${firstError.message}. Verify your sender email (${env.EMAIL_FROM}) in SendGrid dashboard.`);
+        }
+      }
+      throw new Error('SendGrid API key lacks permission to send emails. Check API key permissions in SendGrid dashboard.');
+    }
+    if (error?.response?.statusCode === 400) {
+      const body = error?.response?.body;
+      if (body && Array.isArray(body) && body.length > 0) {
+        const firstError = body[0];
+        if (firstError?.message?.includes('sender') || firstError?.field === 'from') {
+          throw new Error(`SendGrid sender error: ${firstError.message}. Verify sender email (${env.EMAIL_FROM}) in SendGrid dashboard under Sender Authentication.`);
+        }
+        throw new Error(`SendGrid validation error: ${firstError.message}`);
+      }
+      throw new Error('SendGrid request validation failed. Check email addresses and message format.');
     }
     if (error?.response?.statusCode === 429) {
       throw new Error('SendGrid rate limit exceeded. Please try again later.');
     }
+    if (error?.code === 'ENOTFOUND' || error?.code === 'ECONNREFUSED') {
+      throw new Error('Cannot connect to SendGrid API. Check your internet connection and SendGrid service status.');
+    }
+
+    // Log full error for debugging
+    logger.error({ 
+      fullError: error,
+      errorStack: error?.stack,
+    }, 'SendGrid send failed with unexpected error');
 
     throw error;
   }

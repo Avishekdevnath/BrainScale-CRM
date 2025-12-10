@@ -108,10 +108,12 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
 
   const provider = (env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
 
-  // Prefer SendGrid when configured
+  // Use SendGrid API when EMAIL_PROVIDER is 'sendgrid'
   if (provider === 'sendgrid') {
     return sendEmailWithSendGrid(options, retryCount);
   }
+  
+  // For 'sendgrid-smtp' or 'smtp', use SMTP (SendGrid SMTP is auto-configured in env.ts)
 
   // SMTP fallback
   if (!env.SMTP_USER || !env.SMTP_PASS) {

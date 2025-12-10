@@ -157,20 +157,7 @@ export const mountSwagger = (app: Express) => {
   }
   
   if (publicDocsPath) {
-    // Serve static assets with correct MIME types
-    app.use('/api/docs', express.static(publicDocsPath, {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.js')) {
-          res.setHeader('Content-Type', 'application/javascript');
-        } else if (filePath.endsWith('.css')) {
-          res.setHeader('Content-Type', 'text/css');
-        } else if (filePath.endsWith('.png')) {
-          res.setHeader('Content-Type', 'image/png');
-        }
-      }
-    }));
-    
-    // Serve the static HTML page at /api/docs
+    // Serve the static HTML page at /api/docs FIRST (before static middleware)
     app.get('/api/docs', (req, res) => {
       const indexPath = path.join(publicDocsPath, 'index.html');
       if (fs.existsSync(indexPath)) {
@@ -190,6 +177,21 @@ export const mountSwagger = (app: Express) => {
         setup(req, res, () => {});
       }
     });
+    
+    // Serve static assets with correct MIME types (after the GET route)
+    // This handles requests like /api/docs/swagger-ui.css
+    app.use('/api/docs', express.static(publicDocsPath, {
+      index: false, // Don't serve index.html automatically
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (filePath.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        } else if (filePath.endsWith('.png')) {
+          res.setHeader('Content-Type', 'image/png');
+        }
+      }
+    }));
   } else {
     // Fallback: use swagger-ui-express if static files don't exist
     const swaggerUiOptions = {

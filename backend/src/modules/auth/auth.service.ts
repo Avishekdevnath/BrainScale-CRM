@@ -132,7 +132,20 @@ const issueEmailVerificationOtp = async ({
   const codeHash = await bcrypt.hash(otpCode, 10);
   const expiresAt = addMinutes(now, OTP_EXPIRY_MINUTES);
 
-  // Update createdAt to current time for accurate 2-minute tracking
+  // IMPORTANT: Send email FIRST before creating OTP record
+  try {
+    await sendVerificationEmail(email, verificationToken, name || undefined, {
+      otpCode,
+      otpExpiresAt: expiresAt,
+      isResend,
+    });
+  } catch (error) {
+    // If email fails, don't create OTP record
+    logger.error({ error, userId, email }, 'Failed to send verification email');
+    throw new AppError(500, 'Failed to send verification email. Please check your email configuration and try again.');
+  }
+
+  // Only create OTP record if email was sent successfully
   await prisma.emailVerification.upsert({
     where: {
       userId_purpose: {
@@ -156,12 +169,6 @@ const issueEmailVerificationOtp = async ({
       resendCount: 1,
       createdAt: now,
     },
-  });
-
-  await sendVerificationEmail(email, verificationToken, name || undefined, {
-    otpCode,
-    otpExpiresAt: expiresAt,
-    isResend,
   });
 };
 
@@ -304,6 +311,17 @@ const issuePasswordChangeOtp = async ({
   const codeHash = await bcrypt.hash(otpCode, 10);
   const expiresAt = addMinutes(now, OTP_EXPIRY_MINUTES);
 
+  // IMPORTANT: Send email FIRST before creating OTP record
+  try {
+    const { sendPasswordChangeOtpEmail } = await import('../../utils/email');
+    await sendPasswordChangeOtpEmail(email, otpCode, expiresAt, name || undefined);
+  } catch (error) {
+    // If email fails, don't create OTP record
+    logger.error({ error, userId, email }, 'Failed to send password change OTP email');
+    throw new AppError(500, 'Failed to send password change code. Please check your email configuration and try again.');
+  }
+
+  // Only create OTP record if email was sent successfully
   await prisma.emailVerification.upsert({
     where: {
       userId_purpose: {
@@ -328,9 +346,6 @@ const issuePasswordChangeOtp = async ({
       createdAt: now,
     },
   });
-
-  const { sendPasswordChangeOtpEmail } = await import('../../utils/email');
-  await sendPasswordChangeOtpEmail(email, otpCode, expiresAt, name || undefined);
 };
 
 /**
@@ -387,6 +402,17 @@ const issueResetPasswordOtp = async ({
   const codeHash = await bcrypt.hash(otpCode, 10);
   const expiresAt = addMinutes(now, OTP_EXPIRY_MINUTES);
 
+  // IMPORTANT: Send email FIRST before creating OTP record
+  try {
+    const { sendResetPasswordOtpEmail } = await import('../../utils/email');
+    await sendResetPasswordOtpEmail(email, otpCode, expiresAt, name || undefined);
+  } catch (error) {
+    // If email fails, don't create OTP record
+    logger.error({ error, userId, email }, 'Failed to send password reset OTP email');
+    throw new AppError(500, 'Failed to send password reset code. Please check your email configuration and try again.');
+  }
+
+  // Only create OTP record if email was sent successfully
   await prisma.emailVerification.upsert({
     where: {
       userId_purpose: {
@@ -411,9 +437,6 @@ const issueResetPasswordOtp = async ({
       createdAt: now,
     },
   });
-
-  const { sendResetPasswordOtpEmail } = await import('../../utils/email');
-  await sendResetPasswordOtpEmail(email, otpCode, expiresAt, name || undefined);
 };
 
 export const signup = async (data: SignupInput) => {
@@ -434,7 +457,26 @@ export const signup = async (data: SignupInput) => {
   const verificationTokenExpiresAt = new Date();
   verificationTokenExpiresAt.setHours(verificationTokenExpiresAt.getHours() + 24); // 24 hours expiry
 
-  // Create user
+  // Generate OTP code BEFORE creating user (needed for email)
+  const otpCode = generateOtpCode();
+  const codeHash = await bcrypt.hash(otpCode, 10);
+  const expiresAt = addMinutes(new Date(), OTP_EXPIRY_MINUTES);
+
+  // IMPORTANT: Send email FIRST before creating user account
+  try {
+    const { sendVerificationEmail } = await import('../../utils/email');
+    await sendVerificationEmail(data.email, verificationToken, data.name, {
+      otpCode,
+      otpExpiresAt: expiresAt,
+      isResend: false,
+    });
+  } catch (error) {
+    // If email fails, don't create user account
+    logger.error({ error, email: data.email }, 'Failed to send verification email during signup');
+    throw new AppError(500, 'Failed to send verification email. Please check your email configuration and try again.');
+  }
+
+  // Only create user if email was sent successfully
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -454,28 +496,31 @@ export const signup = async (data: SignupInput) => {
     },
   });
 
-  // Send verification email
-  let emailSent = false;
-  let emailError: Error | null = null;
-  const now = new Date();
-  const retryAfterSeconds = 120; // 2 minutes
-  const canRetryAt = new Date(now.getTime() + retryAfterSeconds * 1000);
-  
-  try {
-    await issueEmailVerificationOtp({
+  // Create email verification OTP record AFTER user is created and email is sent
+  await prisma.emailVerification.upsert({
+    where: {
+      userId_purpose: {
+        userId: user.id,
+        purpose: EMAIL_VERIFICATION_PURPOSE,
+      },
+    },
+    update: {
+      codeHash,
+      expiresAt,
+      attempts: 0,
+      resendCount: 1,
+      createdAt: new Date(),
+    },
+    create: {
       userId: user.id,
-      email: user.email,
-      name: user.name,
-      verificationToken,
-      isResend: false,
-    });
-    emailSent = true;
-  } catch (error) {
-    logger.error({ error, userId: user.id }, 'Failed to send verification email');
-    emailError = error instanceof Error ? error : new Error('Unknown error');
-    emailSent = false;
-    // Note: Email verification record is still created, so resend will work
-  }
+      purpose: EMAIL_VERIFICATION_PURPOSE,
+      codeHash,
+      expiresAt,
+      attempts: 0,
+      resendCount: 1,
+      createdAt: new Date(),
+    },
+  });
 
   // Handle invitation acceptance if token provided
   let invitationResult = null;
@@ -489,46 +534,16 @@ export const signup = async (data: SignupInput) => {
     }
   }
 
-  // Build response message based on email status
-  let message: string;
-  let actionRequired: string[] = [];
-  
-  if (emailSent) {
-    message = invitationResult
-      ? `Account created and added to ${invitationResult.workspaceName}. Please check your email to verify your account.`
-      : 'Account created successfully. Please check your email to verify your account before logging in.';
-    actionRequired = ['Check your email inbox', 'Click the verification link or enter the OTP code'];
-  } else {
-    message = invitationResult
-      ? `Account created and added to ${invitationResult.workspaceName}. However, we couldn't send the verification email at this time.`
-      : 'Account created successfully. However, we couldn\'t send the verification email at this time.';
-    actionRequired = [
-      'You can retry sending the verification email after 2 minutes',
-      'Use the "Resend Verification Email" option on the login page',
-      'You can retry as many times as needed until your account is verified',
-      'The verification code is ready - we just need to send it again'
-    ];
-  }
-
-  const response: any = {
+  // Email is guaranteed to be sent (or error thrown), so build success response
+  return {
     user,
     invitation: invitationResult,
-    emailSent,
-    message,
-    actionRequired,
+    emailSent: true,
+    message: invitationResult
+      ? `Account created and added to ${invitationResult.workspaceName}. Please check your email to verify your account.`
+      : 'Account created successfully. Please check your email to verify your account before logging in.',
+    actionRequired: ['Check your email inbox', 'Click the verification link or enter the OTP code'],
   };
-
-  // Add retry information only if email failed
-  if (!emailSent) {
-    response.retryAfter = retryAfterSeconds;
-    response.canRetryAt = canRetryAt.toISOString();
-    response.resendEndpoints = {
-      email: '/api/v1/auth/resend-verification',
-      otp: '/api/v1/auth/resend-verification-otp',
-    };
-  }
-
-  return response;
 };
 
 export const login = async (data: LoginInput) => {
@@ -1326,7 +1341,7 @@ export const changePasswordWithOtp = async (data: ChangePasswordWithOtpInput, us
  * Forgot password - request reset OTP
  */
 export const forgotPassword = async (data: ForgotPasswordInput) => {
-  // Find user by email (don't reveal if user doesn't exist - security)
+  // IMPORTANT: Verify user exists FIRST before attempting to send email
   const user = await prisma.user.findUnique({
     where: { email: data.email },
     select: {
@@ -1337,14 +1352,16 @@ export const forgotPassword = async (data: ForgotPasswordInput) => {
     },
   });
 
-  // Return generic success message regardless of whether user exists
-  // This prevents email enumeration attacks
+  // Return generic success message if user doesn't exist or email not verified
+  // This prevents email enumeration attacks while avoiding unnecessary email sends
   if (!user || !user.emailVerified) {
     return {
       message: 'If an account exists with this email and is verified, a password reset code has been sent.',
     };
   }
 
+  // User exists and is verified - now send email
+  // issueResetPasswordOtp will verify email was sent before creating OTP record
   try {
     await issueResetPasswordOtp({
       userId: user.id,

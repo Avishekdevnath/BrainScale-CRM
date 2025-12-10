@@ -38,10 +38,36 @@ export const sendEmailWithSendGrid = async (
 
     const [response] = await sgMail.send(msg);
 
+    // Explicitly verify email was accepted by SendGrid
+    // SendGrid returns 202 (Accepted) when email is queued for delivery
+    if (response.statusCode !== 202) {
+      const error = new Error(`SendGrid returned status ${response.statusCode} instead of 202 (accepted). Email was not accepted.`);
+      logger.error({
+        statusCode: response.statusCode,
+        headers: response.headers,
+        to: options.to,
+        subject: options.subject,
+      }, 'SendGrid email not accepted');
+      throw error;
+    }
+
+    // Verify message ID exists (confirms email was queued)
+    const messageId = response.headers['x-message-id'];
+    if (!messageId) {
+      const error = new Error('SendGrid did not return a message ID. Email may not have been queued.');
+      logger.error({
+        statusCode: response.statusCode,
+        headers: response.headers,
+        to: options.to,
+        subject: options.subject,
+      }, 'SendGrid email missing message ID');
+      throw error;
+    }
+
     logger.info(
       {
         statusCode: response.statusCode,
-        messageId: response.headers['x-message-id'],
+        messageId,
         to: options.to,
         subject: options.subject,
         retryAttempt: retryCount,

@@ -157,8 +157,40 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
       html: options.html,
     });
 
+    // Explicitly verify email was accepted by SMTP server
+    // messageId indicates the SMTP server accepted the email
+    if (!info.messageId) {
+      const error = new Error('SMTP server did not return a message ID. Email may not have been accepted.');
+      logger.error({
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected,
+        to: options.to,
+        subject: options.subject,
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+      }, 'SMTP email not accepted - missing message ID');
+      throw error;
+    }
+
+    // Verify email was accepted (not rejected)
+    if (info.rejected && info.rejected.length > 0) {
+      const error = new Error(`SMTP server rejected email for recipients: ${info.rejected.join(', ')}`);
+      logger.error({
+        messageId: info.messageId,
+        accepted: info.accepted,
+        rejected: info.rejected,
+        to: options.to,
+        subject: options.subject,
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT,
+      }, 'SMTP email rejected by server');
+      throw error;
+    }
+
     logger.info({ 
       messageId: info.messageId,
+      accepted: info.accepted,
       to: options.to,
       subject: options.subject,
       retryAttempt: retryCount,

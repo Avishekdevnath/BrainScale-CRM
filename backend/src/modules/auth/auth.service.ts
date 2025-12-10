@@ -320,8 +320,29 @@ const issuePasswordChangeOtp = async ({
     await sendPasswordChangeOtpEmail(email, otpCode, expiresAt, name || undefined);
   } catch (error) {
     // If email fails, don't create OTP record
-    logger.error({ error, userId, email }, 'Failed to send password change OTP email');
-    throw new AppError(500, 'Failed to send password change code. Please check your email configuration and try again.');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ 
+      error: errorMessage,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorDetails: error,
+      userId, 
+      email,
+      provider: process.env.EMAIL_PROVIDER,
+      hasApiKey: Boolean(process.env.SENDGRID_API_KEY),
+    }, 'Failed to send password change OTP email');
+    
+    // Preserve the original error message if it's informative
+    if (error instanceof Error && (
+      error.message.includes('SendGrid') || 
+      error.message.includes('SMTP') ||
+      error.message.includes('authentication') ||
+      error.message.includes('sender') ||
+      error.message.includes('verification')
+    )) {
+      throw new AppError(500, error.message);
+    }
+    
+    throw new AppError(500, `Failed to send password change code: ${errorMessage}. Please check your email configuration and try again.`);
   }
 
   // Only create OTP record if email was sent successfully
@@ -410,8 +431,29 @@ const issueResetPasswordOtp = async ({
     await sendResetPasswordOtpEmail(email, otpCode, expiresAt, name || undefined);
   } catch (error) {
     // If email fails, don't create OTP record
-    logger.error({ error, userId, email }, 'Failed to send password reset OTP email');
-    throw new AppError(500, 'Failed to send password reset code. Please check your email configuration and try again.');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ 
+      error: errorMessage,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorDetails: error,
+      userId, 
+      email,
+      provider: process.env.EMAIL_PROVIDER,
+      hasApiKey: Boolean(process.env.SENDGRID_API_KEY),
+    }, 'Failed to send password reset OTP email');
+    
+    // Preserve the original error message if it's informative
+    if (error instanceof Error && (
+      error.message.includes('SendGrid') || 
+      error.message.includes('SMTP') ||
+      error.message.includes('authentication') ||
+      error.message.includes('sender') ||
+      error.message.includes('verification')
+    )) {
+      throw new AppError(500, error.message);
+    }
+    
+    throw new AppError(500, `Failed to send password reset code: ${errorMessage}. Please check your email configuration and try again.`);
   }
 
   // Only create OTP record if email was sent successfully
@@ -473,8 +515,28 @@ export const signup = async (data: SignupInput) => {
     });
   } catch (error) {
     // If email fails, don't create user account
-    logger.error({ error, email: data.email }, 'Failed to send verification email during signup');
-    throw new AppError(500, 'Failed to send verification email. Please check your email configuration and try again.');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ 
+      error: errorMessage,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorDetails: error,
+      email: data.email,
+      provider: process.env.EMAIL_PROVIDER,
+      hasApiKey: Boolean(process.env.SENDGRID_API_KEY),
+    }, 'Failed to send verification email during signup');
+    
+    // Preserve the original error message if it's informative
+    if (error instanceof Error && (
+      error.message.includes('SendGrid') || 
+      error.message.includes('SMTP') ||
+      error.message.includes('authentication') ||
+      error.message.includes('sender') ||
+      error.message.includes('verification')
+    )) {
+      throw new AppError(500, error.message);
+    }
+    
+    throw new AppError(500, `Failed to send verification email: ${errorMessage}. Please check your email configuration and try again.`);
   }
 
   // Only create user if email was sent successfully

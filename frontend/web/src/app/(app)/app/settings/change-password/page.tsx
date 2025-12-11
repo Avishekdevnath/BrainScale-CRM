@@ -15,7 +15,7 @@ import {
 } from "@/hooks/usePasswordChange";
 import { formatOtpTime } from "@/lib/password-utils";
 import { validatePassword } from "@/lib/password-utils";
-import { Loader2, ArrowLeft, Mail } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth";
 
@@ -30,6 +30,8 @@ export default function ChangePasswordPage() {
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [resendCooldown, setResendCooldown] = React.useState(0);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const userEmail = useAuthStore((state) => state.user?.email);
   const { mutate: requestOtp, isPending: isRequestingOtp } = useRequestPasswordChangeOtp();
@@ -204,6 +206,10 @@ export default function ChangePasswordPage() {
           </div>
         </CardHeader>
         <CardContent variant="groups1">
+          <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
+            <p className="font-medium mb-1">📧 Check your spam folder</p>
+            <p className="text-xs">If you don&apos;t see the password change code email, please check your spam or junk folder.</p>
+          </div>
           <form onSubmit={handleChangePassword} className="space-y-4">
             {/* Email Display */}
             <div>
@@ -255,14 +261,24 @@ export default function ChangePasswordPage() {
             {/* New Password */}
             <div>
               <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="mt-1"
-                disabled={isChangingPassword}
-              />
+              <div className="relative mt-1">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pr-10"
+                  disabled={isChangingPassword}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.newPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
               )}
@@ -276,14 +292,24 @@ export default function ChangePasswordPage() {
             {/* Confirm Password */}
             <div>
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1"
-                disabled={isChangingPassword}
-              />
+              <div className="relative mt-1">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pr-10"
+                  disabled={isChangingPassword}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
               )}

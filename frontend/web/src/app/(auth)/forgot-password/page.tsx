@@ -15,7 +15,7 @@ import {
 } from "@/hooks/usePasswordChange";
 import { formatOtpTime } from "@/lib/password-utils";
 import { validatePassword } from "@/lib/password-utils";
-import { Loader2, ArrowLeft, Mail, Lock } from "lucide-react";
+import { Loader2, ArrowLeft, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 type Step = "email" | "reset";
@@ -29,6 +29,8 @@ export default function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [resendCooldown, setResendCooldown] = React.useState(0);
+  const [showNewPassword, setShowNewPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const { mutate: forgotPassword, isPending: isRequestingReset } = useForgotPassword();
   const { mutate: resetPassword, isPending: isResettingPassword } = useResetPassword();
@@ -71,7 +73,7 @@ export default function ForgotPasswordPage() {
       setStep("reset");
       setErrors({});
     } catch (error) {
-      // Error handled by hook (always shows generic success message)
+      // Error handled by hook (always shows generic success message with spam folder reminder)
     }
   };
 
@@ -134,6 +136,10 @@ export default function ForgotPasswordPage() {
           <p className="text-sm text-[var(--groups1-text-secondary)]">
             Enter your email address and we'll send you a verification code to reset your password.
           </p>
+          <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
+            <p className="font-medium mb-1">📧 Check your spam folder</p>
+            <p className="text-xs">If you don&apos;t see the reset email in your inbox, please check your spam or junk folder.</p>
+          </div>
         </div>
         <div className="space-y-5">
           <div className="space-y-2">
@@ -202,6 +208,10 @@ export default function ForgotPasswordPage() {
         <p className="text-sm text-[var(--groups1-text-secondary)]">
           Enter the verification code and your new password
         </p>
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
+          <p className="font-medium mb-1">📧 Check your email</p>
+          <p className="text-xs">If you don't see the code, please check your spam or junk folder.</p>
+        </div>
       </div>
       <form onSubmit={handleReset} className="space-y-5">
             {/* Email Display */}
@@ -254,14 +264,24 @@ export default function ForgotPasswordPage() {
             {/* New Password */}
             <div className="space-y-2">
               <Label htmlFor="newPassword">New Password</Label>
-              <Input
-                id="newPassword"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
-                disabled={isResettingPassword}
-              />
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)] pr-10"
+                  disabled={isResettingPassword}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.newPassword && (
                 <p className="text-xs text-red-600 dark:text-red-400">{errors.newPassword}</p>
               )}
@@ -275,14 +295,24 @@ export default function ForgotPasswordPage() {
             {/* Confirm Password */}
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)]"
-                disabled={isResettingPassword}
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus-visible:border-[var(--groups1-primary)] focus-visible:ring-[var(--groups1-focus-ring)] pr-10"
+                  disabled={isResettingPassword}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {errors.confirmPassword && (
                 <p className="text-xs text-red-600 dark:text-red-400">{errors.confirmPassword}</p>
               )}

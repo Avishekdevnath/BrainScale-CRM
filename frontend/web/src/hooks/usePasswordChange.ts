@@ -23,7 +23,7 @@ export function useRequestPasswordChangeOtp() {
       setIsPending(true);
       try {
         const result = await apiClient.requestPasswordChangeOtp(email);
-        toast.success("Verification code sent to your email");
+        toast.success("Verification code sent to your email. Please check your inbox and spam folder.");
         return result;
       } catch (error: any) {
         console.error("Failed to request password change OTP:", error);
@@ -99,7 +99,7 @@ export function useResendPasswordChangeOtp() {
       setIsPending(true);
       try {
         const result = await apiClient.resendPasswordChangeOtp(email);
-        toast.success("Verification code sent to your email");
+        toast.success("Verification code sent to your email. Please check your inbox and spam folder.");
         return result;
       } catch (error: any) {
         console.error("Failed to resend password change OTP:", error);
@@ -140,12 +140,12 @@ export function useForgotPassword() {
       try {
         const result = await apiClient.forgotPassword(email);
         // Generic message (email enumeration prevention)
-        toast.success("If an account exists with this email, a password reset code has been sent.");
+        toast.success("If an account exists with this email, a password reset code has been sent. Please check your spam folder if you don't see it.");
         return result;
       } catch (error: any) {
         console.error("Failed to request password reset:", error);
         // Always show generic message
-        toast.success("If an account exists with this email, a password reset code has been sent.");
+        toast.success("If an account exists with this email, a password reset code has been sent. Please check your spam folder if you don't see it.");
 
         // Still throw error for component handling, but don't show error to user
         throw error;
@@ -207,7 +207,7 @@ export function useResendResetPasswordOtp() {
       try {
         const result = await apiClient.resendResetPasswordOtp(email);
         // Generic message
-        toast.success("If an account exists with this email, a password reset code has been sent.");
+        toast.success("If an account exists with this email, a password reset code has been sent. Please check your spam folder if you don't see it.");
         return result;
       } catch (error: any) {
         console.error("Failed to resend reset password OTP:", error);
@@ -222,7 +222,7 @@ export function useResendResetPasswordOtp() {
           }
         } else {
           // Generic message for security
-          toast.success("If an account exists with this email, a password reset code has been sent.");
+          toast.success("If an account exists with this email, a password reset code has been sent. Please check your spam folder if you don't see it.");
         }
 
         throw error;

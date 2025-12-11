@@ -123,6 +123,9 @@ export default function LoginPage() {
         <p className="text-sm text-[var(--groups1-text-secondary)]">
           Sign in to your account to continue
         </p>
+        <p className="text-xs text-[var(--groups1-text-secondary)]">
+          If you recently requested a verification or reset email and don&apos;t see it, please check your spam or junk folder.
+        </p>
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div className="space-y-2">

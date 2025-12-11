@@ -90,7 +90,7 @@ export default function SignupPage() {
       setEmailSent(response.emailSent);
       
       if (response.emailSent) {
-        toast.success("Account created. Please verify your email.");
+        toast.success("Account created! Please check your email (including spam folder) to verify your account.");
         router.push("/verify-email");
       } else {
         // Email failed to send
@@ -114,7 +114,7 @@ export default function SignupPage() {
     setRetrying(true);
     try {
       const response = await apiClient.resendVerificationEmail(userEmail);
-      toast.success(response.message || "Verification email sent. Please check your inbox.");
+      toast.success(response.message || "Verification email sent! Please check your inbox and spam folder.");
       
       // Calculate new retry time based on canRetryAfter
       const now = new Date();

@@ -150,7 +150,7 @@ function VerifyEmailPageContent() {
     setResending(true);
     try {
       const response = await apiClient.resendVerificationOtp({ email });
-      toast.success(response.message || "Verification code sent. Check your inbox.");
+      toast.success(response.message || "Verification code sent! Please check your inbox and spam folder.");
       
       // Calculate new retry time based on canRetryAfter (2 minutes = 120 seconds)
       const now = new Date();
@@ -186,6 +186,12 @@ function VerifyEmailPageContent() {
         <p className="text-sm text-[var(--groups1-text-secondary)]">
           {verified ? "Your email address is verified. You can continue to sign in." : "Enter the code we emailed you or resend a new one."}
         </p>
+        {!verified && (
+          <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
+            <p className="font-medium mb-1">📧 Check your spam folder</p>
+            <p className="text-xs">If you don't see the verification code, please check your spam or junk folder.</p>
+          </div>
+        )}
       </div>
 
       {tokenStatus === "loading" && (

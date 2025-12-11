@@ -188,6 +188,15 @@ export default function LoginPage() {
             "Sign in"
           )}
         </Button>
+        <div className="pt-2 text-center text-xs text-[var(--groups1-text-secondary)]">
+          <span>Don&apos;t have an account? </span>
+          <Link
+            href="/signup"
+            className="font-medium text-[var(--groups1-primary)] hover:underline"
+          >
+            Sign up
+          </Link>
+        </div>
       </form>
     </div>
   );

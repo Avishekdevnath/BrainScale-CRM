@@ -9,13 +9,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))/0.9]",
+        default: "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))] hover:brightness-95",
         destructive:
-          "bg-[hsl(var(--danger))] text-white hover:bg-[hsl(var(--danger))/0.9] focus-visible:ring-[hsl(var(--danger))/0.2] dark:focus-visible:ring-[hsl(var(--danger))/0.4] dark:bg-[hsl(var(--danger))/0.6]",
+          "bg-[hsl(var(--danger))] text-white hover:bg-[hsl(var(--danger))] hover:brightness-95 focus-visible:ring-[hsl(var(--danger))/0.2] dark:focus-visible:ring-[hsl(var(--danger))/0.4] dark:bg-[hsl(var(--danger))/0.6]",
         outline:
           "border bg-[hsl(var(--background))] shadow-xs hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] dark:bg-[hsl(var(--muted))/0.2] dark:border-[hsl(var(--border))] dark:hover:bg-[hsl(var(--muted))/0.4]",
         secondary:
-          "bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))/0.8]",
+          "bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary))] hover:brightness-95",
         ghost:
           "hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] dark:hover:bg-[hsl(var(--accent))/0.5]",
         link: "text-[hsl(var(--primary))] underline-offset-4 hover:underline",

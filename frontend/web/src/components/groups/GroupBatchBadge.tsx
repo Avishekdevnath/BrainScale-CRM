@@ -38,7 +38,7 @@ export function GroupBatchBadge({
     <StatusBadge
       variant={batchIsActive ? "success" : "warning"}
       size="sm"
-      className={cn("cursor-pointer hover:opacity-80 transition-opacity", className)}
+      className={cn("cursor-pointer transition-all hover:brightness-95", className)}
       onClick={onClick}
     >
       {batchName}

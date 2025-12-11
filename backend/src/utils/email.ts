@@ -113,6 +113,9 @@ export interface EmailOptions {
   text?: string;
 }
 
+const BRAND_NAME = env.EMAIL_FROM_NAME || 'BrainScale CRM';
+const withBrand = (subject: string) => `${BRAND_NAME} – ${subject}`;
+
 /**
  * Send email with retry logic for connection timeouts
  */
@@ -315,7 +318,7 @@ export const sendInvitationEmail = async (
 
   await sendEmail({
     to: email,
-    subject: `Invitation to join ${workspaceName} on BrainScale CRM`,
+    subject: withBrand(`Invitation to join ${workspaceName}`),
     html,
   });
 };
@@ -347,7 +350,7 @@ export const sendVerificationEmail = async (
 
   await sendEmail({
     to: email,
-    subject: 'Verify your email address - BrainScale CRM',
+    subject: withBrand('Verify your email address'),
     html,
   });
 };
@@ -418,7 +421,7 @@ export const sendTemporaryPasswordEmail = async (
 
   await sendEmail({
     to: email,
-    subject: `Welcome to ${workspaceName} - Your Account Details`,
+    subject: withBrand(`Welcome to ${workspaceName}`),
     html,
   });
 };
@@ -433,7 +436,7 @@ export const sendPasswordChangeOtpEmail = async (
 
   await sendEmail({
     to: email,
-    subject: 'Change Your Password - BrainScale CRM',
+    subject: withBrand('Password change code'),
     html,
   });
 };
@@ -448,7 +451,7 @@ export const sendResetPasswordOtpEmail = async (
 
   await sendEmail({
     to: email,
-    subject: 'Reset Your Password - BrainScale CRM',
+    subject: withBrand('Password reset code'),
     html,
   });
 };

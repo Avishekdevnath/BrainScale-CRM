@@ -59,7 +59,7 @@ export function AppSidebar() {
       <div className="p-4 border-b border-[var(--groups1-border)]">
         <Link
           href="/app"
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 transition-all hover:brightness-95"
         >
           <Image
             src="/assets/logo.png"

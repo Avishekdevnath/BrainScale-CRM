@@ -189,7 +189,11 @@ function GroupStudentsPageContent() {
             <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Students</h1>
             {group?.batch && (
               <Link href={`/app/batches/${group.batch.id}`}>
-                <StatusBadge variant="info" size="sm" className="cursor-pointer hover:opacity-80">
+                <StatusBadge
+                  variant="info"
+                  size="sm"
+                  className="cursor-pointer transition-all hover:brightness-95"
+                >
                   {group.batch.name}
                 </StatusBadge>
               </Link>

@@ -59,6 +59,11 @@ export const env = {
   EMAIL_FROM_NAME: (process.env.EMAIL_FROM_NAME || 'BrainScale CRM').trim(),
   EMAIL_REPLY_TO: (process.env.EMAIL_REPLY_TO || process.env.GMAIL_USER || 'support@brainscale.crm').trim(),
   DOMAIN: process.env.DOMAIN || 'gmail.com',
+
+  // Company / compliance info for email footers
+  // Set these in your environment for CAN-SPAM / CASL compliance
+  COMPANY_NAME: (process.env.COMPANY_NAME || 'BrainScale CRM').trim(),
+  COMPANY_ADDRESS: (process.env.COMPANY_ADDRESS || '').trim(),
   
   // App
   APP_URL: process.env.APP_URL || `http://localhost:${parseInt(process.env.PORT || '3000', 10)}`,

@@ -4,23 +4,31 @@ import { env } from '../config/env';
  * Base email template wrapper
  */
 const baseTemplate = (content: string, title?: string): string => {
+  const companyName = env.COMPANY_NAME || 'BrainScale CRM';
+  const companyAddress = env.COMPANY_ADDRESS;
+
   return `
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${title || 'BrainScale CRM'}</title>
+        <title>${title || companyName}</title>
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: white;">
           <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #4F46E5;">
-            <h1 style="color: #4F46E5; margin: 0;">BrainScale CRM</h1>
+            <h1 style="color: #4F46E5; margin: 0;">${companyName}</h1>
           </div>
           ${content}
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #666; font-size: 12px;">
-            <p>This is an automated email from BrainScale CRM. Please do not reply to this email.</p>
-            <p>&copy; ${new Date().getFullYear()} BrainScale CRM. All rights reserved.</p>
+            <p>This is an automated email from ${companyName}. Please do not reply to this email.</p>
+            ${
+              companyAddress
+                ? `<p>${companyAddress}</p>`
+                : ''
+            }
+            <p>&copy; ${new Date().getFullYear()} ${companyName}. All rights reserved.</p>
           </div>
         </div>
       </body>

@@ -24,7 +24,7 @@ export function UserMenu() {
     return (
       <button
         type="button"
-        className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+        className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
         aria-label="User menu"
       >
         {initials}
@@ -37,7 +37,7 @@ export function UserMenu() {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
           aria-label="User menu"
           title={displayName}
         >

@@ -30,7 +30,7 @@ export function PublicNavbar() {
     <header className="sticky top-0 z-40 w-full border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] backdrop-blur-md supports-[backdrop-filter]:backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <Link href="/" className="flex items-center gap-3 transition-all hover:brightness-95">
             <Image
               src="/assets/logo.png"
               alt="BrainScale CRM"

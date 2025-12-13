@@ -1171,24 +1171,98 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
     throw new AppError(400, 'Invalid verification code. Please try again.');
   }
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
+  // Use transaction with error handling to prevent race conditions and unique constraint errors
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Re-check if user is still unverified (race condition protection)
+      const currentUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true, verificationToken: true },
+      });
+
+      if (!currentUser) {
+        throw new AppError(404, 'User not found');
+      }
+
+      if (currentUser.emailVerified) {
+        // Already verified by another request - this is fine, just clean up
+        await tx.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: EMAIL_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return; // Exit early, will return success message below
+      }
+
+      // Update user - only set verificationToken to null if it's not already null
+      // This prevents unique constraint violations
+      const updateData: {
+        emailVerified: boolean;
+        verificationToken?: null;
+        verificationTokenExpiresAt?: null;
+      } = {
         emailVerified: true,
-        verificationToken: null,
-        verificationTokenExpiresAt: null,
-      },
-    }),
-    prisma.emailVerification.delete({
-      where: {
-        userId_purpose: {
-          userId: user.id,
-          purpose: EMAIL_VERIFICATION_PURPOSE,
+      };
+
+      // Only update verificationToken if it's not already null
+      if (currentUser.verificationToken !== null) {
+        updateData.verificationToken = null;
+        updateData.verificationTokenExpiresAt = null;
+      }
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+
+      // Delete verification record
+      await tx.emailVerification.delete({
+        where: {
+          userId_purpose: {
+            userId: user.id,
+            purpose: EMAIL_VERIFICATION_PURPOSE,
+          },
         },
-      },
-    }),
-  ]);
+      });
+    });
+  } catch (error: any) {
+    // Handle Prisma unique constraint errors (P2002)
+    if (error?.code === 'P2002') {
+      // Check if user was actually verified by another concurrent request
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (updatedUser?.emailVerified) {
+        // User was verified by another request - clean up and return success
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: EMAIL_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      }
+
+      // If not verified, it's a real constraint error
+      logger.error({ error, userId: user.id, email: data.email }, 'Unique constraint error during email verification');
+      throw new AppError(409, 'Verification conflict. Please try again.');
+    }
+
+    // Re-throw AppError instances
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    // Log and re-throw other errors
+    logger.error({ error, userId: user.id, email: data.email }, 'Unexpected error during email verification');
+    throw error;
+  }
 
   return {
     message: 'Email address verified successfully. You can now log in.',

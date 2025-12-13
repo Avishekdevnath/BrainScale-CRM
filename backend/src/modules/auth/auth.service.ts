@@ -1195,25 +1195,19 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
         return; // Exit early, will return success message below
       }
 
-      // Update user - only set verificationToken to null if it's not already null
-      // This prevents unique constraint violations
-      const updateData: {
-        emailVerified: boolean;
-        verificationToken?: null;
-        verificationTokenExpiresAt?: null;
-      } = {
-        emailVerified: true,
-      };
-
-      // Only update verificationToken if it's not already null
-      if (currentUser.verificationToken !== null) {
-        updateData.verificationToken = null;
-        updateData.verificationTokenExpiresAt = null;
-      }
-
+      // Update user - mark as verified
+      // Don't set verificationToken to null to avoid unique constraint issues
+      // The token will be cleared on next password reset or can be left as-is
       await tx.user.update({
         where: { id: user.id },
-        data: updateData,
+        data: {
+          emailVerified: true,
+          // Only clear verificationToken if it exists (avoid null constraint issues)
+          ...(currentUser.verificationToken && {
+            verificationToken: null,
+            verificationTokenExpiresAt: null,
+          }),
+        },
       });
 
       // Delete verification record
@@ -1229,6 +1223,8 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
   } catch (error: any) {
     // Handle Prisma unique constraint errors (P2002)
     if (error?.code === 'P2002') {
+      const constraintField = error?.meta?.target?.[0];
+      
       // Check if user was actually verified by another concurrent request
       const updatedUser = await prisma.user.findUnique({
         where: { id: user.id },
@@ -1249,9 +1245,54 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
         };
       }
 
-      // If not verified, it's a real constraint error
-      logger.error({ error, userId: user.id, email: data.email }, 'Unique constraint error during email verification');
-      throw new AppError(409, 'Verification conflict. Please try again.');
+      // Log the specific field causing the constraint error
+      logger.error({ 
+        error, 
+        userId: user.id, 
+        email: data.email,
+        constraintField,
+        errorMeta: error?.meta 
+      }, 'Unique constraint error during email verification');
+
+      // Provide more specific error message based on the field
+      if (constraintField === 'email') {
+        throw new AppError(409, 'An account with this email already exists. Please try logging in instead.');
+      } else if (constraintField === 'verificationToken') {
+        // For verificationToken, try again without setting it to null
+        // This is a rare edge case, but we can handle it gracefully
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerified: true },
+          });
+          
+          await prisma.emailVerification.deleteMany({
+            where: {
+              userId: user.id,
+              purpose: EMAIL_VERIFICATION_PURPOSE,
+            },
+          }).catch(() => undefined);
+
+          return {
+            message: 'Email address verified successfully. You can now log in.',
+          };
+        } catch (retryError: any) {
+          // If retry also fails, check if user is now verified
+          const retryUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { emailVerified: true },
+          });
+
+          if (retryUser?.emailVerified) {
+            return {
+              message: 'Email address verified successfully. You can now log in.',
+            };
+          }
+          throw new AppError(409, 'Verification conflict. Please try again.');
+        }
+      } else {
+        throw new AppError(409, 'Verification conflict. Please try again.');
+      }
     }
 
     // Re-throw AppError instances

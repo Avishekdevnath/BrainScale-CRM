@@ -477,6 +477,8 @@ export class ApiClient {
       timezone: string;
       createdAt: string;
       updatedAt: string;
+      accessToken?: string;
+      refreshToken?: string;
     }>("/workspaces", {
       method: "POST",
       body: JSON.stringify(data),

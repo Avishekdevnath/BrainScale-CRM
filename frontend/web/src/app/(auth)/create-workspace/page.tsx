@@ -85,6 +85,8 @@ function CreateWorkspacePageContent() {
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan") || "FREE";
   const accessToken = useAuthStore((state) => state.accessToken);
+  const setTokens = useAuthStore((state) => state.setTokens);
+  const user = useAuthStore((state) => state.user);
   const { setCurrentFromApi } = useWorkspaceStore();
 
   const [loading, setLoading] = useState(true);
@@ -142,6 +144,15 @@ function CreateWorkspacePageContent() {
         logo: parsedValues.logo,
         timezone: parsedValues.timezone,
       });
+
+      // If new tokens are returned, update them (this ensures JWT has correct workspaceId)
+      if (workspace.accessToken && workspace.refreshToken) {
+        setTokens({
+          accessToken: workspace.accessToken,
+          refreshToken: workspace.refreshToken,
+          user: user || undefined,
+        });
+      }
 
       // Store workspace in store
       setCurrentFromApi({

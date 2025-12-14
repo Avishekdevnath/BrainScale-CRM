@@ -2,6 +2,7 @@ import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { hashPassword } from '../../auth/password';
 import { sendTemporaryPasswordEmail } from '../../utils/email';
+import { signAccessToken, signRefreshToken } from '../../auth/jwt';
 import crypto from 'crypto';
 import {
   CreateWorkspaceInput,
@@ -59,7 +60,30 @@ export const createWorkspace = async (userId: string, data: CreateWorkspaceInput
     },
   });
 
-  return workspace;
+  // Generate new access token with the new workspace ID
+  // This ensures the user's JWT token has the correct workspaceId for subsequent requests
+  const accessToken = signAccessToken({
+    sub: userId,
+    workspaceId: workspace.id,
+    role: 'ADMIN',
+  });
+
+  const refreshToken = signRefreshToken(userId);
+
+  // Return workspace with new tokens
+  // Include tokens so frontend can update the JWT with correct workspaceId
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    logo: workspace.logo,
+    plan: workspace.plan,
+    timezone: workspace.timezone,
+    createdAt: workspace.createdAt,
+    updatedAt: workspace.updatedAt,
+    members: workspace.members,
+    accessToken,
+    refreshToken,
+  } as typeof workspace & { accessToken: string; refreshToken: string };
 };
 
 export const getWorkspaces = async (userId: string) => {

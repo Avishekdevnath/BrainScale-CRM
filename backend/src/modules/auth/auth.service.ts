@@ -29,6 +29,7 @@ import { logger } from '../../config/logger';
 import bcrypt from 'bcryptjs';
 
 const EMAIL_VERIFICATION_PURPOSE = 'verify_email';
+const SIGNUP_VERIFICATION_PURPOSE = 'signup_verify_email'; // Separate purpose for signup verification
 const PASSWORD_CHANGE_PURPOSE = 'change_password';
 const RESET_PASSWORD_PURPOSE = 'reset_password';
 const OTP_LENGTH = 6;
@@ -161,7 +162,9 @@ const issueEmailVerificationOtp = async ({
       codeHash,
       expiresAt,
       attempts: 0,
-      resendCount: 1,
+      resendCount: {
+        increment: 1,  // Fix: Increment instead of setting to 1
+      },
       createdAt: now, // Update to current time for 2-minute window tracking
     },
     create: {
@@ -357,7 +360,9 @@ const issuePasswordChangeOtp = async ({
       codeHash,
       expiresAt,
       attempts: 0,
-      resendCount: 1,
+      resendCount: {
+        increment: 1,  // Fix: Increment instead of setting to 1
+      },
       createdAt: now,
     },
     create: {
@@ -468,7 +473,9 @@ const issueResetPasswordOtp = async ({
       codeHash,
       expiresAt,
       attempts: 0,
-      resendCount: 1,
+      resendCount: {
+        increment: 1,  // Fix: Increment instead of setting to 1
+      },
       createdAt: now,
     },
     create: {
@@ -559,12 +566,13 @@ export const signup = async (data: SignupInput) => {
     },
   });
 
-  // Create email verification OTP record AFTER user is created and email is sent
+  // Create signup verification OTP record AFTER user is created and email is sent
+  // Use separate purpose to avoid conflicts with other verification flows
   await prisma.emailVerification.upsert({
     where: {
       userId_purpose: {
-      userId: user.id,
-        purpose: EMAIL_VERIFICATION_PURPOSE,
+        userId: user.id,
+        purpose: SIGNUP_VERIFICATION_PURPOSE,
       },
     },
     update: {
@@ -576,7 +584,7 @@ export const signup = async (data: SignupInput) => {
     },
     create: {
       userId: user.id,
-      purpose: EMAIL_VERIFICATION_PURPOSE,
+      purpose: SIGNUP_VERIFICATION_PURPOSE,
       codeHash,
       expiresAt,
       attempts: 0,
@@ -1029,6 +1037,12 @@ export const verifyEmail = async (data: VerifyEmailInput) => {
   // Find user by verification token
   const user = await prisma.user.findUnique({
     where: { verificationToken: data.token },
+    select: {
+      id: true,
+      emailVerified: true,
+      verificationToken: true,
+      verificationTokenExpiresAt: true,
+    },
   });
 
   if (!user) {
@@ -1042,34 +1056,167 @@ export const verifyEmail = async (data: VerifyEmailInput) => {
 
   // Check if already verified
   if (user.emailVerified) {
-    // Clean up token even if already verified
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        verificationToken: null,
-        verificationTokenExpiresAt: null,
-      },
-    });
-    throw new AppError(400, 'Email address is already verified');
+    // Clean up token even if already verified - use transaction to avoid race conditions
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationToken: null,
+          verificationTokenExpiresAt: null,
+        },
+      });
+    } catch (error: any) {
+      // If unique constraint error, user might have been updated by another request
+      if (error?.code === 'P2002') {
+        // Check if token was already cleared
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { verificationToken: true },
+        });
+        if (!updatedUser?.verificationToken) {
+          // Token already cleared, return success
+          return {
+            message: 'Email address is already verified.',
+          };
+        }
+      }
+      // Re-throw if it's a different error
+      throw error;
+    }
+    return {
+      message: 'Email address is already verified.',
+    };
   }
 
-  // Update user to mark email as verified and invalidate token
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        verificationToken: null,
-        verificationTokenExpiresAt: null,
-      },
-    }),
-    prisma.emailVerification.deleteMany({
-      where: {
-        userId: user.id,
-        purpose: EMAIL_VERIFICATION_PURPOSE,
-      },
-    }),
-  ]);
+  // Use transaction with error handling to prevent race conditions and unique constraint errors
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Re-check if user is still unverified (race condition protection)
+      const currentUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true, verificationToken: true },
+      });
+
+      if (!currentUser) {
+        throw new AppError(404, 'User not found');
+      }
+
+      if (currentUser.emailVerified) {
+        // Already verified by another request - clean up and return
+        await tx.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: EMAIL_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return;
+      }
+
+      // Update user - mark as verified
+      // Only clear verificationToken if it exists (avoid null constraint issues)
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          // Only clear verificationToken if it exists (avoid null constraint issues)
+          ...(currentUser.verificationToken && {
+            verificationToken: null,
+            verificationTokenExpiresAt: null,
+          }),
+        },
+      });
+
+      // Delete verification record
+      await tx.emailVerification.deleteMany({
+        where: {
+          userId: user.id,
+          purpose: EMAIL_VERIFICATION_PURPOSE,
+        },
+      });
+    });
+  } catch (error: any) {
+    // Handle Prisma unique constraint errors (P2002)
+    if (error?.code === 'P2002') {
+      const constraintField = error?.meta?.target?.[0];
+      
+      // Check if user was actually verified by another concurrent request
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (updatedUser?.emailVerified) {
+        // User was verified by another request - clean up and return success
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: EMAIL_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      }
+
+      // Log the specific field causing the constraint error
+      logger.error({ 
+        error, 
+        userId: user.id, 
+        token: data.token.substring(0, 8) + '...',
+        constraintField,
+        errorMeta: error?.meta 
+      }, 'Unique constraint error during email verification');
+
+      // Provide more specific error message based on the field
+      if (constraintField === 'email') {
+        throw new AppError(409, 'An account with this email already exists. Please try logging in instead.');
+      } else if (constraintField === 'verificationToken') {
+        // For verificationToken, try again without setting it to null
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerified: true },
+          });
+          
+          await prisma.emailVerification.deleteMany({
+            where: {
+              userId: user.id,
+              purpose: EMAIL_VERIFICATION_PURPOSE,
+            },
+          }).catch(() => undefined);
+
+          return {
+            message: 'Email address verified successfully. You can now log in.',
+          };
+        } catch (retryError: any) {
+          // If retry also fails, check if user is now verified
+          const retryUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { emailVerified: true },
+          });
+
+          if (retryUser?.emailVerified) {
+            return {
+              message: 'Email address verified successfully. You can now log in.',
+            };
+          }
+          throw new AppError(409, 'Verification conflict. Please try again.');
+        }
+      } else {
+        throw new AppError(409, 'Verification conflict. Please try again.');
+      }
+    }
+
+    // Re-throw AppError instances
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    // Log and re-throw other errors
+    logger.error({ error, userId: user.id }, 'Unexpected error during email verification');
+    throw error;
+  }
 
   return {
     message: 'Email address verified successfully. You can now log in.',
@@ -1311,6 +1458,564 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
 };
 
 /**
+ * ============================================
+ * SIGNUP VERIFICATION - SEPARATE FLOW
+ * ============================================
+ * These functions are specifically for signup verification
+ * and use SIGNUP_VERIFICATION_PURPOSE to avoid conflicts
+ */
+
+/**
+ * Verify signup email with token (separate from general email verification)
+ */
+export const verifySignupEmail = async (data: VerifyEmailInput) => {
+  // Validate token format (64 hex characters)
+  const tokenRegex = /^[a-f0-9]{64}$/i;
+  if (!tokenRegex.test(data.token)) {
+    throw new AppError(400, 'Invalid token format');
+  }
+
+  // Find user by verification token
+  const user = await prisma.user.findUnique({
+    where: { verificationToken: data.token },
+    select: {
+      id: true,
+      emailVerified: true,
+      verificationToken: true,
+      verificationTokenExpiresAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError(400, 'Invalid or expired verification token');
+  }
+
+  // Check if token has expired
+  if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
+    throw new AppError(400, 'Verification token has expired. Please request a new one.');
+  }
+
+  // Check if already verified
+  if (user.emailVerified) {
+    // Clean up token and signup verification records
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationToken: null,
+          verificationTokenExpiresAt: null,
+        },
+      });
+      await prisma.emailVerification.deleteMany({
+        where: {
+          userId: user.id,
+          purpose: SIGNUP_VERIFICATION_PURPOSE,
+        },
+      }).catch(() => undefined);
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        const updatedUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { verificationToken: true },
+        });
+        if (!updatedUser?.verificationToken) {
+          return {
+            message: 'Email address is already verified.',
+          };
+        }
+      }
+      throw error;
+    }
+    return {
+      message: 'Email address is already verified.',
+    };
+  }
+
+  // Use transaction with error handling
+  try {
+    await prisma.$transaction(async (tx) => {
+      const currentUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true, verificationToken: true },
+      });
+
+      if (!currentUser) {
+        throw new AppError(404, 'User not found');
+      }
+
+      if (currentUser.emailVerified) {
+        await tx.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return;
+      }
+
+      // Update user - mark as verified
+      // CRITICAL: Do NOT set verificationToken to null - this causes unique constraint violations
+      // Just mark email as verified and leave the token as-is
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          // Intentionally NOT setting verificationToken to null
+        },
+      });
+
+      // Delete signup verification record only
+      await tx.emailVerification.deleteMany({
+        where: {
+          userId: user.id,
+          purpose: SIGNUP_VERIFICATION_PURPOSE,
+        },
+      });
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (updatedUser?.emailVerified) {
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      }
+
+      logger.error({ 
+        error, 
+        userId: user.id, 
+        token: data.token.substring(0, 8) + '...',
+        constraintField: error?.meta?.target?.[0],
+        errorMeta: error?.meta,
+      }, 'Unique constraint error during signup verification');
+
+      // Final check - is user already verified?
+      const finalCheck = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (finalCheck?.emailVerified) {
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      }
+
+      // If not verified, try one more time with just emailVerified update
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        });
+        
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      } catch (retryError: any) {
+        // Last check - maybe another request verified it
+        const lastCheck = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { emailVerified: true },
+        });
+
+        if (lastCheck?.emailVerified) {
+          await prisma.emailVerification.deleteMany({
+            where: {
+              userId: user.id,
+              purpose: SIGNUP_VERIFICATION_PURPOSE,
+            },
+          }).catch(() => undefined);
+          return {
+            message: 'Email address verified successfully. You can now log in.',
+          };
+        }
+
+        // Log the retry error for debugging
+        logger.error({ 
+          retryError, 
+          userId: user.id, 
+          token: data.token.substring(0, 8) + '...',
+          originalError: error 
+        }, 'Failed to verify signup email after retry');
+        
+        throw new AppError(500, 'Unable to verify email at this time. Please try again or contact support.');
+      }
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    logger.error({ error, userId: user.id }, 'Unexpected error during signup verification');
+    throw error;
+  }
+
+  return {
+    message: 'Email address verified successfully. You can now log in.',
+  };
+};
+
+/**
+ * Verify signup email with OTP (separate from general email verification)
+ */
+export const verifySignupOtp = async (data: VerifyEmailOtpInput) => {
+  const user = await prisma.user.findUnique({
+    where: { email: data.email },
+    select: {
+      id: true,
+      emailVerified: true,
+    },
+  });
+
+  if (!user) {
+    return {
+      message: 'If an account exists with this email, it has been verified or requires a new code.',
+    };
+  }
+
+  if (user.emailVerified) {
+    await prisma.emailVerification.deleteMany({
+      where: {
+        userId: user.id,
+        purpose: SIGNUP_VERIFICATION_PURPOSE,
+      },
+    });
+    return {
+      message: 'Email address is already verified.',
+    };
+  }
+
+  // Look for signup verification record specifically
+  const verification = await prisma.emailVerification.findUnique({
+    where: {
+      userId_purpose: {
+        userId: user.id,
+        purpose: SIGNUP_VERIFICATION_PURPOSE,
+      },
+    },
+  });
+
+  if (!verification) {
+    throw new AppError(400, 'Invalid or expired verification code. Please request a new one.');
+  }
+
+  const now = new Date();
+
+  if (verification.expiresAt < now) {
+    await prisma.emailVerification
+      .delete({
+        where: {
+          userId_purpose: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        },
+      })
+      .catch(() => undefined);
+
+    throw new AppError(400, 'Verification code has expired. Please request a new one.');
+  }
+
+  const isValid = await bcrypt.compare(data.otp, verification.codeHash);
+
+  if (!isValid) {
+    const updated = await prisma.emailVerification.update({
+      where: {
+        userId_purpose: {
+          userId: user.id,
+          purpose: SIGNUP_VERIFICATION_PURPOSE,
+        },
+      },
+      data: {
+        attempts: {
+          increment: 1,
+        },
+      },
+      select: {
+        attempts: true,
+      },
+    });
+
+    if (updated.attempts >= MAX_OTP_ATTEMPTS) {
+      await prisma.emailVerification
+        .delete({
+          where: {
+            userId_purpose: {
+              userId: user.id,
+              purpose: SIGNUP_VERIFICATION_PURPOSE,
+            },
+          },
+        })
+        .catch(() => undefined);
+
+      throw new AppError(400, 'Maximum attempts reached. Please request a new verification code.');
+    }
+
+    throw new AppError(400, 'Invalid verification code. Please try again.');
+  }
+
+  // Use transaction with error handling
+  // CRITICAL: Do NOT set verificationToken to null - this causes unique constraint violations
+  // Just mark email as verified and leave the token as-is
+  try {
+    await prisma.$transaction(async (tx) => {
+      const currentUser = await tx.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (!currentUser) {
+        throw new AppError(404, 'User not found');
+      }
+
+      if (currentUser.emailVerified) {
+        await tx.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+        return;
+      }
+
+      // Only update emailVerified - DO NOT touch verificationToken
+      // This prevents unique constraint violations when multiple users have null tokens
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          // Intentionally NOT setting verificationToken to null
+        },
+      });
+
+      await tx.emailVerification.delete({
+        where: {
+          userId_purpose: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        },
+      });
+    });
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { emailVerified: true },
+      });
+
+      if (updatedUser?.emailVerified) {
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      }
+
+      logger.error({ 
+        error, 
+        userId: user.id, 
+        email: data.email,
+        constraintField: error?.meta?.target?.[0],
+      }, 'Unique constraint error during signup OTP verification');
+
+      try {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { emailVerified: true },
+        });
+        
+        await prisma.emailVerification.deleteMany({
+          where: {
+            userId: user.id,
+            purpose: SIGNUP_VERIFICATION_PURPOSE,
+          },
+        }).catch(() => undefined);
+
+        return {
+          message: 'Email address verified successfully. You can now log in.',
+        };
+      } catch (retryError: any) {
+        const retryUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { emailVerified: true },
+        });
+
+        if (retryUser?.emailVerified) {
+          return {
+            message: 'Email address verified successfully. You can now log in.',
+          };
+        }
+        throw new AppError(409, 'Verification conflict. Please try again.');
+      }
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    logger.error({ error, userId: user.id, email: data.email }, 'Unexpected error during signup OTP verification');
+    throw error;
+  }
+
+  return {
+    message: 'Email address verified successfully. You can now log in.',
+  };
+};
+
+/**
+ * Resend signup verification email/OTP
+ */
+export const resendSignupVerification = async (data: ResendVerificationInput) => {
+  const user = await prisma.user.findUnique({
+    where: { email: data.email },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      emailVerified: true,
+      verificationToken: true,
+      verificationTokenExpiresAt: true,
+    },
+  });
+
+  // Always return generic message to prevent email enumeration
+  if (!user) {
+    return {
+      message: 'If an account exists with this email, a verification email has been sent.',
+    };
+  }
+
+  if (user.emailVerified) {
+    return {
+      message: 'If an account exists with this email, a verification email has been sent.',
+    };
+  }
+
+  const verificationToken = await ensureUserVerificationToken(user);
+
+  // Check for existing signup verification record
+  const existing = await prisma.emailVerification.findUnique({
+    where: {
+      userId_purpose: {
+        userId: user.id,
+        purpose: SIGNUP_VERIFICATION_PURPOSE,
+      },
+    },
+  });
+
+  const MIN_RETRY_INTERVAL_MS = OTP_RESEND_WINDOW_MINUTES * 60 * 1000;
+
+  if (existing) {
+    const timeSinceLastAttempt = new Date().getTime() - existing.createdAt.getTime();
+    
+    if (timeSinceLastAttempt < MIN_RETRY_INTERVAL_MS) {
+      const secondsRemaining = Math.ceil((MIN_RETRY_INTERVAL_MS - timeSinceLastAttempt) / 1000);
+      const minutesRemaining = Math.floor(secondsRemaining / 60);
+      const seconds = secondsRemaining % 60;
+      
+      let errorMessage: string;
+      if (minutesRemaining > 0) {
+        errorMessage = `Please wait ${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''}${seconds > 0 ? ` ${seconds} second${seconds > 1 ? 's' : ''}` : ''} before requesting a new code.`;
+      } else {
+        errorMessage = `Please wait ${seconds} second${seconds > 1 ? 's' : ''} before requesting a new code.`;
+      }
+      
+      const canRetryAt = new Date(existing.createdAt.getTime() + MIN_RETRY_INTERVAL_MS);
+      
+      throw new AppError(429, errorMessage, {
+        retryAfter: secondsRemaining,
+        canRetryAt: canRetryAt.toISOString(),
+      });
+    }
+  }
+
+  const otpCode = generateOtpCode();
+  const codeHash = await bcrypt.hash(otpCode, 10);
+  const expiresAt = addMinutes(new Date(), OTP_EXPIRY_MINUTES);
+
+  try {
+    await sendVerificationEmail(user.email, verificationToken, user.name || undefined, {
+      otpCode,
+      otpExpiresAt: expiresAt,
+      isResend: true,
+    });
+  } catch (error) {
+    logger.error({ error, userId: user.id }, 'Failed to send signup verification email');
+    return {
+      message: 'If an account exists with this email, a verification email has been sent.',
+    };
+  }
+
+  // Update signup verification record
+  await prisma.emailVerification.upsert({
+    where: {
+      userId_purpose: {
+        userId: user.id,
+        purpose: SIGNUP_VERIFICATION_PURPOSE,
+      },
+    },
+    update: {
+      codeHash,
+      expiresAt,
+      attempts: 0,
+      resendCount: {
+        increment: 1,
+      },
+      createdAt: new Date(),
+    },
+    create: {
+      userId: user.id,
+      purpose: SIGNUP_VERIFICATION_PURPOSE,
+      codeHash,
+      expiresAt,
+      attempts: 0,
+      resendCount: 1,
+      createdAt: new Date(),
+    },
+  });
+
+  return {
+    message: 'If an account exists with this email, a verification email has been sent.',
+    canRetryAfter: 120, // 2 minutes
+  };
+};
+
+/**
+ * ============================================
+ * GENERAL EMAIL VERIFICATION (for existing users)
+ * ============================================
+ */
+
+/**
  * Resend verification email
  */
 export const resendVerificationEmail = async (data: ResendVerificationInput) => {
@@ -1327,17 +2032,19 @@ export const resendVerificationEmail = async (data: ResendVerificationInput) => 
     },
   });
 
+  // Security: Always return generic success message to prevent email enumeration
+  // Don't reveal if user exists, doesn't exist, or is already verified
   if (!user) {
-    // Don't reveal if user exists or not for security
-    // Return success message to prevent email enumeration
     return {
       message: 'If an account exists with this email, a verification email has been sent.',
     };
   }
 
-  // Check if already verified
+  // If already verified, return generic message (don't reveal verification status)
   if (user.emailVerified) {
-    throw new AppError(400, 'Email address is already verified');
+    return {
+      message: 'If an account exists with this email, a verification email has been sent.',
+    };
   }
 
   const verificationToken = await ensureUserVerificationToken(user);
@@ -1359,11 +2066,14 @@ export const resendVerificationEmail = async (data: ResendVerificationInput) => 
       throw error;
     }
     logger.error({ error, userId: user.id }, 'Failed to send verification email');
-    throw new AppError(500, 'Failed to send verification email. Please try again in 2 minutes.');
+    // Return generic message even on error to prevent enumeration
+    return {
+      message: 'If an account exists with this email, a verification email has been sent.',
+    };
   }
 
   return {
-    message: 'Verification email sent. Please check your inbox.',
+    message: 'If an account exists with this email, a verification email has been sent.',
     canRetryAfter: 120, // 2 minutes
   };
 };
@@ -1475,9 +2185,9 @@ export const requestPasswordChangeOtp = async (data: RequestPasswordChangeOtpInp
  * Change password with OTP
  */
 export const changePasswordWithOtp = async (data: ChangePasswordWithOtpInput, userId: string) => {
-  // Find user by email
+  // Find user by userId (this is for authenticated users)
   const user = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { id: userId },
     select: {
       id: true,
       email: true,
@@ -1487,11 +2197,6 @@ export const changePasswordWithOtp = async (data: ChangePasswordWithOtpInput, us
 
   if (!user) {
     throw new AppError(404, 'User not found');
-  }
-
-  // Verify that the email matches the logged-in user
-  if (user.id !== userId) {
-    throw new AppError(403, 'You can only change password for your own account');
   }
 
   // Verify OTP
@@ -1609,12 +2314,18 @@ export const resetPassword = async (data: ResetPasswordInput) => {
     select: {
       id: true,
       email: true,
+      emailVerified: true,
       passwordHash: true,
     },
   });
 
   if (!user) {
     throw new AppError(404, 'User not found');
+  }
+
+  // Security: Only allow password reset for verified email addresses
+  if (!user.emailVerified) {
+    throw new AppError(403, 'Please verify your email address before resetting your password. Check your inbox for the verification link.');
   }
 
   // Verify OTP

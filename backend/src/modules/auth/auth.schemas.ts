@@ -30,12 +30,15 @@ export const ResendVerificationSchema = z.object({
   email: z.string().email('Invalid email address'),
 });
 
+// Add OTP validation regex
+const otpRegex = /^\d{6}$/;
+
+// Update VerifyEmailOtpInput schema to include OTP format validation
 export const VerifyEmailOtpSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  otp: z
-    .string()
-    .length(6, 'OTP must be 6 digits')
-    .regex(/^\d{6}$/, 'OTP must be numeric'),
+  email: z.string().email(),
+  otp: z.string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(otpRegex, 'OTP must contain only digits'),
 });
 
 export const ResendVerificationOtpSchema = z.object({
@@ -72,18 +75,11 @@ export const RequestPasswordChangeOtpSchema = z.object({
 });
 
 export const ChangePasswordWithOtpSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  otp: z
-    .string()
-    .length(6, 'OTP must be 6 digits')
-    .regex(/^\d{6}$/, 'OTP must be numeric'),
-  newPassword: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  otp: z.string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(otpRegex, 'OTP must contain only digits'),
+  newPassword: z.string().min(8),
+  currentPassword: z.string(),
 });
 
 export const ForgotPasswordSchema = z.object({
@@ -91,18 +87,11 @@ export const ForgotPasswordSchema = z.object({
 });
 
 export const ResetPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  otp: z
-    .string()
-    .length(6, 'OTP must be 6 digits')
-    .regex(/^\d{6}$/, 'OTP must be numeric'),
-  newPassword: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  email: z.string().email(),
+  otp: z.string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(otpRegex, 'OTP must contain only digits'),
+  newPassword: z.string().min(8),
 });
 
 export const ResendPasswordChangeOtpSchema = z.object({

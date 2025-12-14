@@ -298,6 +298,28 @@ export class ApiClient {
     });
   }
 
+  // Signup-specific verification endpoints (separate from general verification)
+  verifySignupEmail(token: string) {
+    return this.request<{ message: string }>("/auth/verify-signup-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  verifySignupOtp(body: { email: string; otp: string }) {
+    return this.request<{ message: string }>("/auth/verify-signup-otp", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  resendSignupVerification(email: string) {
+    return this.request<{ message: string; canRetryAfter?: number }>("/auth/resend-signup-verification", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // Dashboard methods
   getDashboardSummary(filters?: {
     groupId?: string;

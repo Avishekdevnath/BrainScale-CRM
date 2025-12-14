@@ -91,7 +91,7 @@ export default function SignupPage() {
       
       if (response.emailSent) {
         toast.success("Account created! Please check your email (including spam folder) to verify your account.");
-        router.push("/verify-email");
+        router.push(`/verify-email?email=${encodeURIComponent(values.email)}&signup=true`);
       } else {
         // Email failed to send
         setRetryInfo({
@@ -113,15 +113,17 @@ export default function SignupPage() {
     
     setRetrying(true);
     try {
-      const response = await apiClient.resendVerificationEmail(userEmail);
+      // Use signup-specific endpoint
+      const response = await apiClient.resendSignupVerification(userEmail);
       toast.success(response.message || "Verification email sent! Please check your inbox and spam folder.");
       
-      // Calculate new retry time based on canRetryAfter
+      // Calculate new retry time based on canRetryAfter (default to 120 seconds if not provided)
+      const retryAfter = response.canRetryAfter ?? 120;
       const now = new Date();
-      const canRetryAt = new Date(now.getTime() + (response.canRetryAfter * 1000)).toISOString();
+      const canRetryAt = new Date(now.getTime() + (retryAfter * 1000)).toISOString();
       setRetryInfo({
         canRetryAt,
-        retryAfter: response.canRetryAfter,
+        retryAfter: retryAfter,
       });
     } catch (error: any) {
       if (error.status === 429 && error.canRetryAt) {

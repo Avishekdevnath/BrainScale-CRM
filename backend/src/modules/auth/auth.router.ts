@@ -266,6 +266,92 @@ router.post(
 
 /**
  * @openapi
+ * /auth/verify-signup-email:
+ *   post:
+ *     summary: Verify signup email address with token (signup-specific)
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: Verification token from signup email
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired token
+ */
+router.post('/verify-signup-email', /* authLimiter, */ zodValidator(VerifyEmailSchema), authController.verifySignupEmail);
+
+/**
+ * @openapi
+ * /auth/verify-signup-otp:
+ *   post:
+ *     summary: Verify signup email address using OTP (signup-specific)
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               otp:
+ *                 type: string
+ *                 description: 6-digit verification code sent via email
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired OTP
+ */
+router.post('/verify-signup-otp', /* authLimiter, */ zodValidator(VerifyEmailOtpSchema), authController.verifySignupOtp);
+
+/**
+ * @openapi
+ * /auth/resend-signup-verification:
+ *   post:
+ *     summary: Resend signup verification email/OTP (signup-specific)
+ *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Verification email sent
+ *       429:
+ *         description: Too many requests
+ */
+router.post('/resend-signup-verification', /* resendVerificationLimiter, */ zodValidator(ResendVerificationSchema), authController.resendSignupVerification);
+
+/**
+ * @openapi
  * /auth/change-password:
  *   post:
  *     summary: Change user password

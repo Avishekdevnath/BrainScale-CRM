@@ -90,3 +90,19 @@ export const resendResetPasswordOtp = asyncHandler(async (req: AuthRequest, res:
   res.json(result);
 });
 
+// Signup verification endpoints (separate from general verification)
+export const verifySignupEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await authService.verifySignupEmail(req.validatedData);
+  res.json(result);
+});
+
+export const verifySignupOtp = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await authService.verifySignupOtp(req.validatedData);
+  res.json(result);
+});
+
+export const resendSignupVerification = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await authService.resendSignupVerification(req.validatedData);
+  res.json(result);
+});
+

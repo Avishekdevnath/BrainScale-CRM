@@ -45,6 +45,7 @@ function VerifyEmailPageContent() {
   const router = useRouter();
   const token = useMemo(() => params.get("token"), [params]);
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
+  const isSignup = useMemo(() => params.get("signup") === "true", [params]);
 
   const [tokenStatus, setTokenStatus] = useState<"idle" | "loading" | "error">("idle");
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -74,18 +75,36 @@ function VerifyEmailPageContent() {
       setTokenStatus("loading");
       setTokenError(null);
       try {
-        await apiClient.verifyEmail(token);
+        // Use signup-specific endpoint if this is a signup flow
+        if (isSignup) {
+          await apiClient.verifySignupEmail(token);
+        } else {
+          await apiClient.verifyEmail(token);
+        }
         setVerified(true);
         toast.success("Email verified. You can sign in now.");
       } catch (error: any) {
         setTokenStatus("error");
         const message = error?.message ?? "Verification failed. Enter the code from your email or request a new one.";
-        setTokenError(message);
-        toast.error(message);
+        
+        // Handle specific error cases for token verification
+        if (message.includes("already verified")) {
+          setVerified(true);
+          toast.success("Email is already verified. Redirecting to login...");
+          setTimeout(() => {
+            router.push("/login");
+          }, 1500);
+        } else if (message.includes("expired")) {
+          setTokenError("Verification link has expired. Please request a new verification code below.");
+          toast.error("Verification link has expired. Please use the code from your email or request a new one.");
+        } else {
+          setTokenError(message);
+          toast.error(message);
+        }
       }
     };
     void verifyWithToken();
-  }, [token]);
+  }, [token, isSignup]);
 
 
   useEffect(() => {
@@ -118,7 +137,12 @@ function VerifyEmailPageContent() {
 
     setVerifyingOtp(true);
     try {
-      await apiClient.verifyEmailOtp({ email, otp });
+      // Use signup-specific endpoint if this is a signup flow
+      if (isSignup) {
+        await apiClient.verifySignupOtp({ email, otp });
+      } else {
+        await apiClient.verifyEmailOtp({ email, otp });
+      }
       setVerified(true);
       toast.success("Email verified. You can sign in now.");
       setTimeout(() => {
@@ -126,14 +150,36 @@ function VerifyEmailPageContent() {
       }, 800);
     } catch (error: any) {
       const message = error?.message ?? "Invalid code. Please try again.";
-      toast.error(message);
-      setAttemptsRemaining((prev) => {
-        const next = Math.max(prev - 1, 0);
-        if (next === 0) {
-          setOtp("");
-        }
-        return next;
-      });
+      
+      // Handle specific error cases
+      if (message.includes("Verification conflict") || message.includes("conflict")) {
+        // Check if user might already be verified - suggest trying to login
+        toast.error("Verification conflict detected. Your email may already be verified. Try logging in.");
+        setTimeout(() => {
+          router.push("/login");
+        }, 2000);
+      } else if (message.includes("expired")) {
+        toast.error("Verification code has expired. Please request a new one.");
+        setOtp("");
+      } else if (message.includes("Maximum attempts") || message.includes("attempts reached")) {
+        toast.error("Too many failed attempts. Please request a new verification code.");
+        setOtp("");
+        setAttemptsRemaining(0);
+      } else if (message.includes("already verified")) {
+        toast.success("Email is already verified. Redirecting to login...");
+        setTimeout(() => {
+          router.push("/login");
+        }, 1500);
+      } else {
+        toast.error(message);
+        setAttemptsRemaining((prev) => {
+          const next = Math.max(prev - 1, 0);
+          if (next === 0) {
+            setOtp("");
+          }
+          return next;
+        });
+      }
     } finally {
       setVerifyingOtp(false);
     }
@@ -149,12 +195,17 @@ function VerifyEmailPageContent() {
     }
     setResending(true);
     try {
-      const response = await apiClient.resendVerificationOtp({ email });
+      // Use signup-specific endpoint if this is a signup flow
+      const response = isSignup 
+        ? await apiClient.resendSignupVerification(email)
+        : await apiClient.resendVerificationOtp({ email });
       toast.success(response.message || "Verification code sent! Please check your inbox and spam folder.");
       
       // Calculate new retry time based on canRetryAfter (2 minutes = 120 seconds)
+      // Handle both optional canRetryAfter and default to 120 seconds
+      const retryAfter = response.canRetryAfter ?? 120;
       const now = new Date();
-      const newCanRetryAt = new Date(now.getTime() + (response.canRetryAfter * 1000)).toISOString();
+      const newCanRetryAt = new Date(now.getTime() + (retryAfter * 1000)).toISOString();
       setCanRetryAt(newCanRetryAt);
       
       setOtpExpiresAt(new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000));

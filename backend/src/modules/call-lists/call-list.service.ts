@@ -1408,7 +1408,7 @@ export const updateCallListItem = async (
     data: {
       state: data.state,
       priority: data.priority,
-      custom: customData !== undefined && Object.keys(customData).length > 0 ? customData : null,
+      custom: customData !== undefined && customData !== null && Object.keys(customData).length > 0 ? customData : null,
     },
     include: {
       student: {

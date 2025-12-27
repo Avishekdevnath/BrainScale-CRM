@@ -854,6 +854,10 @@ export const bulkImportFromPaste = async (
           include: { phones: true },
         });
 
+        if (!student) {
+          throw new AppError(404, 'Student not found after update');
+        }
+
         createdStudentId = student.id;
         successCount += 1;
       } else {

@@ -436,6 +436,11 @@ export const sendMessage = async (
       }
     }
 
+    // Ensure chatId is set (should always be set at this point)
+    if (!currentChatId) {
+      throw new AppError(500, 'Chat ID is required');
+    }
+
     // Save user message
     const userMessage = await prisma.chatMessage.create({
       data: {
@@ -500,6 +505,11 @@ export const sendMessage = async (
 
     if (!aiResponse || !aiResponse.content) {
       throw new AppError(500, 'Failed to get AI response');
+    }
+
+    // Ensure chatId is still set
+    if (!currentChatId) {
+      throw new AppError(500, 'Chat ID is required');
     }
 
     // Save AI response

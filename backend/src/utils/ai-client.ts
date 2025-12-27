@@ -309,7 +309,7 @@ export const chatWithFunctions = async (
 
       // Map messages for OpenAI (handle tool role)
       const openaiMessages: any[] = messages.map(msg => {
-        if (msg.role === 'tool') {
+        if ((msg as any).role === 'tool') {
           return {
             role: 'tool',
             content: msg.content,
@@ -433,7 +433,11 @@ export const chatWithFunctions = async (
       const tools = functions.map(fn => ({
         name: fn.name,
         description: fn.description,
-        input_schema: fn.parameters,
+        input_schema: {
+          type: 'object' as const,
+          properties: fn.parameters.properties || {},
+          required: fn.parameters.required || [],
+        },
       }));
 
       // Map messages for Anthropic (handle tool results and tool_use blocks)
@@ -499,16 +503,16 @@ export const chatWithFunctions = async (
         }
 
         // Recursively call with function results
-        const newMessages = [
+        const newMessages: ChatMessage[] = [
           ...messages,
           {
-            role: 'assistant',
-            content: response.content,
-          },
+            role: 'assistant' as const,
+            content: Array.isArray(response.content) ? response.content : [],
+          } as any,
           {
-            role: 'user',
+            role: 'user' as const,
             content: toolResults,
-          },
+          } as any,
         ];
 
         return chatWithFunctions(newMessages, functions, workspaceId, executeFunction, retryCount);
@@ -516,7 +520,7 @@ export const chatWithFunctions = async (
 
       // Return final response
       return {
-        content: contentText || '',
+        content: contentBlock?.text || '',
         metadata: {
           tokensUsed: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
           model: response.model,

@@ -29,7 +29,7 @@ export const ExportChatHistorySchema = z.object({
 
 export const ExportAIDataSchema = z.object({
   dataType: z.enum(['students', 'callLogs', 'followups', 'callLists', 'stats']),
-  filters: z.record(z.any()).optional(),
+  filters: z.record(z.string(), z.any()).optional(),
 });
 
 export type CreateChatInput = z.infer<typeof CreateChatSchema>;

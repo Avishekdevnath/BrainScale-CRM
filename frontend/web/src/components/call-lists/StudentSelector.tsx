@@ -161,7 +161,7 @@ export function StudentSelector({
                     isSelected
                       ? "bg-[var(--groups1-primary)] bg-opacity-10"
                       : "hover:bg-[var(--groups1-secondary)]",
-                    disabled && "opacity-50 cursor-not-allowed"
+                    disabled && "opacity-70 dark:opacity-75 cursor-not-allowed"
                   )}
                 >
                   <div className="flex items-center gap-3">

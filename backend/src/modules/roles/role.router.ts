@@ -3,6 +3,7 @@ import * as roleController from './role.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard, requireRole } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateRoleSchema,
   UpdateRoleSchema,
@@ -10,6 +11,31 @@ import {
 } from './role.schemas';
 
 const router = Router();
+
+/**
+ * @openapi
+ * /workspaces/available-permissions:
+ *   get:
+ *     summary: List all available permissions (Admin only)
+ *     tags: [Roles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: X-Workspace-Id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of permissions
+ *       403:
+ *         description: Admin access required
+ */
+// Permissions listing is restricted to workspace admins
+// Using /available-permissions to avoid route conflicts with /:workspaceId/* routes
+// tenantGuard gets workspace ID from X-Workspace-Id header
+router.get('/available-permissions', authGuard, tenantGuard, requireRole('ADMIN'), roleController.listPermissions);
 
 /**
  * @openapi
@@ -44,7 +70,7 @@ router.post(
   '/:workspaceId/roles',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'create'),
   zodValidator(CreateRoleSchema),
   roleController.createRole
 );
@@ -69,7 +95,7 @@ router.get(
   '/:workspaceId/roles',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'read'),
   roleController.listRoles
 );
 
@@ -98,7 +124,7 @@ router.get(
   '/:workspaceId/roles/:roleId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'read'),
   roleController.getRole
 );
 
@@ -137,7 +163,7 @@ router.patch(
   '/:workspaceId/roles/:roleId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'update'),
   zodValidator(UpdateRoleSchema),
   roleController.updateRole
 );
@@ -167,7 +193,7 @@ router.delete(
   '/:workspaceId/roles/:roleId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'delete'),
   roleController.deleteRole
 );
 
@@ -209,22 +235,34 @@ router.patch(
   '/:workspaceId/roles/:roleId/permissions',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('roles', 'update'),
   zodValidator(AssignPermissionsSchema),
   roleController.assignPermissions
 );
 
 /**
  * @openapi
- * /permissions:
- *   get:
- *     summary: List all available permissions
+ * /workspaces/{workspaceId}/roles/create-default:
+ *   post:
+ *     summary: Create Admin and Member custom roles with all permissions
  *     tags: [Roles]
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: string
  *     responses:
- *       200:
- *         description: List of permissions
+ *       201:
+ *         description: Default roles created/updated successfully
  */
-router.get('/permissions', authGuard, roleController.listPermissions);
+router.post(
+  '/:workspaceId/roles/create-default',
+  authGuard,
+  tenantGuard,
+  requirePermission('roles', 'create'),
+  roleController.createDefaultRoles
+);
 
 export default router;
 

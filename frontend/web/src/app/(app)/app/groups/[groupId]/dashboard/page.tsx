@@ -312,6 +312,7 @@ export default function GroupDashboardPage() {
         onEdit={handleCallListEdit}
         onDelete={handleCallListDelete}
         isAdmin={true}
+        groupId={groupId}
       />
 
       {/* Activity and Charts Row */}

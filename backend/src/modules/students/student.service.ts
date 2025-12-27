@@ -18,6 +18,7 @@ import {
   validateMapping,
   type NormalizedMapping,
 } from './import-export-utils';
+import { getStartOfWeek, getStartOfMonth, getStartOfDay } from '../../utils/date-helpers';
 
 /**
  * Create a new student
@@ -83,19 +84,123 @@ export const listStudents = async (
     isDeleted: false,
   };
 
-  // Search query (name, email, or phone)
+  // Enhanced search query - searches across all visible fields and related data
   if (options.q) {
-    where.OR = [
-      { name: { contains: options.q, mode: 'insensitive' } },
-      ...(options.q.includes('@') ? [{ email: { contains: options.q, mode: 'insensitive' } }] : []),
+    const searchTerm = options.q.trim().toLowerCase();
+    const searchConditions: any[] = [
+      // Direct student fields - all converted to lowercase for case-insensitive search
+      { name: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } },
+      { discordId: { contains: searchTerm, mode: 'insensitive' } },
+      { notes: { contains: searchTerm, mode: 'insensitive' } },
+      
+      // Tags - case-insensitive search by trying multiple case variations
+      // Since Prisma's 'has' does exact matching, we need to check multiple variations
+      { tags: { has: searchTerm } }, // lowercase (e.g., "vip")
+      { tags: { has: options.q.trim() } }, // original case (e.g., "vip" or "VIP")
+      { tags: { has: options.q.trim().toUpperCase() } }, // uppercase (e.g., "VIP")
+      // Title case (e.g., "Vip")
+      ...(options.q.trim().length > 0 ? [{ tags: { has: options.q.trim().charAt(0).toUpperCase() + options.q.trim().slice(1).toLowerCase() } }] : []),
+      
+      // All phone numbers (primary and secondary) - case-insensitive
       {
         phones: {
           some: {
-            phone: { contains: options.q },
+            phone: { contains: searchTerm },
+          },
+        },
+      },
+      
+      // Status values via statuses - case-insensitive
+      {
+        statuses: {
+          some: {
+            status: { contains: searchTerm, mode: 'insensitive' },
           },
         },
       },
     ];
+
+    // For nested relations (groups, batches, courses), we need to find IDs first
+    // then filter by those IDs to avoid nested relation query issues in MongoDB
+    
+    // Search for groups by name (case-insensitive)
+    try {
+      const matchingGroups = await prisma.group.findMany({
+        where: {
+          workspaceId,
+          name: { contains: searchTerm, mode: 'insensitive' },
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      
+      if (matchingGroups.length > 0) {
+        const groupIds = matchingGroups.map(g => g.id);
+        searchConditions.push({
+          enrollments: {
+            some: {
+              groupId: { in: groupIds },
+            },
+          },
+        });
+      }
+    } catch (err) {
+      // If group search fails, continue without it
+      console.warn('Group search failed:', err);
+    }
+
+    // Search for batches by name (case-insensitive)
+    try {
+      const matchingBatches = await prisma.batch.findMany({
+        where: {
+          workspaceId,
+          name: { contains: searchTerm, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      
+      if (matchingBatches.length > 0) {
+        const batchIds = matchingBatches.map(b => b.id);
+        searchConditions.push({
+          studentBatches: {
+            some: {
+              batchId: { in: batchIds },
+            },
+          },
+        });
+      }
+    } catch (err) {
+      // If batch search fails, continue without it
+      console.warn('Batch search failed:', err);
+    }
+
+    // Search for courses by name (case-insensitive)
+    try {
+      const matchingCourses = await prisma.course.findMany({
+        where: {
+          workspaceId,
+          name: { contains: searchTerm, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      
+      if (matchingCourses.length > 0) {
+        const courseIds = matchingCourses.map(c => c.id);
+        searchConditions.push({
+          enrollments: {
+            some: {
+              courseId: { in: courseIds },
+            },
+          },
+        });
+      }
+    } catch (err) {
+      // If course search fails, continue without it
+      console.warn('Course search failed:', err);
+    }
+
+    where.OR = searchConditions;
   }
 
   // Build enrollment filter
@@ -159,7 +264,7 @@ export const listStudents = async (
   const skip = (page - 1) * size;
 
   // Get students with pagination
-  const [students, total] = await Promise.all([
+  let [students, total] = await Promise.all([
     prisma.student.findMany({
       where,
       include: {
@@ -283,7 +388,40 @@ export const getStudent = async (studentId: string, workspaceId: string) => {
     throw new AppError(404, 'Student not found');
   }
 
-  // Get timeline (calls and follow-ups)
+  // Get call logs for statistics
+  const callLogs = await prisma.callLog.findMany({
+    where: {
+      studentId,
+      workspaceId,
+    },
+    orderBy: { callDate: 'desc' },
+    take: 5, // Last 5 calls for recent context
+  });
+
+  // Calculate average call duration
+  const durations = callLogs
+    .map((log) => log.callDuration)
+    .filter((d): d is number => d !== null && d !== undefined);
+  const averageCallDuration =
+    durations.length > 0
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+      : null;
+
+  // Get last call date
+  const lastCallDate = callLogs.length > 0 ? callLogs[0].callDate : null;
+
+  // Get next follow-up date (first pending follow-up)
+  const nextFollowup = await prisma.followup.findFirst({
+    where: {
+      studentId,
+      workspaceId,
+      status: 'PENDING',
+    },
+    orderBy: { dueAt: 'asc' },
+  });
+  const nextFollowUpDate = nextFollowup ? nextFollowup.dueAt : null;
+
+  // Get timeline (calls and follow-ups) - using Call model for legacy support
   const [calls, followups] = await Promise.all([
     prisma.call.findMany({
       where: {
@@ -343,6 +481,9 @@ export const getStudent = async (studentId: string, workspaceId: string) => {
 
   return {
     ...student,
+    lastCallDate: lastCallDate ? lastCallDate.toISOString() : null,
+    nextFollowUpDate: nextFollowUpDate ? nextFollowUpDate.toISOString() : null,
+    averageCallDuration: averageCallDuration ? Math.round(averageCallDuration) : null,
     timeline: {
       calls,
       followups,
@@ -393,6 +534,7 @@ export const updateStudent = async (
       email: data.email === null ? null : data.email,
       discordId: data.discordId === null ? null : data.discordId ?? undefined,
       tags: data.tags,
+      notes: data.notes !== undefined ? (data.notes === null ? null : data.notes) : undefined,
     },
     include: {
       phones: {
@@ -602,17 +744,131 @@ export const bulkImportFromPaste = async (
     const phones = parsePhonesFromMapping(raw, normalizedMapping);
 
     let createdStudentId: string | null = null;
+    let wasCreated = false;
+    let wasMatched = false;
 
     try {
-      const student = await createStudent(workspaceId, {
-        name: studentData.name,
-        email: studentData.email,
-        discordId: studentData.discordId,
-        tags: studentData.tags,
-        phones,
-      });
-      createdStudentId = student.id;
-      successCount += 1;
+      // Try to match existing student first
+      let student = null;
+      const email = studentData.email?.toLowerCase();
+      const primaryPhone = phones.find((p) => p.isPrimary)?.phone || phones[0]?.phone;
+
+      // Match by email
+      if (email) {
+        student = await prisma.student.findFirst({
+          where: {
+            workspaceId,
+            email: email,
+            isDeleted: false,
+          },
+          include: {
+            phones: true,
+          },
+        });
+        if (student) wasMatched = true;
+      }
+
+      // Match by phone if not found
+      if (!student && primaryPhone) {
+        const studentPhone = await prisma.studentPhone.findFirst({
+          where: {
+            workspaceId,
+            phone: primaryPhone,
+            student: {
+              workspaceId,
+              isDeleted: false,
+            },
+          },
+          include: {
+            student: {
+              include: {
+                phones: true,
+              },
+            },
+          },
+        });
+        if (studentPhone) {
+          student = studentPhone.student;
+          wasMatched = true;
+        }
+      }
+
+      // If student exists, update missing fields
+      if (student) {
+        const updateData: any = {};
+        let needsUpdate = false;
+
+        // Update email if missing
+        if (email && !student.email) {
+          updateData.email = email;
+          needsUpdate = true;
+        }
+
+        // Update discordId if missing
+        if (studentData.discordId?.trim() && !student.discordId) {
+          updateData.discordId = studentData.discordId.trim();
+          needsUpdate = true;
+        }
+
+        // Merge tags (combine existing with new, remove duplicates)
+        if (studentData.tags && studentData.tags.length > 0) {
+          const existingTags = (student.tags || []) as string[];
+          const newTags = studentData.tags;
+          const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+          if (mergedTags.length !== existingTags.length) {
+            updateData.tags = mergedTags;
+            needsUpdate = true;
+          }
+        }
+
+        // Update student if any fields need updating
+        if (needsUpdate) {
+          student = await prisma.student.update({
+            where: { id: student.id },
+            data: updateData,
+            include: {
+              phones: true,
+            },
+          });
+        }
+
+        // Add missing phones
+        const existingPhones = (student.phones || []).map(p => p.phone);
+        for (const phoneData of phones) {
+          if (!existingPhones.includes(phoneData.phone)) {
+            const hasPrimary = student.phones?.some(p => p.isPrimary);
+            await prisma.studentPhone.create({
+              data: {
+                studentId: student.id,
+                workspaceId,
+                phone: phoneData.phone,
+                isPrimary: phoneData.isPrimary || (!hasPrimary && phoneData === phones[0]),
+              },
+            });
+          }
+        }
+
+        // Reload student with updated phones
+        student = await prisma.student.findUnique({
+          where: { id: student.id },
+          include: { phones: true },
+        });
+
+        createdStudentId = student.id;
+        successCount += 1;
+      } else {
+        // Create new student if not found
+        const student = await createStudent(workspaceId, {
+          name: studentData.name,
+          email: studentData.email,
+          discordId: studentData.discordId,
+          tags: studentData.tags,
+          phones,
+        });
+        createdStudentId = student.id;
+        wasCreated = true;
+        successCount += 1;
+      }
 
       // Handle enrollment from CSV data or groupId parameter
       let targetGroupId = groupId;
@@ -1246,6 +1502,176 @@ export const setStudentBatches = async (
   });
 
   return studentBatches;
+};
+
+/**
+ * Get student statistics
+ */
+export const getStudentStats = async (studentId: string, workspaceId: string) => {
+  // Verify student exists
+  const student = await prisma.student.findFirst({
+    where: {
+      id: studentId,
+      workspaceId,
+      isDeleted: false,
+    },
+  });
+
+  if (!student) {
+    throw new AppError(404, 'Student not found');
+  }
+
+  const now = new Date();
+  const startOfWeek = getStartOfWeek(now);
+  const startOfMonth = getStartOfMonth(now);
+  const startOfDay = getStartOfDay(now);
+
+  // Get all call logs for this student
+  const allCallLogs = await prisma.callLog.findMany({
+    where: {
+      studentId,
+      workspaceId,
+    },
+    orderBy: { callDate: 'desc' },
+  });
+
+  // Get call logs this week
+  const callsThisWeek = allCallLogs.filter(
+    (log) => new Date(log.callDate) >= startOfWeek
+  );
+
+  // Get call logs this month
+  const callsThisMonth = allCallLogs.filter(
+    (log) => new Date(log.callDate) >= startOfMonth
+  );
+
+  // Calculate average duration
+  const durations = allCallLogs
+    .map((log) => log.callDuration)
+    .filter((d): d is number => d !== null && d !== undefined);
+  const averageDuration =
+    durations.length > 0
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length
+      : 0;
+
+  // Most common call status
+  const statusCounts: Record<string, number> = {};
+  allCallLogs.forEach((log) => {
+    statusCounts[log.status] = (statusCounts[log.status] || 0) + 1;
+  });
+  const mostCommonStatus =
+    Object.keys(statusCounts).length > 0
+      ? Object.entries(statusCounts).sort((a, b) => b[1] - a[1])[0][0]
+      : null;
+
+  // Call success rate (completed vs total)
+  const completedCalls = allCallLogs.filter((log) => log.status === 'completed').length;
+  const successRate =
+    allCallLogs.length > 0 ? (completedCalls / allCallLogs.length) * 100 : 0;
+
+  // Last call date
+  const lastCallDate = allCallLogs.length > 0 ? allCallLogs[0].callDate : null;
+
+  // Days since last call
+  const daysSinceLastCall = lastCallDate
+    ? Math.floor((now.getTime() - new Date(lastCallDate).getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  // Get all follow-ups for this student
+  const allFollowups = await prisma.followup.findMany({
+    where: {
+      studentId,
+      workspaceId,
+    },
+    orderBy: { dueAt: 'asc' },
+  });
+
+  // Pending follow-ups
+  const pendingFollowups = allFollowups.filter((f) => f.status === 'PENDING');
+
+  // Overdue follow-ups (pending and due date is in the past)
+  const overdueFollowups = pendingFollowups.filter(
+    (f) => new Date(f.dueAt) < startOfDay
+  );
+
+  // Next follow-up date (first pending follow-up)
+  const nextFollowUpDate =
+    pendingFollowups.length > 0 ? pendingFollowups[0].dueAt : null;
+
+  // Follow-up completion rate
+  const completedFollowups = allFollowups.filter((f) => f.status === 'DONE').length;
+  const followupCompletionRate =
+    allFollowups.length > 0 ? (completedFollowups / allFollowups.length) * 100 : 0;
+
+  // Calculate engagement metrics
+  // Response rate: percentage of calls that were completed (vs missed/busy/no_answer)
+  const respondedCalls = allCallLogs.filter(
+    (log) => log.status === 'completed'
+  ).length;
+  const responseRate =
+    allCallLogs.length > 0 ? (respondedCalls / allCallLogs.length) * 100 : 0;
+
+  // Average time between calls (in days)
+  let averageTimeBetweenCalls = 0;
+  if (allCallLogs.length > 1) {
+    const sortedCalls = [...allCallLogs].sort(
+      (a, b) => new Date(a.callDate).getTime() - new Date(b.callDate).getTime()
+    );
+    const timeDiffs: number[] = [];
+    for (let i = 1; i < sortedCalls.length; i++) {
+      const diff =
+        (new Date(sortedCalls[i].callDate).getTime() -
+          new Date(sortedCalls[i - 1].callDate).getTime()) /
+        (1000 * 60 * 60 * 24);
+      timeDiffs.push(diff);
+    }
+    averageTimeBetweenCalls =
+      timeDiffs.length > 0
+        ? timeDiffs.reduce((sum, d) => sum + d, 0) / timeDiffs.length
+        : 0;
+  }
+
+  // Calls per week (average over last 4 weeks)
+  const fourWeeksAgo = new Date(now);
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+  const callsLastFourWeeks = allCallLogs.filter(
+    (log) => new Date(log.callDate) >= fourWeeksAgo
+  );
+  const callsPerWeek = callsLastFourWeeks.length / 4;
+
+  // Calls per month (average over last 3 months)
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const callsLastThreeMonths = allCallLogs.filter(
+    (log) => new Date(log.callDate) >= threeMonthsAgo
+  );
+  const callsPerMonth = callsLastThreeMonths.length / 3;
+
+  return {
+    calls: {
+      total: allCallLogs.length,
+      thisWeek: callsThisWeek.length,
+      thisMonth: callsThisMonth.length,
+      averageDuration: Math.round(averageDuration),
+      lastCallDate: lastCallDate ? lastCallDate.toISOString() : null,
+      daysSinceLastCall,
+      successRate: Math.round(successRate * 100) / 100,
+      byStatus: statusCounts,
+    },
+    followups: {
+      total: allFollowups.length,
+      pending: pendingFollowups.length,
+      overdue: overdueFollowups.length,
+      nextFollowUpDate: nextFollowUpDate ? nextFollowUpDate.toISOString() : null,
+      completionRate: Math.round(followupCompletionRate * 100) / 100,
+    },
+    engagement: {
+      responseRate: Math.round(responseRate * 100) / 100,
+      averageTimeBetweenCalls: Math.round(averageTimeBetweenCalls * 100) / 100,
+      callsPerWeek: Math.round(callsPerWeek * 100) / 100,
+      callsPerMonth: Math.round(callsPerMonth * 100) / 100,
+    },
+  };
 };
 
 

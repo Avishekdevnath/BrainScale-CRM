@@ -243,6 +243,7 @@ export const listPermissions = async () => {
     orderBy: [{ resource: 'asc' }, { action: 'asc' }],
   });
 
+  console.log(`[listPermissions service] Found ${permissions.length} permissions in database`);
   return permissions;
 };
 
@@ -297,6 +298,58 @@ export const initializeDefaultPermissions = async () => {
     { resource: 'courses', action: 'update', description: 'Update courses' },
     { resource: 'courses', action: 'delete', description: 'Delete courses' },
     { resource: 'courses', action: 'manage', description: 'Full access to courses' },
+    
+    // Modules
+    { resource: 'modules', action: 'create', description: 'Create modules' },
+    { resource: 'modules', action: 'read', description: 'View modules' },
+    { resource: 'modules', action: 'update', description: 'Update modules' },
+    { resource: 'modules', action: 'delete', description: 'Delete modules' },
+    { resource: 'modules', action: 'manage', description: 'Full access to modules' },
+    
+    // Enrollments
+    { resource: 'enrollments', action: 'create', description: 'Create enrollments' },
+    { resource: 'enrollments', action: 'read', description: 'View enrollments' },
+    { resource: 'enrollments', action: 'update', description: 'Update enrollments' },
+    { resource: 'enrollments', action: 'delete', description: 'Delete enrollments' },
+    { resource: 'enrollments', action: 'manage', description: 'Full access to enrollments' },
+    
+    // Call Lists
+    { resource: 'call_lists', action: 'create', description: 'Create call lists' },
+    { resource: 'call_lists', action: 'read', description: 'View call lists' },
+    { resource: 'call_lists', action: 'update', description: 'Update call lists' },
+    { resource: 'call_lists', action: 'delete', description: 'Delete call lists' },
+    { resource: 'call_lists', action: 'manage', description: 'Full access to call lists' },
+    
+    // Batches
+    { resource: 'batches', action: 'create', description: 'Create batches' },
+    { resource: 'batches', action: 'read', description: 'View batches' },
+    { resource: 'batches', action: 'update', description: 'Update batches' },
+    { resource: 'batches', action: 'delete', description: 'Delete batches' },
+    { resource: 'batches', action: 'manage', description: 'Full access to batches' },
+    
+    // Roles (Custom Roles)
+    { resource: 'roles', action: 'create', description: 'Create custom roles' },
+    { resource: 'roles', action: 'read', description: 'View custom roles' },
+    { resource: 'roles', action: 'update', description: 'Update custom roles' },
+    { resource: 'roles', action: 'delete', description: 'Delete custom roles' },
+    { resource: 'roles', action: 'manage', description: 'Full access to custom roles' },
+    
+    // Revenue
+    { resource: 'revenue', action: 'create', description: 'Create revenue records' },
+    { resource: 'revenue', action: 'read', description: 'View revenue records' },
+    { resource: 'revenue', action: 'update', description: 'Update revenue records' },
+    { resource: 'revenue', action: 'delete', description: 'Delete revenue records' },
+    { resource: 'revenue', action: 'manage', description: 'Full access to revenue' },
+    
+    // Imports
+    { resource: 'imports', action: 'create', description: 'Create imports' },
+    { resource: 'imports', action: 'read', description: 'View imports' },
+    { resource: 'imports', action: 'manage', description: 'Full access to imports' },
+    
+    // Exports
+    { resource: 'exports', action: 'create', description: 'Create exports' },
+    { resource: 'exports', action: 'read', description: 'View exports' },
+    { resource: 'exports', action: 'manage', description: 'Full access to exports' },
   ];
 
   for (const perm of defaultPermissions) {
@@ -313,5 +366,217 @@ export const initializeDefaultPermissions = async () => {
   }
 
   return { message: 'Default permissions initialized' };
+};
+
+/**
+ * Create Admin and Member custom roles with all permissions for a workspace
+ * This is useful for setting up default roles with full access
+ */
+export const createDefaultRolesWithAllPermissions = async (workspaceId: string) => {
+  // Get all available permissions
+  const allPermissions = await prisma.permission.findMany({
+    orderBy: [
+      { resource: 'asc' },
+      { action: 'asc' },
+    ],
+  });
+
+  if (allPermissions.length === 0) {
+    throw new AppError(400, 'No permissions found. Please initialize permissions first.');
+  }
+
+  const permissionIds = allPermissions.map((p) => p.id);
+
+  // Check if roles already exist
+  const existingAdmin = await prisma.customRole.findUnique({
+    where: {
+      workspaceId_name: {
+        workspaceId,
+        name: 'Admin',
+      },
+    },
+  });
+
+  const existingMember = await prisma.customRole.findUnique({
+    where: {
+      workspaceId_name: {
+        workspaceId,
+        name: 'Member',
+      },
+    },
+  });
+
+  const results: { admin?: any; member?: any } = {};
+
+  // Create Admin role with all permissions
+  if (!existingAdmin) {
+    const adminRole = await prisma.customRole.create({
+      data: {
+        workspaceId,
+        name: 'Admin',
+        description: 'Full administrative access to all features',
+        permissions: {
+          create: permissionIds.map((permissionId) => ({
+            permissionId,
+          })),
+        },
+      },
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+    });
+    results.admin = adminRole;
+  } else {
+    // Update existing Admin role to have all permissions
+    // Get existing permissions first
+    const existingAdminPermissions = await prisma.rolePermission.findMany({
+      where: {
+        customRoleId: existingAdmin.id,
+      },
+      select: { permissionId: true },
+    });
+    const existingPermissionIds = new Set(existingAdminPermissions.map((p) => p.permissionId));
+    
+    // Delete permissions that shouldn't exist
+    const permissionsToRemove = existingAdminPermissions
+      .filter((p) => !permissionIds.includes(p.permissionId))
+      .map((p) => p.permissionId);
+    
+    if (permissionsToRemove.length > 0) {
+      await prisma.rolePermission.deleteMany({
+        where: {
+          customRoleId: existingAdmin.id,
+          permissionId: { in: permissionsToRemove },
+        },
+      });
+    }
+
+    // Only create permissions that don't already exist
+    const permissionsToAdd = permissionIds.filter((id) => !existingPermissionIds.has(id));
+    
+    for (const permissionId of permissionsToAdd) {
+      await prisma.rolePermission.create({
+        data: {
+          customRoleId: existingAdmin.id,
+          permissionId,
+        },
+      });
+    }
+
+    const adminRole = await prisma.customRole.findUnique({
+      where: { id: existingAdmin.id },
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+    });
+    results.admin = adminRole;
+  }
+
+  // Create Member role with all permissions
+  if (!existingMember) {
+    const memberRole = await prisma.customRole.create({
+      data: {
+        workspaceId,
+        name: 'Member',
+        description: 'Full access to all features',
+        permissions: {
+          create: permissionIds.map((permissionId) => ({
+            permissionId,
+          })),
+        },
+      },
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+    });
+    results.member = memberRole;
+  } else {
+    // Update existing Member role to have all permissions
+    // Get existing permissions first
+    const existingMemberPermissions = await prisma.rolePermission.findMany({
+      where: {
+        customRoleId: existingMember.id,
+      },
+      select: { permissionId: true },
+    });
+    const existingPermissionIds = new Set(existingMemberPermissions.map((p) => p.permissionId));
+    
+    // Delete permissions that shouldn't exist
+    const permissionsToRemove = existingMemberPermissions
+      .filter((p) => !permissionIds.includes(p.permissionId))
+      .map((p) => p.permissionId);
+    
+    if (permissionsToRemove.length > 0) {
+      await prisma.rolePermission.deleteMany({
+        where: {
+          customRoleId: existingMember.id,
+          permissionId: { in: permissionsToRemove },
+        },
+      });
+    }
+
+    // Only create permissions that don't already exist
+    const permissionsToAdd = permissionIds.filter((id) => !existingPermissionIds.has(id));
+    
+    for (const permissionId of permissionsToAdd) {
+      await prisma.rolePermission.create({
+        data: {
+          customRoleId: existingMember.id,
+          permissionId,
+        },
+      });
+    }
+
+    const memberRole = await prisma.customRole.findUnique({
+      where: { id: existingMember.id },
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+        _count: {
+          select: {
+            members: true,
+          },
+        },
+      },
+    });
+    results.member = memberRole;
+  }
+
+  return {
+    message: 'Default roles created/updated successfully',
+    admin: results.admin,
+    member: results.member,
+    permissionsGranted: allPermissions.length,
+  };
 };
 

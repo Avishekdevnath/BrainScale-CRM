@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as studentController from './student.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateStudentSchema,
   UpdateStudentSchema,
@@ -53,6 +55,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'create'),
   zodValidator(CreateStudentSchema),
   studentController.createStudent
 );
@@ -103,7 +107,13 @@ router.post(
  *       200:
  *         description: Paginated list of students
  */
-router.get('/', authGuard, studentController.listStudents);
+router.get(
+  '/',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'read'),
+  studentController.listStudents
+);
 
 /**
  * @openapi
@@ -121,7 +131,13 @@ router.get('/', authGuard, studentController.listStudents);
  *       200:
  *         description: Student profile
  */
-router.get('/:studentId', authGuard, studentController.getStudent);
+router.get(
+  '/:studentId',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'read'),
+  studentController.getStudent
+);
 
 /**
  * @openapi
@@ -157,6 +173,8 @@ router.get('/:studentId', authGuard, studentController.getStudent);
 router.patch(
   '/:studentId',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   zodValidator(UpdateStudentSchema),
   studentController.updateStudent
 );
@@ -177,7 +195,13 @@ router.patch(
  *       200:
  *         description: Student deleted
  */
-router.delete('/:studentId', authGuard, studentController.deleteStudent);
+router.delete(
+  '/:studentId',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'delete'),
+  studentController.deleteStudent
+);
 
 /**
  * @openapi
@@ -211,6 +235,8 @@ router.delete('/:studentId', authGuard, studentController.deleteStudent);
 router.post(
   '/:studentId/phones',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   zodValidator(AddPhoneSchema),
   studentController.addPhone
 );
@@ -239,6 +265,8 @@ router.post(
 router.delete(
   '/:studentId/phones/:phoneId',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   studentController.removePhone
 );
 
@@ -309,6 +337,8 @@ router.delete(
 router.post(
   '/bulk-paste',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'create'),
   zodValidator(BulkPasteStudentsSchema),
   studentController.bulkImportFromPaste
 );
@@ -349,7 +379,13 @@ router.post(
  *       403:
  *         description: Access denied to the specified group
  */
-router.get('/export/csv', authGuard, studentController.exportStudentsCsv);
+router.get(
+  '/export/csv',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'read'),
+  studentController.exportStudentsCsv
+);
 
 /**
  * @openapi
@@ -381,6 +417,8 @@ router.get('/export/csv', authGuard, studentController.exportStudentsCsv);
 router.post(
   '/:studentId/batches',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   zodValidator(AddStudentToBatchSchema),
   studentController.addStudentToBatch
 );
@@ -401,7 +439,13 @@ router.post(
  *       200:
  *         description: List of batches for the student
  */
-router.get('/:studentId/batches', authGuard, studentController.getStudentBatches);
+router.get(
+  '/:studentId/batches',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'read'),
+  studentController.getStudentBatches
+);
 
 /**
  * @openapi
@@ -435,6 +479,8 @@ router.get('/:studentId/batches', authGuard, studentController.getStudentBatches
 router.put(
   '/:studentId/batches',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   zodValidator(SetStudentBatchesSchema),
   studentController.setStudentBatches
 );
@@ -463,7 +509,33 @@ router.put(
 router.delete(
   '/:studentId/batches/:batchId',
   authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
   studentController.removeStudentFromBatch
+);
+
+/**
+ * @openapi
+ * /students/{studentId}/stats:
+ *   get:
+ *     summary: Get student statistics
+ *     tags: [Students]
+ *     parameters:
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Student statistics
+ */
+router.get(
+  '/:studentId/stats',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'read'),
+  studentController.getStudentStats
 );
 
 export default router;

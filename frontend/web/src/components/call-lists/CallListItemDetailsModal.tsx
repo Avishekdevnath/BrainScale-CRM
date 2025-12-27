@@ -56,6 +56,7 @@ export function CallListItemDetailsModal({
   const [status, setStatus] = useState<CallLogStatus | "">("");
   const [itemState, setItemState] = useState<CallListItemState | "">("");
   const [itemPriority, setItemPriority] = useState<number>(0);
+  const [specialFeedback, setSpecialFeedback] = useState<string>("");
   
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember, isLoading: isLoadingMember } = useCurrentMember(workspaceId);
@@ -79,9 +80,13 @@ export function CallListItemDetailsModal({
     if (callListItem) {
       setItemState(callListItem.state || "");
       setItemPriority(callListItem.priority || 0);
+      // Extract special feedback from custom field
+      const custom = callListItem.custom as Record<string, any> | null;
+      setSpecialFeedback(custom?.specialFeedback || "");
     } else {
       setItemState("");
       setItemPriority(0);
+      setSpecialFeedback("");
     }
   }, [callLog, callListItem]);
 
@@ -125,6 +130,12 @@ export function CallListItemDetailsModal({
       toast.success("Call log updated successfully");
       await mutateCallLog();
       await mutate(`call-list-items-${listId}`);
+      // Invalidate dashboard cache to refresh stats
+      await mutate(
+        (key) => typeof key === "string" && key.startsWith("dashboard/"),
+        undefined,
+        { revalidate: true }
+      );
       onUpdated?.();
     } catch (error: any) {
       console.error("Failed to update call log:", error);
@@ -152,9 +163,27 @@ export function CallListItemDetailsModal({
 
     setIsUpdatingItem(true);
     try {
+      // Prepare custom field with special feedback, preserving existing custom fields
+      const existingCustom = (callListItem.custom as Record<string, any> | null) || {};
+      const custom: Record<string, any> = { ...existingCustom };
+      
+      // Always update specialFeedback (even if empty, to allow clearing it)
+      if (specialFeedback.trim()) {
+        custom.specialFeedback = specialFeedback.trim();
+      } else {
+        // Remove specialFeedback if empty
+        delete custom.specialFeedback;
+      }
+      
+      // Only send custom if there are fields to update or if we need to clear it
+      // If custom is empty and there was no existing custom, don't send it
+      const hasExistingCustom = callListItem.custom && Object.keys(callListItem.custom as Record<string, any>).length > 0;
+      const shouldUpdateCustom = Object.keys(custom).length > 0 || hasExistingCustom;
+      
       await apiClient.updateCallListItem(callListItem.id, {
         state: itemState as CallListItemState,
         priority: itemPriority,
+        custom: shouldUpdateCustom ? custom : undefined,
       });
       toast.success("Call list item updated successfully");
       await mutate(`call-list-items-${listId}`);
@@ -279,6 +308,18 @@ export function CallListItemDetailsModal({
                     />
                   </div>
                 </div>
+                <div>
+                  <Label htmlFor="specialFeedback" className="text-sm font-medium text-[var(--groups1-text)]">
+                    Special Feedback for Follow-up (Optional)
+                  </Label>
+                  <textarea
+                    id="specialFeedback"
+                    value={specialFeedback}
+                    onChange={(e) => setSpecialFeedback(e.target.value)}
+                    placeholder="Enter special feedback for follow-up..."
+                    className="mt-1 w-full px-3 py-2 text-sm rounded-md bg-[var(--groups1-background)] border border-[var(--groups1-border)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] min-h-[100px] resize-y"
+                  />
+                </div>
                 <div className="flex justify-end">
                   <Button
                     variant="outline"
@@ -317,6 +358,14 @@ export function CallListItemDetailsModal({
                     <span className="font-medium text-[var(--groups1-text)]">
                       {callListItem.callList.name}
                     </span>
+                  </div>
+                )}
+                {callListItem.custom && typeof callListItem.custom === 'object' && (callListItem.custom as Record<string, any>).specialFeedback && (
+                  <div className="col-span-2">
+                    <span className="text-gray-500">Special Feedback:</span>
+                    <p className="text-[var(--groups1-text)] mt-1 whitespace-pre-wrap bg-[var(--groups1-background)] p-2 rounded border border-[var(--groups1-border)]">
+                      {(callListItem.custom as Record<string, any>).specialFeedback}
+                    </p>
                   </div>
                 )}
               </div>

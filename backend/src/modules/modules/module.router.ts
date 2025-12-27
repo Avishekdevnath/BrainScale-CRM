@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as moduleController from './module.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { CreateModuleSchema, UpdateModuleSchema } from './module.schemas';
 
 const router = Router();
@@ -39,6 +41,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('modules', 'create'),
   zodValidator(CreateModuleSchema),
   moduleController.createModule
 );
@@ -59,7 +63,13 @@ router.post(
  *       200:
  *         description: Module details
  */
-router.get('/:moduleId', authGuard, moduleController.getModule);
+router.get(
+  '/:moduleId',
+  authGuard,
+  tenantGuard,
+  requirePermission('modules', 'read'),
+  moduleController.getModule
+);
 
 /**
  * @openapi
@@ -94,6 +104,8 @@ router.get('/:moduleId', authGuard, moduleController.getModule);
 router.patch(
   '/:moduleId',
   authGuard,
+  tenantGuard,
+  requirePermission('modules', 'update'),
   zodValidator(UpdateModuleSchema),
   moduleController.updateModule
 );
@@ -114,7 +126,13 @@ router.patch(
  *       200:
  *         description: Module deleted or deactivated
  */
-router.delete('/:moduleId', authGuard, moduleController.deleteModule);
+router.delete(
+  '/:moduleId',
+  authGuard,
+  tenantGuard,
+  requirePermission('modules', 'delete'),
+  moduleController.deleteModule
+);
 
 export default router;
 
@@ -140,6 +158,8 @@ export const courseModuleRouter = Router();
 courseModuleRouter.get(
   '/:courseId/modules',
   authGuard,
+  tenantGuard,
+  requirePermission('modules', 'read'),
   moduleController.listCourseModules
 );
 

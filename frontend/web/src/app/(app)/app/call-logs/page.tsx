@@ -14,8 +14,13 @@ import { useCallLists } from "@/hooks/useCallLists";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CallLogDetailsModal } from "@/components/call-lists/CallLogDetailsModal";
 import { formatCallDuration, getStatusLabel, getStatusColor } from "@/lib/call-list-utils";
-import { Loader2, Search, X, ChevronLeft, ChevronRight, Eye } from "lucide-react";
-import type { CallLogStatus } from "@/types/call-lists.types";
+import { Loader2, Search, X, ChevronLeft, ChevronRight, Eye, MoreVertical, Pencil } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { EditCallLogDialog } from "@/components/call-lists/EditCallLogDialog";
+import { mutate } from "swr";
+import type { CallLogStatus, CallLog } from "@/types/call-lists.types";
 
 function CallLogsPageContent() {
   const router = useRouter();
@@ -35,6 +40,9 @@ function CallLogsPageContent() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<CallLog | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   usePageTitle("Call Logs");
 
@@ -76,6 +84,22 @@ function CallLogsPageContent() {
     setIsDetailsModalOpen(true);
   };
 
+  const handleEditCall = (log: CallLog) => {
+    setEditingLog(log);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSuccess = async () => {
+    await mutateLogs();
+    setEditingLog(null);
+    // Invalidate dashboard cache to refresh stats
+    await mutate(
+      (key) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
+  };
+
   const clearFilters = () => {
     setBatchId(null);
     setGroupId(null);
@@ -111,7 +135,7 @@ function CallLogsPageContent() {
             </p>
             <Button
               onClick={() => mutateLogs()}
-              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
             >
               Retry
             </Button>
@@ -125,11 +149,11 @@ function CallLogsPageContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="pt-6">
+      <CollapsibleFilters open={showFilters} contentClassName="pt-6">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -231,15 +255,14 @@ function CallLogsPageContent() {
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
               >
                 <X className="w-4 h-4 mr-1" />
                 Clear Filters
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Call Logs Table */}
       <Card variant="groups1">
@@ -316,15 +339,45 @@ function CallLogsPageContent() {
                             {log.assignee?.user.name || "Unknown"}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewDetails(log.id)}
-                              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  aria-label="Call log actions"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                  className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
+                                  align="end"
+                                >
+                                  <DropdownMenu.Item
+                                    className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      handleEditCall(log);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                    Edit Call
+                                  </DropdownMenu.Item>
+                                  <DropdownMenu.Item
+                                    className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      handleViewDetails(log.id);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    View Call
+                                  </DropdownMenu.Item>
+                                </DropdownMenu.Content>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
                           </td>
                         </tr>
                       );
@@ -347,7 +400,7 @@ function CallLogsPageContent() {
                       size="sm"
                       onClick={() => setPage(page - 1)}
                       disabled={page === 1 || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Previous
@@ -360,7 +413,7 @@ function CallLogsPageContent() {
                       size="sm"
                       onClick={() => setPage(page + 1)}
                       disabled={page >= pagination.totalPages || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />
@@ -383,6 +436,19 @@ function CallLogsPageContent() {
           }
         }}
         callLog={selectedLog || null}
+      />
+
+      {/* Edit Call Log Dialog */}
+      <EditCallLogDialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingLog(null);
+          }
+        }}
+        callLog={editingLog}
+        onSuccess={handleEditSuccess}
       />
     </div>
   );

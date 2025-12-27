@@ -1,5 +1,6 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
+import { getStartOfWeek } from '../../utils/date-helpers';
 import { GetMyCallsInput } from './call-list.schemas';
 
 /**
@@ -37,6 +38,16 @@ export const getMyCalls = async (
 
   if (options.callListId) {
     where.callListId = options.callListId;
+  }
+
+  // Filter by follow-ups required
+  if (options.followUpRequired !== undefined) {
+    // Only show items that have a callLog (completed calls) with follow-up required
+    where.callLogId = { not: null }; // Ensure callLog exists
+    where.callLog = {
+      followUpRequired: options.followUpRequired,
+      assignedTo: member.id, // Only show follow-ups for calls made by the logged-in user
+    };
   }
 
   // Filter by groupId via callList.groupId
@@ -121,6 +132,11 @@ export const getMyCalls = async (
             callDate: true,
             callDuration: true,
             assignedTo: true,
+            followUpRequired: true,
+            answers: true,
+            notes: true,
+            callerNote: true,
+            followUpDate: true,
           },
         },
       },
@@ -331,10 +347,40 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
 
   const byGroup = Array.from(groupCounts.values());
 
+  // Count call logs created this week
+  const startOfWeek = getStartOfWeek();
+  
+  const thisWeek = await prisma.callLog.count({
+    where: {
+      assignedTo: member.id,
+      workspaceId,
+      callDate: {
+        gte: startOfWeek,
+      },
+    },
+  });
+
+  // Count call list items with follow-ups required (only for calls made by this user)
+  const followUps = await prisma.callListItem.count({
+    where: {
+      assignedTo: member.id,
+      callLogId: { not: null }, // Ensure callLog exists (completed calls only)
+      callList: {
+        workspaceId,
+      },
+      callLog: {
+        followUpRequired: true,
+        assignedTo: member.id, // Only count follow-ups for calls made by the logged-in user
+      },
+    },
+  });
+
   return {
     totalAssigned,
     completed,
     pending,
+    thisWeek,
+    followUps,
     byCallList: byCallListWithNames,
     byBatch,
     byGroup,

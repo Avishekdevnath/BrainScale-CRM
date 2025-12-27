@@ -50,7 +50,7 @@ export function MessagesBuilder({ messages, onChange, disabled }: MessagesBuilde
           size="sm"
           onClick={addMessage}
           disabled={disabled}
-          className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
         >
           <Plus className="w-4 h-4 mr-1" />
           Add Message

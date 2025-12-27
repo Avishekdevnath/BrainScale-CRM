@@ -21,13 +21,14 @@ export function UserMenu() {
   const displayName = user?.name || user?.email || "User";
 
   if (!mounted) {
+    // During SSR, always render "U" to match server output and prevent hydration mismatch
     return (
       <button
         type="button"
         className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
         aria-label="User menu"
       >
-        {initials}
+        U
       </button>
     );
   }

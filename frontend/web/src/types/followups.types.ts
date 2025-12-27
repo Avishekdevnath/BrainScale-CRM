@@ -34,6 +34,7 @@ export interface FollowupCallList {
     required: boolean;
     order: number;
   }>;
+  messages?: string[]; // Messages to convey
 }
 
 export interface FollowupPreviousCallLog {
@@ -130,7 +131,8 @@ export interface FollowupCallContext {
       required: boolean;
       order: number;
     }>;
-  };
+    messages?: string[]; // Messages to convey
+  } | null;
   previousCallLog?: FollowupPreviousCallLog;
 }
 
@@ -148,5 +150,6 @@ export interface CreateFollowupCallLogRequest {
   callerNote?: string;
   followUpDate?: string; // ISO 8601 datetime
   followUpRequired?: boolean;
+  followUpNote?: string; // Note for the new follow-up when scheduling
 }
 

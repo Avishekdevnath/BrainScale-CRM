@@ -68,8 +68,12 @@ export function MemberSelector({
             email: m.user.email,
           }))
         );
-      } catch (error) {
-        console.error("Failed to fetch members:", error);
+      } catch (error: any) {
+        // Silently handle access denied errors (403) - user may not have permission to view members
+        // Only log unexpected errors
+        if (error?.status !== 403 && error?.statusCode !== 403) {
+          console.error("Failed to fetch members:", error);
+        }
         setMembers([]);
       } finally {
         setIsLoading(false);

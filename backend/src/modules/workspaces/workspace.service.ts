@@ -172,6 +172,15 @@ export const updateWorkspace = async (
   workspaceId: string,
   data: UpdateWorkspaceInput
 ) => {
+  // Check if workspace exists
+  const existingWorkspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+  });
+
+  if (!existingWorkspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
   const workspace = await prisma.workspace.update({
     where: { id: workspaceId },
     data,
@@ -184,6 +193,44 @@ export const inviteMember = async (
   workspaceId: string,
   data: InviteMemberInput
 ) => {
+  // Verify workspace exists
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    include: {
+      members: true,
+    },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Check member limit for FREE plan
+  if (workspace.plan === 'FREE') {
+    const currentMemberCount = workspace.members.length;
+    if (currentMemberCount >= 5) {
+      throw new AppError(
+        403,
+        'Free plan allows a maximum of 5 members. Please upgrade to add more members.'
+      );
+    }
+  }
+
+  // Validate groups if provided
+  if (data.groupIds && data.groupIds.length > 0) {
+    const groups = await prisma.group.findMany({
+      where: {
+        id: { in: data.groupIds },
+        workspaceId,
+        isActive: true,
+      },
+    });
+
+    if (groups.length !== data.groupIds.length) {
+      throw new AppError(400, 'One or more groups not found or inactive');
+    }
+  }
+
   // Check if user exists
   const user = await prisma.user.findUnique({
     where: { email: data.email },
@@ -276,14 +323,50 @@ export const updateMember = async (
   memberId: string,
   data: UpdateMemberInput
 ) => {
-  // Get current member to check workspace
+  // Get current member to check workspace and role
   const currentMember = await prisma.workspaceMember.findUnique({
     where: { id: memberId },
-    select: { workspaceId: true },
+    select: { 
+      workspaceId: true,
+      role: true,
+      customRoleId: true,
+    },
   });
 
   if (!currentMember) {
     throw new AppError(404, 'Member not found');
+  }
+
+  // Verify workspace exists
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: currentMember.workspaceId },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Check if member is currently an admin (either via role or custom role)
+  const isCurrentlyAdmin = currentMember.role === 'ADMIN';
+  
+  // Check if trying to demote from ADMIN to MEMBER
+  const isDemotingAdmin = isCurrentlyAdmin && data.role === 'MEMBER';
+  
+  // If demoting an admin, check if they're the last admin
+  if (isDemotingAdmin) {
+    const adminCount = await prisma.workspaceMember.count({
+      where: {
+        workspaceId: currentMember.workspaceId,
+        role: 'ADMIN',
+      },
+    });
+
+    if (adminCount <= 1) {
+      throw new AppError(
+        400,
+        'Cannot demote the last admin. Please promote another member to admin first, or remove this member instead.'
+      );
+    }
   }
 
   // Validate custom role if provided
@@ -293,10 +376,44 @@ export const updateMember = async (
         id: data.customRoleId,
         workspaceId: currentMember.workspaceId,
       },
+      include: {
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
+      },
     });
 
     if (!customRole) {
       throw new AppError(404, 'Custom role not found or does not belong to this workspace');
+    }
+
+    // Check if custom role has admin-equivalent permissions
+    // If demoting from ADMIN to a custom role, check if it's the last admin
+    if (isCurrentlyAdmin) {
+      // Check if custom role has workspace management permissions (admin-like)
+      const hasAdminPermissions = customRole.permissions.some(
+        (rp) => rp.permission.resource === 'workspaces' && 
+                (rp.permission.action === 'manage' || rp.permission.action === 'update')
+      );
+
+      // If custom role doesn't have admin permissions, treat as demotion
+      if (!hasAdminPermissions) {
+        const adminCount = await prisma.workspaceMember.count({
+          where: {
+            workspaceId: currentMember.workspaceId,
+            role: 'ADMIN',
+          },
+        });
+
+        if (adminCount <= 1) {
+          throw new AppError(
+            400,
+            'Cannot demote the last admin. Please promote another member to admin first, or assign a custom role with admin permissions.'
+          );
+        }
+      }
     }
   }
 
@@ -351,6 +468,39 @@ export const grantGroupAccess = async (
   memberId: string,
   data: GrantGroupAccessInput
 ) => {
+  // Verify member exists and get workspace
+  const member = await prisma.workspaceMember.findUnique({
+    where: { id: memberId },
+    select: { workspaceId: true },
+  });
+
+  if (!member) {
+    throw new AppError(404, 'Member not found');
+  }
+
+  // Verify workspace exists
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: member.workspaceId },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Validate that all groups belong to the same workspace
+  if (data.groupIds && data.groupIds.length > 0) {
+    const groups = await prisma.group.findMany({
+      where: {
+        id: { in: data.groupIds },
+        workspaceId: member.workspaceId,
+      },
+    });
+
+    if (groups.length !== data.groupIds.length) {
+      throw new AppError(400, 'One or more groups do not belong to this workspace');
+    }
+  }
+
   // Remove existing group access
   await prisma.groupAccess.deleteMany({
     where: { memberId },
@@ -368,6 +518,45 @@ export const grantGroupAccess = async (
 };
 
 export const removeMember = async (memberId: string) => {
+  // Verify member exists and get their role
+  const member = await prisma.workspaceMember.findUnique({
+    where: { id: memberId },
+    select: { 
+      workspaceId: true,
+      role: true,
+    },
+  });
+
+  if (!member) {
+    throw new AppError(404, 'Member not found');
+  }
+
+  // Verify workspace exists
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: member.workspaceId },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Prevent removing the last admin
+  if (member.role === 'ADMIN') {
+    const adminCount = await prisma.workspaceMember.count({
+      where: {
+        workspaceId: member.workspaceId,
+        role: 'ADMIN',
+      },
+    });
+
+    if (adminCount <= 1) {
+      throw new AppError(
+        400,
+        'Cannot remove the last admin. Please promote another member to admin first.'
+      );
+    }
+  }
+
   // Delete member (cascade will remove group access)
   await prisma.workspaceMember.delete({
     where: { id: memberId },
@@ -377,7 +566,7 @@ export const removeMember = async (memberId: string) => {
 };
 
 /**
- * Generate a secure random temporary password
+ * Generate a secure random temporary password using cryptographically secure random bytes
  */
 const generateTemporaryPassword = (): string => {
   const length = 12;
@@ -387,22 +576,28 @@ const generateTemporaryPassword = (): string => {
   const special = '!@#$%^&*';
   const allChars = uppercase + lowercase + numbers + special;
 
+  // Generate cryptographically secure random bytes
+  const randomBytes = crypto.randomBytes(length);
+  
   // Ensure at least one character from each category
   let password = '';
-  password += uppercase[Math.floor(Math.random() * uppercase.length)];
-  password += lowercase[Math.floor(Math.random() * lowercase.length)];
-  password += numbers[Math.floor(Math.random() * numbers.length)];
-  password += special[Math.floor(Math.random() * special.length)];
+  password += uppercase[randomBytes[0] % uppercase.length];
+  password += lowercase[randomBytes[1] % lowercase.length];
+  password += numbers[randomBytes[2] % numbers.length];
+  password += special[randomBytes[3] % special.length];
 
-  // Fill the rest randomly
+  // Fill the rest with cryptographically secure random characters
   for (let i = password.length; i < length; i++) {
-    password += allChars[Math.floor(Math.random() * allChars.length)];
+    password += allChars[randomBytes[i] % allChars.length];
   }
 
-  // Shuffle the password
+  // Shuffle the password using cryptographically secure random
+  const shuffleBytes = crypto.randomBytes(password.length);
   return password
     .split('')
-    .sort(() => Math.random() - 0.5)
+    .map((char, i) => ({ char, rand: shuffleBytes[i] }))
+    .sort((a, b) => a.rand - b.rand)
+    .map(({ char }) => char)
     .join('');
 };
 
@@ -410,6 +605,29 @@ export const createMemberWithAccount = async (
   workspaceId: string,
   data: CreateMemberWithAccountInput
 ) => {
+  // Verify workspace exists and check member limit for FREE plan
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    include: {
+      members: true,
+    },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Check member limit for FREE plan
+  if (workspace.plan === 'FREE') {
+    const currentMemberCount = workspace.members.length;
+    if (currentMemberCount >= 5) {
+      throw new AppError(
+        403,
+        'Free plan allows a maximum of 5 members. Please upgrade to add more members.'
+      );
+    }
+  }
+
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({
     where: { email: data.email },
@@ -453,6 +671,10 @@ export const createMemberWithAccount = async (
   const passwordHash = await hashPassword(temporaryPassword);
 
   // Create user with temporary password
+  // IMPORTANT: We must explicitly set a unique verificationToken here.
+  // If Prisma sends `verificationToken: null` for MongoDB with a unique index,
+  // it can trigger `User_verificationToken_key` P2002 errors when another
+  // user document already has a null value for that field.
   const user = await prisma.user.create({
     data: {
       email: data.email,
@@ -462,6 +684,11 @@ export const createMemberWithAccount = async (
       emailVerified: true, // Admin-created users are pre-verified
       mustChangePassword: true,
       temporaryPassword: true,
+      // Use a unique, random verification token to avoid null-unique conflicts.
+      // This token is not used for email verification (user is already verified),
+      // but keeps the unique constraint satisfied.
+      verificationToken: crypto.randomBytes(32).toString('hex'),
+      verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
     },
     select: {
       id: true,
@@ -508,18 +735,15 @@ export const createMemberWithAccount = async (
     },
   });
 
-  // Get workspace name for email
-  const workspace = await prisma.workspace.findUnique({
-    where: { id: workspaceId },
-    select: { name: true },
-  });
+  // Get workspace name for email (workspace already fetched above)
+  const workspaceName = workspace.name;
 
   // Send welcome email with temporary password
   try {
     await sendTemporaryPasswordEmail(
       user.email,
       user.name || 'User',
-      workspace?.name || 'Workspace',
+      workspaceName,
       temporaryPassword
     );
   } catch (error) {

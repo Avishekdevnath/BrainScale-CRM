@@ -78,10 +78,21 @@ export const env = {
   TZ: process.env.TZ || 'Asia/Dhaka',
   
   // Swagger
-  SWAGGER_ENABLED: process.env.SWAGGER_ENABLED !== 'false',
+  // Disabled by default for security. Set SWAGGER_ENABLED=true to enable API documentation
+  SWAGGER_ENABLED: process.env.SWAGGER_ENABLED === 'true',
   
   // Cron
   CRON_SECRET: process.env.CRON_SECRET || '',
+  
+  // AI Configuration
+  AI_ENABLED: process.env.AI_ENABLED === 'true',
+  AI_PROVIDER: (process.env.AI_PROVIDER || 'none').trim().toLowerCase(),
+  OPENAI_API_KEY: (process.env.OPENAI_API_KEY || '').trim(),
+  ANTHROPIC_API_KEY: (process.env.ANTHROPIC_API_KEY || '').trim(),
+  AI_FEATURES: (process.env.AI_FEATURES || '')
+    .split(',')
+    .map(f => f.trim())
+    .filter(f => f.length > 0),
 } as const;
 
 // Validate required env vars (database is validated separately below)

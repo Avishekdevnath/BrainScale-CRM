@@ -3,6 +3,7 @@ import * as workspaceController from './workspace.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard, requireRole } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateWorkspaceSchema,
   UpdateWorkspaceSchema,
@@ -83,7 +84,13 @@ router.get('/', authGuard, workspaceController.list);
  *       404:
  *         description: Workspace not found
  */
-router.get('/:workspaceId', authGuard, tenantGuard, workspaceController.get);
+router.get(
+  '/:workspaceId',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  workspaceController.get
+);
 
 /**
  * @openapi
@@ -117,7 +124,7 @@ router.patch(
   '/:workspaceId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('workspace', 'update'),
   zodValidator(UpdateWorkspaceSchema),
   workspaceController.update
 );
@@ -161,7 +168,7 @@ router.post(
   '/:workspaceId/members/invite',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'invite'),
   zodValidator(InviteMemberSchema),
   workspaceController.invite
 );
@@ -237,7 +244,7 @@ router.post(
   '/:workspaceId/members/create',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'invite'),
   zodValidator(CreateMemberWithAccountSchema),
   workspaceController.createMemberWithAccount
 );
@@ -258,7 +265,13 @@ router.post(
  *       200:
  *         description: List of members
  */
-router.get('/:workspaceId/members', authGuard, tenantGuard, workspaceController.members);
+router.get(
+  '/:workspaceId/members',
+  authGuard,
+  tenantGuard,
+  requirePermission('members', 'read'),
+  workspaceController.members
+);
 
 /**
  * @openapi
@@ -299,7 +312,7 @@ router.patch(
   '/:workspaceId/members/:memberId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'update'),
   zodValidator(UpdateMemberSchema),
   workspaceController.updateMember
 );
@@ -342,7 +355,7 @@ router.patch(
   '/:workspaceId/members/:memberId/groups',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'update'),
   zodValidator(GrantGroupAccessSchema),
   workspaceController.grantGroupAccess
 );
@@ -372,7 +385,7 @@ router.delete(
   '/:workspaceId/members/:memberId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'remove'),
   workspaceController.removeMember
 );
 

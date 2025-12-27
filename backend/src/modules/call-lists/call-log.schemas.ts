@@ -17,6 +17,7 @@ export const CreateCallLogSchema = z.object({
   callerNote: z.string().optional(),
   followUpDate: z.string().optional(),
   followUpRequired: z.boolean().optional().default(false),
+  followUpNote: z.string().optional(), // Note for the follow-up call
 });
 
 export const UpdateCallLogSchema = z.object({
@@ -27,6 +28,7 @@ export const UpdateCallLogSchema = z.object({
   callerNote: z.string().optional(),
   followUpDate: z.string().optional(),
   followUpRequired: z.boolean().optional(),
+  followUpNote: z.string().optional(), // Note for the follow-up call
 });
 
 export const ListCallLogsSchema = z.object({

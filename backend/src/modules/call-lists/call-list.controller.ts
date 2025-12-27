@@ -13,9 +13,8 @@ export const createCallList = asyncHandler(async (req: AuthRequest, res: Respons
 });
 
 export const listCallLists = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const groupId = req.query.groupId as string | undefined;
-  const batchId = req.query.batchId as string | undefined;
-  const callLists = await callListService.listCallLists(req.user!.workspaceId!, groupId, batchId);
+  const options = req.validatedData as any;
+  const callLists = await callListService.listCallLists(req.user!.workspaceId!, options);
   res.json(callLists);
 });
 
@@ -41,6 +40,7 @@ export const updateCallList = asyncHandler(async (req: AuthRequest, res: Respons
   const result = await callListService.updateCallList(
     listId,
     req.user!.workspaceId!,
+    req.user!.sub,
     req.validatedData!
   );
   res.json(result);
@@ -110,5 +110,40 @@ export const createFromBulkPaste = asyncHandler(async (req: AuthRequest, res: Re
     req.validatedData!
   );
   res.status(201).json(result);
+});
+
+export const createCallListFromFollowups = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await callListService.createCallListFromFollowups(
+    req.user!.workspaceId!,
+    req.user!.sub,
+    req.validatedData!
+  );
+  res.status(201).json(result);
+});
+
+export const deleteCallListItem = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { itemId } = req.params;
+  const result = await callListService.deleteCallListItem(itemId, req.user!.workspaceId!);
+  res.json(result);
+});
+
+export const markCallListComplete = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const result = await callListService.markCallListComplete(
+    listId,
+    req.user!.workspaceId!,
+    req.user!.sub
+  );
+  res.json(result);
+});
+
+export const markCallListActive = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const result = await callListService.markCallListActive(
+    listId,
+    req.user!.workspaceId!,
+    req.user!.sub
+  );
+  res.json(result);
 });
 

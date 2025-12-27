@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import * as importController from './import.controller';
 import { zodValidator } from '../../middleware/validate';
-import { authGuard, requireRole } from '../../middleware/auth-guard';
+import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 // Rate limiters disabled for testing
 // import { uploadLimiter } from '../../middleware/rate-limit';
 import { upload } from '../../utils/upload';
@@ -34,7 +36,8 @@ const router = Router();
 router.post(
   '/preview',
   authGuard,
-  requireRole('ADMIN'),
+  tenantGuard,
+  requirePermission('students', 'create'),
   /* uploadLimiter, */
   upload.single('file'),
   importController.previewImport
@@ -87,7 +90,8 @@ router.post(
 router.post(
   '/:importId/commit',
   authGuard,
-  requireRole('ADMIN'),
+  tenantGuard,
+  requirePermission('students', 'create'),
   zodValidator(CommitImportSchema),
   importController.commitImport
 );
@@ -105,7 +109,8 @@ router.post(
 router.get(
   '/',
   authGuard,
-  requireRole('ADMIN'),
+  tenantGuard,
+  requirePermission('students', 'create'),
   importController.listImports
 );
 
@@ -128,7 +133,8 @@ router.get(
 router.get(
   '/:importId',
   authGuard,
-  requireRole('ADMIN'),
+  tenantGuard,
+  requirePermission('students', 'create'),
   importController.getImport
 );
 

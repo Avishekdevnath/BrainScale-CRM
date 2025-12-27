@@ -7,14 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, Phone, Calendar } from "lucide-react";
+import { Loader2, Phone, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { validateCallLog, formatCallDuration } from "@/lib/call-list-utils";
+import { cn } from "@/lib/utils";
 import type { CallListItem, Question, Answer, CallLogStatus, CreateCallLogRequest } from "@/types/call-lists.types";
 
 export interface CallExecutionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   callListItem: CallListItem | null;
+  previousCallLog?: CallListItem['callLog'] | null;
   onSuccess?: () => void;
 }
 
@@ -22,15 +24,19 @@ export function CallExecutionModal({
   open,
   onOpenChange,
   callListItem,
+  previousCallLog,
   onSuccess,
 }: CallExecutionModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState("");
   const [callerNote, setCallerNote] = useState("");
+  const [showNotes, setShowNotes] = useState(false);
+  const [showCallerNote, setShowCallerNote] = useState(false);
   const [status, setStatus] = useState<CallLogStatus>("completed");
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpNote, setFollowUpNote] = useState("");
   const [callDuration, setCallDuration] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -45,13 +51,22 @@ export function CallExecutionModal({
       setAnswers({});
       setNotes("");
       setCallerNote("");
+      setShowNotes(false);
+      setShowCallerNote(false);
       setStatus("completed");
       setFollowUpRequired(false);
-      setFollowUpDate("");
+      // Auto-populate follow-up date from previous call if available
+      if (previousCallLog?.followUpDate) {
+        const date = new Date(previousCallLog.followUpDate);
+        setFollowUpDate(date.toISOString().split("T")[0]);
+      } else {
+        setFollowUpDate("");
+      }
+      setFollowUpNote("");
       setCallDuration("");
       setErrors({});
     }
-  }, [open, callListItem]);
+  }, [open, callListItem, previousCallLog]);
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -146,6 +161,7 @@ export function CallExecutionModal({
         callerNote: callerNote.trim() || undefined,
         followUpDate: followUpRequired && followUpDate ? new Date(followUpDate).toISOString() : undefined,
         followUpRequired: followUpRequired || undefined,
+        followUpNote: followUpRequired && followUpNote.trim() ? followUpNote.trim() : undefined,
         callDuration: callDuration ? parseInt(callDuration, 10) : undefined,
       };
 
@@ -225,6 +241,97 @@ export function CallExecutionModal({
                 </div>
               </div>
             </div>
+
+            {/* Previous Call Reference Section (for follow-ups) */}
+            {previousCallLog && (
+              <div className="p-4 border-2 border-teal-200 rounded-lg bg-teal-50/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-teal-900">
+                    Previous Call Reference
+                  </h3>
+                  <span className="text-xs text-teal-700 bg-teal-100 px-2 py-1 rounded">
+                    Read-Only
+                  </span>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-teal-700 font-medium">Previous Call Date:</span>{" "}
+                      <span className="text-teal-900">
+                        {new Date(previousCallLog.callDate).toLocaleString()}
+                      </span>
+                    </div>
+                    {previousCallLog.followUpDate && (
+                      <div>
+                        <span className="text-teal-700 font-medium">Scheduled Follow-up:</span>{" "}
+                        <span className={cn(
+                          "font-medium",
+                          new Date(previousCallLog.followUpDate) < new Date()
+                            ? "text-orange-600"
+                            : "text-teal-900"
+                        )}>
+                          {new Date(previousCallLog.followUpDate).toLocaleDateString()}
+                          {new Date(previousCallLog.followUpDate) < new Date() && (
+                            <span className="ml-1 text-orange-600">(Overdue)</span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Follow-up Note - Prominently Displayed */}
+                  {previousCallLog.notes && previousCallLog.notes.includes("--- Follow-up Note ---") && (
+                    <div className="p-3 bg-orange-50 border border-orange-200 rounded">
+                      <div className="font-semibold text-orange-900 mb-1">Follow-up Note:</div>
+                      <div className="text-orange-800 whitespace-pre-wrap">
+                        {previousCallLog.notes.split("--- Follow-up Note ---")[1]?.trim() || previousCallLog.notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Previous Answers */}
+                  {previousCallLog.answers && previousCallLog.answers.length > 0 && (
+                    <div>
+                      <div className="font-semibold text-teal-900 mb-2">Previous Answers:</div>
+                      <div className="space-y-2 pl-4 border-l-2 border-teal-300">
+                        {previousCallLog.answers.map((answer, idx) => (
+                          <div key={idx} className="text-teal-800">
+                            <div className="font-medium text-teal-900">{answer.question}</div>
+                            <div className="text-teal-700">
+                              {typeof answer.answer === "boolean"
+                                ? answer.answer
+                                  ? "Yes"
+                                  : "No"
+                                : String(answer.answer)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Previous Notes */}
+                  {previousCallLog.notes && !previousCallLog.notes.includes("--- Follow-up Note ---") && (
+                    <div>
+                      <div className="font-semibold text-teal-900 mb-1">Previous Notes:</div>
+                      <div className="text-teal-800 whitespace-pre-wrap pl-4 border-l-2 border-teal-300">
+                        {previousCallLog.notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Previous Caller Note */}
+                  {previousCallLog.callerNote && (
+                    <div>
+                      <div className="font-semibold text-teal-900 mb-1">Previous Caller Note:</div>
+                      <div className="text-teal-800 whitespace-pre-wrap pl-4 border-l-2 border-teal-300">
+                        {previousCallLog.callerNote}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Messages to Convey */}
             {messages.length > 0 && (
@@ -337,33 +444,78 @@ export function CallExecutionModal({
 
             {/* Additional Notes */}
             <div>
-              <Label className="text-sm font-medium text-[var(--groups1-text)] mb-2 block">
-                Additional Notes
-              </Label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any additional notes about the call..."
-                className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
-                disabled={submitting}
-              />
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium text-[var(--groups1-text)]">
+                  Additional Notes (Optional)
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowNotes(!showNotes)}
+                  className="h-7 px-2 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                  disabled={submitting}
+                >
+                  {showNotes ? (
+                    <>
+                      <ChevronUp className="w-3 h-3 mr-1" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3 h-3 mr-1" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              </div>
+              {showNotes && (
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="What the student is saying - additional information besides answering questions..."
+                  className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
+                  disabled={submitting}
+                />
+              )}
             </div>
 
             {/* Caller Note */}
             <div>
-              <Label className="text-sm font-medium text-[var(--groups1-text)] mb-2 block">
-                Caller Note
-                <span className="text-gray-400 text-xs font-normal ml-1">
-                  (This note is separate from AI-generated summary)
-                </span>
-              </Label>
-              <textarea
-                value={callerNote}
-                onChange={(e) => setCallerNote(e.target.value)}
-                placeholder="Add your personal notes about this call..."
-                className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
-                disabled={submitting}
-              />
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium text-[var(--groups1-text)]">
+                  Caller Note (Optional)
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCallerNote(!showCallerNote)}
+                  className="h-7 px-2 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                  disabled={submitting}
+                >
+                  {showCallerNote ? (
+                    <>
+                      <ChevronUp className="w-3 h-3 mr-1" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3 h-3 mr-1" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              </div>
+              {showCallerNote && (
+                <textarea
+                  value={callerNote}
+                  onChange={(e) => setCallerNote(e.target.value)}
+                  placeholder="Add your remarks or observations about this call..."
+                  className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
+                  disabled={submitting}
+                />
+              )}
             </div>
 
             {/* Call Status and Duration */}
@@ -429,31 +581,49 @@ export function CallExecutionModal({
               </label>
 
               {followUpRequired && (
-                <div>
-                  <Label className="text-sm font-medium text-[var(--groups1-text)] mb-2 block flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    Follow-up Date <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="date"
-                    value={followUpDate}
-                    onChange={(e) => {
-                      setFollowUpDate(e.target.value);
-                      if (errors.followUpDate) {
-                        setErrors((prev) => {
-                          const newErrors = { ...prev };
-                          delete newErrors.followUpDate;
-                          return newErrors;
-                        });
-                      }
-                    }}
-                    min={new Date().toISOString().split("T")[0]}
-                    className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
-                    disabled={submitting}
-                  />
-                  {errors.followUpDate && (
-                    <p className="text-sm text-red-500 mt-1">{errors.followUpDate}</p>
-                  )}
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-[var(--groups1-text)] mb-2 block flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      Follow-up Date <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      type="date"
+                      value={followUpDate}
+                      onChange={(e) => {
+                        setFollowUpDate(e.target.value);
+                        if (errors.followUpDate) {
+                          setErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.followUpDate;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                      disabled={submitting}
+                    />
+                    {errors.followUpDate && (
+                      <p className="text-sm text-red-500 mt-1">{errors.followUpDate}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-[var(--groups1-text)] mb-2 block">
+                      Follow-up Note
+                    </Label>
+                    <textarea
+                      value={followUpNote}
+                      onChange={(e) => setFollowUpNote(e.target.value)}
+                      placeholder="Add a note for the follow-up call..."
+                      className="w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
+                      disabled={submitting}
+                    />
+                    <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                      This note will be visible when making the follow-up call
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

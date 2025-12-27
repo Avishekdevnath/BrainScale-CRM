@@ -4,7 +4,12 @@ import { asyncHandler } from '../../middleware/error-handler';
 import * as roleService from './role.service';
 
 export const createRole = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const result = await roleService.createRole(req.user!.workspaceId!, req.validatedData!);
+  const workspaceId = req.user?.workspaceId;
+  if (!workspaceId) {
+    throw new Error('Workspace ID is required. tenantGuard should have set req.user.workspaceId');
+  }
+  console.log('[createRole] Creating role for workspace:', workspaceId);
+  const result = await roleService.createRole(workspaceId, req.validatedData!);
   res.status(201).json(result);
 });
 
@@ -43,6 +48,12 @@ export const assignPermissions = asyncHandler(async (req: AuthRequest, res: Resp
 
 export const listPermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
   const permissions = await roleService.listPermissions();
+  console.log(`[listPermissions] Returning ${permissions.length} permissions`);
   res.json(permissions);
+});
+
+export const createDefaultRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await roleService.createDefaultRolesWithAllPermissions(req.user!.workspaceId!);
+  res.status(201).json(result);
 });
 

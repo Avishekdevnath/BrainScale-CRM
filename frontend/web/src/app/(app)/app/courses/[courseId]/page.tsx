@@ -375,7 +375,7 @@ export default function CourseDetailPage() {
 
       {/* Module Create/Edit Dialog */}
       <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
-        <DialogContent className="w-[25vw] max-w-[500px] min-w-[400px]">
+        <DialogContent className="max-w-2xl">
           <DialogClose onClose={() => setIsModuleDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>
@@ -493,7 +493,7 @@ export default function CourseDetailPage() {
 
       {/* Delete Module Confirmation Dialog */}
       <Dialog open={isDeleteModuleDialogOpen} onOpenChange={setIsDeleteModuleDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogClose onClose={() => setIsDeleteModuleDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>Delete Module</DialogTitle>

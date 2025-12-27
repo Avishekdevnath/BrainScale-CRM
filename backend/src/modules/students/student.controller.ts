@@ -145,3 +145,9 @@ export const setStudentBatches = asyncHandler(async (req: AuthRequest, res: Resp
   res.json(result);
 });
 
+export const getStudentStats = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { studentId } = req.params;
+  const stats = await studentService.getStudentStats(studentId, req.user!.workspaceId!);
+  res.json(stats);
+});
+

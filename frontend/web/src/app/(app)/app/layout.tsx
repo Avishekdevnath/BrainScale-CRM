@@ -1,42 +1,31 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import { WorkspaceSidebar } from "@/components/common/WorkspaceSidebar";
-import { GroupSidebar } from "@/components/common/GroupSidebar";
-import { Topbar } from "@/components/common/Topbar";
+import { Suspense } from "react";
 import { useGroupInitializer } from "@/hooks/useGroupInitializer";
+import { useWorkspaceInitializer } from "@/hooks/useWorkspaceInitializer";
+import { useChatInitializer } from "@/hooks/useChatInitializer";
+import { LayoutContent } from "./LayoutContent";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  useWorkspaceInitializer(); // Initialize workspace selection
   useGroupInitializer(); // Initialize group selection
-  
-        // Determine if we're on a group detail page (not the groups list page)
-        // /app/group-management = list page (workspace context)
-        // /app/groups/[id] = detail page (group context)
-        // /app/groups/[id]/students = group sub-route (also group context)
-        const isGroupDetailPage = pathname?.match(/^\/app\/groups\/[^/]+(\/.*)?$/);
-        const isGroupsListPage = pathname === "/app/group-management";
-  
-  // Show workspace name on dashboard and groups list, group selector on group detail pages
-  const showWorkspaceName = pathname === "/app" || pathname === "/app/" || isGroupsListPage;
-  const showGroupSelector = !!isGroupDetailPage;
+  useChatInitializer(); // Initialize chat selection (handles route check internally)
 
   return (
-    <div className="h-screen flex bg-[var(--groups1-background)] overflow-hidden">
-      {isGroupDetailPage ? <GroupSidebar /> : <WorkspaceSidebar />}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar 
-          showWorkspaceName={showWorkspaceName}
-          showGroupSelector={showGroupSelector}
-        />
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-6">
-            {children}
-          </div>
-        </main>
+    <Suspense fallback={
+      <div className="h-screen flex bg-[var(--groups1-background)] overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    }>
+      <LayoutContent>{children}</LayoutContent>
+    </Suspense>
   );
 }
 

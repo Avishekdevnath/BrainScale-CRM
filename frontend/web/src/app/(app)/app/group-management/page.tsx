@@ -603,7 +603,7 @@ export default function GroupsManagementPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="w-[700px]">
           <DialogClose onClose={() => setIsDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>
@@ -693,7 +693,7 @@ export default function GroupsManagementPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogClose onClose={() => setIsDeleteDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>Delete Group</DialogTitle>
@@ -734,7 +734,7 @@ export default function GroupsManagementPage() {
 
       {/* Bulk Assign Dialog */}
       <Dialog open={isBulkAssignDialogOpen} onOpenChange={setIsBulkAssignDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogClose onClose={() => setIsBulkAssignDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>Assign Groups to Batch</DialogTitle>

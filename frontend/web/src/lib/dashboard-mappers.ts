@@ -46,7 +46,7 @@ export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
       },
     },
     {
-      label: "Calls",
+      label: "Total Calls",
       value: apiKPIs.overview.totalCalls.toLocaleString(),
       trend: {
         value: callsTrend,

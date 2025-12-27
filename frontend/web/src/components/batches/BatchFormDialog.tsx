@@ -125,7 +125,7 @@ export function BatchFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogClose onClose={() => onOpenChange(false)} />
         <DialogHeader>
           <DialogTitle>{isEditMode ? "Edit Batch" : "Create Batch"}</DialogTitle>

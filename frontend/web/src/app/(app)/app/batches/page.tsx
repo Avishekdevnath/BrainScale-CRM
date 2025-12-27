@@ -14,14 +14,15 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { BatchFormDialog } from "@/components/batches/BatchFormDialog";
 import { Plus, Pencil, Trash2, Loader2, Search, Eye } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type { Batch } from "@/types/batches.types";
-
-// TODO: Replace with actual role check from auth/store
-const isAdmin = true;
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export default function BatchesPage() {
+  const isAdmin = useIsAdmin();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -31,6 +32,7 @@ export default function BatchesPage() {
   const [deletingBatch, setDeletingBatch] = useState<Batch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
   const pageSize = 20;
 
   usePageTitle("Batch Management");
@@ -165,15 +167,18 @@ export default function BatchesPage() {
             Manage batches and organize your students
           </p>
         </div>
-        {isAdmin && (
-          <Button
-            onClick={handleCreate}
-            className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Batch
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
+          {isAdmin && (
+            <Button
+              onClick={handleCreate}
+              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Batch
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -206,8 +211,7 @@ export default function BatchesPage() {
       </div>
 
       {/* Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="pb-6">
+      <CollapsibleFilters open={showFilters} contentClassName="pb-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
@@ -234,8 +238,7 @@ export default function BatchesPage() {
               <option value="inactive">Inactive</option>
             </select>
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Batches Table */}
       <Card variant="groups1">

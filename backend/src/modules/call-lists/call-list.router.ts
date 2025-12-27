@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import * as callListController from './call-list.controller';
 import { zodValidator } from '../../middleware/validate';
-import { authGuard } from '../../middleware/auth-guard';
+import { authGuard, requireRole } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateCallListSchema,
   UpdateCallListSchema,
@@ -12,6 +13,8 @@ import {
   UpdateCallListItemSchema,
   GetAvailableStudentsSchema,
   BulkPasteCallListSchema,
+  CreateCallListFromFollowupsSchema,
+  ListCallListsSchema,
 } from './call-list.schemas';
 
 const router = Router();
@@ -22,11 +25,12 @@ const router = Router();
  *   post:
  *     summary: Create a call list
  *     description: |
- *       Create a call list. Either groupId, batchId, OR studentIds must be provided.
+ *       Create a call list. Either groupId, batchId, studentIds, OR studentsData must be provided.
  *       - If groupId is provided, creates a group-specific call list
  *       - If batchId is provided, creates a workspace-level call list filtered by batch
  *       - If batchId + groupId: Group must belong to the specified batch
- *       - If studentIds is provided, creates a workspace-level call list and automatically adds students
+ *       - If studentIds is provided, creates a workspace-level call list and automatically adds students (must exist)
+ *       - If studentsData is provided, creates a workspace-level call list and automatically creates/matches students
  *       - If batchId + studentIds: Filters students by batch
  *       - groupIds can be used to filter students when studentIds is provided
  *     tags: [Call Lists]
@@ -63,7 +67,32 @@ const router = Router();
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Optional - Student IDs to add directly. If provided, students are automatically added to the call list
+ *                 description: Optional - Student IDs to add directly. If provided, students are automatically added to the call list (students must exist)
+ *               studentsData:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - name
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                       minLength: 1
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                     phone:
+ *                       type: string
+ *                 description: Optional - Student data for auto-creation. Students are matched by email/phone first, then created if not found
+ *               matchBy:
+ *                 type: string
+ *                 enum: [email, phone, email_or_phone, name]
+ *                 default: email_or_phone
+ *                 description: Optional - Matching strategy for studentsData (default: email_or_phone)
+ *               skipDuplicates:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Optional - Skip duplicate students when using studentsData (default: true)
  *               groupIds:
  *                 type: array
  *                 items:
@@ -102,11 +131,13 @@ const router = Router();
  *       201:
  *         description: Call list created
  *       400:
- *         description: Either groupId, batchId, or studentIds must be provided, or group does not belong to batch
+ *         description: Either groupId, batchId, studentIds, or studentsData must be provided, or group does not belong to batch, or both studentIds and studentsData provided
  */
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'create'),
   zodValidator(CreateCallListSchema),
   callListController.createCallList
 );
@@ -120,6 +151,16 @@ router.post(
  *       Create a call list by pasting CSV/text data. 
  *       No batch or group dependencies required.
  *       Students are created/matched and added to the call list.
+ *       
+ *       Column mapping supports two formats:
+ *       1. Old format (backward compatible): { name: "Full Name", email: "Email", phone: "Phone" }
+ *       2. New flexible format (like student import): 
+ *          { "student.name": "Full Name", "student.email": "Email", "phone.0": "Phone", "phone.1": "Mobile" }
+ *       
+ *       Flexible format supports:
+ *       - student.name, student.email, student.discordId, student.tags
+ *       - phone.0, phone.1, phone.2 (indexed phones, first is primary)
+ *       - phone.primary, phone.secondary, phone.alternate (named phones)
  *     tags: [Call Lists]
  *     requestBody:
  *       required: true
@@ -139,21 +180,35 @@ router.post(
  *                 type: string
  *                 description: CSV or tab-separated text data
  *               columnMapping:
- *                 type: object
- *                 properties:
- *                   name:
- *                     type: string
- *                   email:
- *                     type: string
- *                   phone:
- *                     type: string
+ *                 oneOf:
+ *                   - type: object
+ *                     description: Old format (backward compatible)
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       phone:
+ *                         type: string
+ *                   - type: object
+ *                     description: New flexible format (like student import)
+ *                     additionalProperties:
+ *                       type: string
+ *                     example:
+ *                       "student.name": "Full Name"
+ *                       "student.email": "Email"
+ *                       "phone.0": "Phone"
+ *                       "phone.1": "Mobile"
  *               matchBy:
  *                 type: string
  *                 enum: [email, phone, email_or_phone, name]
+ *                 default: email_or_phone
  *               createNewStudents:
  *                 type: boolean
+ *                 default: true
  *               skipDuplicates:
  *                 type: boolean
+ *                 default: true
  *               messages:
  *                 type: array
  *                 items:
@@ -170,8 +225,77 @@ router.post(
   '/bulk-paste',
   authGuard,
   tenantGuard,
+  requirePermission('call_lists', 'create'),
   zodValidator(BulkPasteCallListSchema),
   callListController.createFromBulkPaste
+);
+
+/**
+ * @openapi
+ * /call-lists/from-followups:
+ *   post:
+ *     summary: Create call list from selected follow-ups
+ *     description: |
+ *       Admin-only feature. Creates a new call list with items from selected follow-ups.
+ *       Each call list item preserves the follow-up's note in the custom field.
+ *       Uses messages and questions from the first follow-up's call list (or provided).
+ *     tags: [Call Lists]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - followupIds
+ *               - name
+ *             properties:
+ *               followupIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of follow-up IDs to include
+ *               name:
+ *                 type: string
+ *                 minLength: 2
+ *               source:
+ *                 type: string
+ *                 enum: [IMPORT, FILTER, MANUAL]
+ *                 default: FILTER
+ *               description:
+ *                 type: string
+ *               messages:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Optional - Messages to convey. If not provided, uses first follow-up's call list messages.
+ *               questions:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                 description: Optional - Questions to ask. If not provided, uses first follow-up's call list questions.
+ *               meta:
+ *                 type: object
+ *                 description: Custom fields configuration (JSON)
+ *     responses:
+ *       201:
+ *         description: Call list created from follow-ups
+ *       403:
+ *         description: Only admins can create call lists from follow-ups
+ *       404:
+ *         description: One or more follow-ups not found
+ *       400:
+ *         description: Invalid request (e.g., non-PENDING follow-ups, missing call lists)
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/from-followups',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'create'),
+  zodValidator(CreateCallListFromFollowupsSchema),
+  callListController.createCallListFromFollowups
 );
 
 /**
@@ -190,11 +314,24 @@ router.post(
  *         schema:
  *           type: string
  *         description: Filter call lists by batch (via group's batchId)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVE, COMPLETED, ARCHIVED]
+ *         description: Filter call lists by status (defaults to ACTIVE if not specified)
  *     responses:
  *       200:
  *         description: List of call lists
  */
-router.get('/', authGuard, callListController.listCallLists);
+router.get(
+  '/',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  zodValidator(ListCallListsSchema, 'query'),
+  callListController.listCallLists
+);
 
 /**
  * @openapi
@@ -212,7 +349,13 @@ router.get('/', authGuard, callListController.listCallLists);
  *       200:
  *         description: Call list details
  */
-router.get('/:listId', authGuard, callListController.getCallList);
+router.get(
+  '/:listId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListController.getCallList
+);
 
 /**
  * @openapi
@@ -253,8 +396,66 @@ router.get('/:listId', authGuard, callListController.getCallList);
 router.patch(
   '/:listId',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(UpdateCallListSchema),
   callListController.updateCallList
+);
+
+/**
+ * @openapi
+ * /call-lists/{listId}/complete:
+ *   patch:
+ *     summary: Mark call list as complete (Admin only)
+ *     tags: [Call Lists]
+ *     parameters:
+ *       - in: path
+ *         name: listId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Call list marked as complete
+ *       403:
+ *         description: Only admins can mark call lists as complete
+ *       404:
+ *         description: Call list not found
+ */
+router.patch(
+  '/:listId/complete',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListController.markCallListComplete
+);
+
+/**
+ * @openapi
+ * /call-lists/{listId}/reopen:
+ *   patch:
+ *     summary: Mark call list as active (reopen) - Admin only
+ *     tags: [Call Lists]
+ *     parameters:
+ *       - in: path
+ *         name: listId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Call list reopened
+ *       403:
+ *         description: Only admins can reopen call lists
+ *       404:
+ *         description: Call list not found
+ */
+router.patch(
+  '/:listId/reopen',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListController.markCallListActive
 );
 
 /**
@@ -289,6 +490,8 @@ router.patch(
 router.patch(
   '/:listId/items/unassign',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(UnassignCallListItemsSchema),
   callListController.unassignCallListItems
 );
@@ -309,7 +512,13 @@ router.patch(
  *       200:
  *         description: Call list deleted
  */
-router.delete('/:listId', authGuard, callListController.deleteCallList);
+router.delete(
+  '/:listId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'delete'),
+  callListController.deleteCallList
+);
 
 /**
  * @openapi
@@ -370,6 +579,8 @@ router.delete('/:listId', authGuard, callListController.deleteCallList);
 router.get(
   '/:listId/available-students',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(GetAvailableStudentsSchema, 'query'),
   callListController.getAvailableStudents
 );
@@ -406,6 +617,8 @@ router.get(
 router.post(
   '/:listId/items',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(AddCallListItemsSchema),
   callListController.addCallListItems
 );
@@ -548,7 +761,13 @@ router.post(
  *                     totalPages:
  *                       type: number
  */
-router.get('/:listId/items', authGuard, callListController.listCallListItems);
+router.get(
+  '/:listId/items',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListController.listCallListItems
+);
 
 /**
  * @openapi
@@ -584,6 +803,8 @@ router.get('/:listId/items', authGuard, callListController.listCallListItems);
 router.patch(
   '/:listId/items/assign',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(AssignCallListItemsSchema),
   callListController.assignCallListItems
 );
@@ -629,7 +850,35 @@ export const callListItemRouter = Router();
 callListItemRouter.patch(
   '/:itemId',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
   zodValidator(UpdateCallListItemSchema),
   callListController.updateCallListItem
+);
+
+/**
+ * @openapi
+ * /call-list-items/{itemId}:
+ *   delete:
+ *     summary: Delete a call list item (remove student from call list)
+ *     tags: [Call Lists]
+ *     parameters:
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Item deleted successfully
+ *       404:
+ *         description: Item not found
+ */
+callListItemRouter.delete(
+  '/:itemId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListController.deleteCallListItem
 );
 

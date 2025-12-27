@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as enrollmentController from './enrollment.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateEnrollmentSchema,
   UpdateEnrollmentSchema,
@@ -42,6 +44,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('enrollments', 'create'),
   zodValidator(CreateEnrollmentSchema),
   enrollmentController.createEnrollment
 );
@@ -73,6 +77,8 @@ router.post(
 router.patch(
   '/:enrollmentId',
   authGuard,
+  tenantGuard,
+  requirePermission('enrollments', 'update'),
   zodValidator(UpdateEnrollmentSchema),
   enrollmentController.updateEnrollment
 );
@@ -101,6 +107,8 @@ export const studentStatusRouter = Router();
 studentStatusRouter.get(
   '/:studentId/status',
   authGuard,
+  tenantGuard,
+  requirePermission('enrollments', 'read'),
   enrollmentController.getStudentStatuses
 );
 
@@ -138,6 +146,8 @@ studentStatusRouter.get(
 studentStatusRouter.patch(
   '/:studentId/status',
   authGuard,
+  tenantGuard,
+  requirePermission('enrollments', 'update'),
   zodValidator(SetStudentStatusSchema),
   enrollmentController.setStudentStatus
 );
@@ -176,6 +186,8 @@ export const progressRouter = Router();
 progressRouter.patch(
   '/module',
   authGuard,
+  tenantGuard,
+  requirePermission('enrollments', 'update'),
   zodValidator(UpdateModuleProgressSchema),
   enrollmentController.updateModuleProgress
 );

@@ -8,6 +8,8 @@ import { useFollowups } from "@/hooks/useFollowups";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { FollowupFilters } from "@/components/followups/FollowupFilters";
 import { FollowupsTable } from "@/components/followups/FollowupsTable";
+import { FollowupCallModal } from "@/components/followups/FollowupCallModal";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ListFollowupsParams } from "@/types/followups.types";
 
@@ -30,6 +32,10 @@ function FollowupsPageContent() {
   });
 
   usePageTitle("Follow-ups");
+
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedFollowupId, setSelectedFollowupId] = useState<string | null>(null);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
 
   const { data, isLoading, error, mutate } = useFollowups(filters);
 
@@ -59,7 +65,14 @@ function FollowupsPageContent() {
   };
 
   const handleMakeCall = (followupId: string) => {
-    router.push(`/app/followups/${followupId}/call`);
+    setSelectedFollowupId(followupId);
+    setIsCallModalOpen(true);
+  };
+
+  const handleCallSuccess = () => {
+    setIsCallModalOpen(false);
+    setSelectedFollowupId(null);
+    mutate();
   };
 
   const handlePageChange = (newPage: number) => {
@@ -71,19 +84,24 @@ function FollowupsPageContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
-        <p className="text-sm text-[var(--groups1-text-secondary)]">
-          Manage and track follow-up tasks
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Manage and track follow-up tasks
+          </p>
+        </div>
+        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* Filters */}
-      <FollowupFilters
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        onClear={handleClearFilters}
-      />
+      {showFilters && (
+        <FollowupFilters
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          onClear={handleClearFilters}
+        />
+      )}
 
       {/* Follow-ups Table */}
       <Card variant="groups1">
@@ -129,7 +147,7 @@ function FollowupsPageContent() {
                       size="sm"
                       onClick={() => handlePageChange(pagination.page - 1)}
                       disabled={pagination.page === 1 || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Previous
@@ -142,7 +160,7 @@ function FollowupsPageContent() {
                       size="sm"
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={pagination.page >= pagination.totalPages || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />
@@ -154,6 +172,14 @@ function FollowupsPageContent() {
           )}
         </CardContent>
       </Card>
+
+      {/* Follow-up Call Modal */}
+      <FollowupCallModal
+        open={isCallModalOpen}
+        onOpenChange={setIsCallModalOpen}
+        followupId={selectedFollowupId}
+        onSuccess={handleCallSuccess}
+      />
     </div>
   );
 }

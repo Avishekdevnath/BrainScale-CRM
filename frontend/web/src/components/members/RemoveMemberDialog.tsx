@@ -55,7 +55,7 @@ export function RemoveMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl">
         <DialogClose onClose={handleClose} />
         <DialogHeader>
           <DialogTitle>Remove Member</DialogTitle>

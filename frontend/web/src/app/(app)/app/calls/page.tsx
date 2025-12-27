@@ -1,19 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CallsStatsCards } from "@/components/calls/CallsStatsCards";
 import { CallsFilterBar } from "@/components/calls/CallsFilterBar";
 import { CallsTable } from "@/components/calls/CallsTable";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { mutate } from "swr";
+import { toast } from "sonner";
+
+const FILTER_STORAGE_KEY = "calls-page-filters";
+
+interface SavedFilters {
+  selectedCallListId: string | null;
+  searchQuery: string;
+}
 
 export default function CallsPage() {
   usePageTitle("My Calls");
   
-  const [selectedCallListId, setSelectedCallListId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  // Load saved filters from localStorage on mount
+  const loadSavedFilters = (): SavedFilters => {
+    if (typeof window === "undefined") {
+      return { selectedCallListId: null, searchQuery: "" };
+    }
+    try {
+      const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      console.error("Failed to load saved filters:", error);
+    }
+    return { selectedCallListId: null, searchQuery: "" };
+  };
+
+  const savedFilters = loadSavedFilters();
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedCallListId, setSelectedCallListId] = useState<string | null>(savedFilters.selectedCallListId);
+  const [searchQuery, setSearchQuery] = useState<string>(savedFilters.searchQuery);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleCallListChange = (callListId: string | null) => {
@@ -27,11 +54,31 @@ export default function CallsPage() {
   const handleClearFilters = () => {
     setSelectedCallListId(null);
     setSearchQuery("");
+    // Clear saved filters
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(FILTER_STORAGE_KEY);
+        toast.success("Filters cleared");
+      } catch (error) {
+        console.error("Failed to clear saved filters:", error);
+      }
+    }
   };
 
   const handleSaveFilter = () => {
-    // TODO: Implement save filter functionality (could use localStorage or API)
-    console.log("Save filter:", { selectedCallListId, searchQuery });
+    if (typeof window === "undefined") return;
+    
+    try {
+      const filters: SavedFilters = {
+        selectedCallListId,
+        searchQuery,
+      };
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+      toast.success("Filters saved");
+    } catch (error) {
+      console.error("Failed to save filters:", error);
+      toast.error("Failed to save filters");
+    }
   };
 
   const handleRefresh = async () => {
@@ -66,20 +113,23 @@ export default function CallsPage() {
             Manage and track your assigned calls
           </p>
         </div>
+        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* Summary Cards */}
       <CallsStatsCards />
 
       {/* Filter Bar */}
-      <CallsFilterBar
-        selectedCallListId={selectedCallListId}
-        searchQuery={searchQuery}
-        onCallListChange={handleCallListChange}
-        onSearchChange={handleSearchChange}
-        onClearFilters={handleClearFilters}
-        onSaveFilter={handleSaveFilter}
-      />
+      {showFilters && (
+        <CallsFilterBar
+          selectedCallListId={selectedCallListId}
+          searchQuery={searchQuery}
+          onCallListChange={handleCallListChange}
+          onSearchChange={handleSearchChange}
+          onClearFilters={handleClearFilters}
+          onSaveFilter={handleSaveFilter}
+        />
+      )}
 
       {/* Calls Table */}
       <CallsTable

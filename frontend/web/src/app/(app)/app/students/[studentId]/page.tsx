@@ -9,7 +9,6 @@ import { Loader2, ArrowLeft, PhoneCall, ClipboardList, NotebookPen, ListChecks }
 import { apiClient } from "@/lib/api-client";
 import type { StudentDetail } from "@/types/students.types";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { StudentBatchManager } from "@/components/batches/StudentBatchManager";
 import { CallLogDetailsModal } from "@/components/call-lists/CallLogDetailsModal";
 import { useStudentCallLogs, useCallLog } from "@/hooks/useCallLogs";
 import { formatCallDuration, getStatusLabel, getStatusColor } from "@/lib/call-list-utils";
@@ -61,14 +60,11 @@ export default function StudentProfilePage() {
   }, [student]);
 
   const formattedCreatedAt = student ? new Date(student.createdAt).toLocaleDateString() : "-";
-  const rawJson = useMemo(() => (student ? JSON.stringify(student, null, 2) : ""), [student]);
   const statusChips = student?.statuses ?? [];
-  const timelineCalls = student?.timeline?.calls ?? [];
-  const timelineFollowups = student?.timeline?.followups ?? [];
   const enrollments = student?.enrollments ?? [];
   const totalCalls = student?._count?.calls ?? 0;
   const totalFollowups = student?._count?.followups ?? 0;
-  const [activeTab, setActiveTab] = useState<"overview" | "activity" | "callHistory" | "notes" | "tasks">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "callHistory" | "notes" | "tasks">("overview");
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
@@ -80,33 +76,8 @@ export default function StudentProfilePage() {
 
   const callLogs = callLogsData?.logs || [];
 
-  const combinedTimeline = useMemo(() => {
-    const callEvents =
-      timelineCalls.map((call) => ({
-        type: "call" as const,
-        id: call.id,
-        title: call.user?.name ?? "Unknown agent",
-        subtitle: call.group?.name ?? "No group",
-        status: call.callStatus,
-        date: call.callDate,
-      })) ?? [];
-    const followupEvents =
-      timelineFollowups.map((followup) => ({
-        type: "followup" as const,
-        id: followup.id,
-        title: followup.user?.name ?? "Unassigned",
-        subtitle: followup.group?.name ?? "No group",
-        status: followup.status,
-        date: followup.dueAt,
-      })) ?? [];
-    return [...callEvents, ...followupEvents].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-  }, [timelineCalls, timelineFollowups]);
-
   const tabs = [
     { key: "overview", label: "Overview" },
-    { key: "activity", label: "Activity" },
     { key: "callHistory", label: "Call History" },
     { key: "notes", label: "Notes" },
     { key: "tasks", label: "Tasks" },
@@ -365,165 +336,6 @@ export default function StudentProfilePage() {
                 </CardContent>
               </Card>
 
-              <Card variant="groups1">
-                <CardHeader variant="groups1">
-                  <CardTitle>Batches</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pb-6">
-                  {student.studentBatches && student.studentBatches.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {student.studentBatches.map((sb) => (
-                        <Link
-                          key={sb.id}
-                          href={`/app/batches/${sb.batchId}`}
-                          className="px-3 py-1.5 text-sm rounded-md bg-[var(--groups1-secondary)] text-[var(--groups1-text)] hover:bg-[var(--groups1-primary)] hover:text-[var(--groups1-btn-primary-text)] transition-colors"
-                        >
-                          {sb.batch?.name || "Unknown Batch"}
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[var(--groups1-text-secondary)]">No batches assigned.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* TODO: Replace with actual role check from auth/store */}
-              {true && studentId && (
-                <StudentBatchManager studentId={studentId} onUpdate={() => {
-                  // Reload student data
-                  if (studentId) {
-                    apiClient.getStudent(studentId).then(setStudent).catch(console.error);
-                  }
-                }} />
-              )}
-            </>
-          )}
-
-          {activeTab === "activity" && (
-            <>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <Card variant="groups1">
-                  <CardHeader variant="groups1">
-                    <CardTitle>Timeline</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pb-6">
-                    {combinedTimeline.length ? (
-                      combinedTimeline.map((event) => (
-                        <div
-                          key={`${event.type}-${event.id}`}
-                          className="flex gap-3 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3 text-sm"
-                        >
-                          <div className="mt-1 h-full w-1 rounded bg-[var(--groups1-border)]" />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <p className="font-medium text-[var(--groups1-text)]">{event.title}</p>
-                              <StatusBadge
-                                size="sm"
-                                variant={event.type === "call" ? "info" : event.status === "PENDING" ? "warning" : "success"}
-                              >
-                                {event.type === "call" ? "Call" : event.status}
-                              </StatusBadge>
-                            </div>
-                            <p className="text-xs text-[var(--groups1-text-secondary)]">
-                              {new Date(event.date).toLocaleString()} • {event.subtitle}
-                            </p>
-                            {event.type === "call" && (
-                              <div className="mt-2 text-xs text-[var(--groups1-text-secondary)]">
-                                Status: {event.status}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--groups1-border)] bg-[var(--groups1-muted)] p-6 text-center text-sm text-[var(--groups1-text-secondary)]">
-                        <p>No activity yet. Log a call or add a follow-up to see updates here.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card variant="groups1">
-                  <CardHeader variant="groups1">
-                    <CardTitle>Follow-ups</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pb-6">
-                    {timelineFollowups.length ? (
-                      timelineFollowups.map((followup) => (
-                        <div
-                          key={followup.id}
-                          className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3 text-sm"
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-[var(--groups1-text)]">
-                              {followup.user?.name ?? "Unassigned"}
-                            </p>
-                            <StatusBadge
-                              size="sm"
-                              variant={followup.status === "PENDING" ? "warning" : "success"}
-                            >
-                              {followup.status}
-                            </StatusBadge>
-                          </div>
-                          <p className="text-xs text-[var(--groups1-text-secondary)]">
-                            Due {new Date(followup.dueAt).toLocaleString()}
-                          </p>
-                          {followup.group && (
-                            <Link
-                              href={`/app/groups/${followup.group.id}/students`}
-                              className="mt-1 inline-flex text-[var(--groups1-primary)] hover:underline"
-                            >
-                              {followup.group.name}
-                            </Link>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-[var(--groups1-text-secondary)]">
-                        No follow-ups scheduled.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card variant="groups1">
-                <CardHeader variant="groups1">
-                  <CardTitle>Activity Feed</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 pb-6">
-                  {combinedTimeline.length ? (
-                    combinedTimeline.map((event) => (
-                      <div
-                        key={`feed-${event.type}-${event.id}`}
-                        className="flex items-start gap-3 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3 text-sm"
-                      >
-                        <div className="mt-1 h-2 w-2 rounded-full bg-[var(--groups1-primary)]" />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-[var(--groups1-text)]">{event.title}</p>
-                            <span className="text-xs text-[var(--groups1-text-secondary)]">
-                              {new Date(event.date).toLocaleString()}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[var(--groups1-text-secondary)]">{event.subtitle}</p>
-                          <div className="mt-2 text-xs text-[var(--groups1-text-secondary)]">
-                            Status: {event.status}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--groups1-border)] bg-[var(--groups1-muted)] py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
-                      <p>No recent interactions recorded.</p>
-                      <Button size="sm" className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]">
-                        Log first activity
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </>
           )}
 
@@ -547,36 +359,107 @@ export default function StudentProfilePage() {
                     {callLogs.map((log) => {
                       const statusColor = getStatusColor(log.status);
                       const statusVariant = statusColor === "green" ? "success" : statusColor === "red" ? "error" : statusColor === "yellow" ? "warning" : "info";
+                      const isOverdue = log.followUpDate && new Date(log.followUpDate) < new Date();
+                      const answers = Array.isArray(log.answers) ? log.answers : [];
+                      const answersPreview = answers.slice(0, 2);
+                      const hasMoreAnswers = answers.length > 2;
+                      
                       return (
                         <div
                           key={log.id}
                           className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-4 text-sm"
                         >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <StatusBadge variant={statusVariant} size="sm">
                                   {getStatusLabel(log.status)}
                                 </StatusBadge>
-                                {log.callList && (
-                                  <span className="text-xs text-[var(--groups1-text-secondary)]">
-                                    {log.callList.name}
-                                  </span>
+                                {log.followUpRequired && (
+                                  <StatusBadge variant="warning" size="sm">
+                                    Follow-up
+                                    {log.followUpDate && isOverdue && (
+                                      <span className="ml-1 text-red-500">(Overdue)</span>
+                                    )}
+                                  </StatusBadge>
+                                )}
+                                {log.callList?.group && (
+                                  <Link
+                                    href={`/app/groups/${log.callList.group.id}/students`}
+                                    className="text-xs text-[var(--groups1-primary)] hover:underline"
+                                  >
+                                    {log.callList.group.name}
+                                  </Link>
+                                )}
+                                {log.callList?.group?.batch && (
+                                  <Link
+                                    href={`/app/batches/${log.callList.group.batch.id}`}
+                                    className="text-xs text-[var(--groups1-primary)] hover:underline"
+                                  >
+                                    {log.callList.group.batch.name}
+                                  </Link>
                                 )}
                               </div>
-                              <p className="text-xs text-[var(--groups1-text-secondary)] mb-1">
-                                {new Date(log.callDate).toLocaleString()}
-                              </p>
+                              
                               <div className="flex items-center gap-4 text-xs text-[var(--groups1-text-secondary)]">
+                                <span>{new Date(log.callDate).toLocaleString()}</span>
                                 <span>Duration: {formatCallDuration(log.callDuration)}</span>
                                 {log.assignee && (
                                   <span>Caller: {log.assignee.user.name}</span>
                                 )}
                               </div>
+
+                              {log.callList && (
+                                <div className="text-xs text-[var(--groups1-text-secondary)]">
+                                  <Link
+                                    href={`/app/call-lists/${log.callList.id}`}
+                                    className="text-[var(--groups1-primary)] hover:underline"
+                                  >
+                                    {log.callList.name}
+                                  </Link>
+                                </div>
+                              )}
+
+                              {log.followUpDate && (
+                                <div className="text-xs text-[var(--groups1-text-secondary)]">
+                                  Follow-up scheduled: {new Date(log.followUpDate).toLocaleDateString()}
+                                  {isOverdue && (
+                                    <span className="ml-1 text-red-500 font-medium">(Overdue)</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {answersPreview.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-xs font-medium text-[var(--groups1-text-secondary)]">Answers:</p>
+                                  {answersPreview.map((answer: any, idx: number) => (
+                                    <div key={idx} className="text-xs text-[var(--groups1-text)]">
+                                      <span className="font-medium">{answer.question || 'Q'}:</span>{" "}
+                                      <span>{String(answer.answer)}</span>
+                                    </div>
+                                  ))}
+                                  {hasMoreAnswers && (
+                                    <p className="text-xs text-[var(--groups1-primary)]">+{answers.length - 2} more answers</p>
+                                  )}
+                                </div>
+                              )}
+
                               {log.notes && (
-                                <p className="mt-2 text-sm text-[var(--groups1-text)] line-clamp-2">
-                                  {log.notes}
-                                </p>
+                                <div className="mt-2">
+                                  <p className="text-xs font-medium text-[var(--groups1-text-secondary)] mb-1">Notes:</p>
+                                  <p className="text-sm text-[var(--groups1-text)] line-clamp-2">
+                                    {log.notes}
+                                  </p>
+                                </div>
+                              )}
+
+                              {log.callerNote && (
+                                <div className="mt-2">
+                                  <p className="text-xs font-medium text-[var(--groups1-text-secondary)] mb-1">Caller Note:</p>
+                                  <p className="text-sm text-[var(--groups1-text)] line-clamp-2">
+                                    {log.callerNote}
+                                  </p>
+                                </div>
                               )}
                             </div>
                             <Button
@@ -586,7 +469,7 @@ export default function StudentProfilePage() {
                                 setSelectedLogId(log.id);
                                 setIsDetailsModalOpen(true);
                               }}
-                              className="ml-4 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] shrink-0"
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View Details
@@ -606,10 +489,47 @@ export default function StudentProfilePage() {
               <CardHeader variant="groups1">
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-[var(--groups1-border)] bg-[var(--groups1-muted)] py-10 text-center text-sm text-[var(--groups1-text-secondary)]">
-                <NotebookPen className="h-8 w-8" />
-                <p>No notes yet. Capture key takeaways from your last conversation.</p>
-                <Button className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]">Add Note</Button>
+              <CardContent className="pb-6">
+                <div className="space-y-4">
+                  <textarea
+                    value={student?.notes || ""}
+                    onChange={(e) => {
+                      if (student) {
+                        setStudent({ ...student, notes: e.target.value });
+                      }
+                    }}
+                    placeholder="Add notes about this student..."
+                    className="w-full min-h-[200px] rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3 text-sm text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-primary)]"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (student) {
+                          setStudent({ ...student, notes: student.notes || "" });
+                        }
+                      }}
+                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        if (!studentId || !student) return;
+                        try {
+                          await apiClient.updateStudentNotes(studentId, student.notes || "");
+                          // Optionally show success message
+                        } catch (err) {
+                          console.error("Failed to save notes:", err);
+                          // Optionally show error message
+                        }
+                      }}
+                      className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                    >
+                      Save Notes
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -627,19 +547,6 @@ export default function StudentProfilePage() {
             </Card>
           )}
 
-          <Card variant="groups1">
-            <CardHeader variant="groups1">
-              <CardTitle>Raw API Payload</CardTitle>
-              <p className="text-xs text-[var(--groups1-text-secondary)]">
-                Data returned from <code className="font-mono text-[11px]">{process.env.NEXT_PUBLIC_API_URL}/students/{student.id}</code>
-              </p>
-            </CardHeader>
-            <CardContent>
-              <pre className="max-h-[400px] overflow-auto rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-muted)] p-3 text-xs text-[var(--groups1-text)]">
-                <code>{rawJson}</code>
-              </pre>
-            </CardContent>
-          </Card>
         </>
       )}
 

@@ -21,6 +21,8 @@ import { useCourses } from "@/hooks/useCourses";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { Search, Loader2, Pencil, Trash2, FileText, X } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
 
 type SortOption =
@@ -40,6 +42,8 @@ export default function ModulesPage() {
   const { data: allModules, error: modulesError, isLoading: modulesLoading } = useAllModules();
   const { data: courses } = useCourses();
   usePageTitle("Modules");
+
+  const [showFilters, setShowFilters] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<string>("all");
@@ -292,11 +296,14 @@ export default function ModulesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Modules</h1>
-        <p className="text-sm text-[var(--groups1-text-secondary)]">
-          Manage course modules and learning materials
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Modules</h1>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Manage course modules and learning materials
+          </p>
+        </div>
+        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* KPI Cards */}
@@ -307,8 +314,7 @@ export default function ModulesPage() {
       </div>
 
       {/* Search and Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="p-4">
+      <CollapsibleFilters open={showFilters} contentClassName="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
             <div className="relative flex-1">
@@ -392,8 +398,7 @@ export default function ModulesPage() {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Modules Table */}
       <Card variant="groups1">
@@ -525,7 +530,7 @@ export default function ModulesPage() {
 
       {/* Module Edit Dialog */}
       <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
-        <DialogContent className="w-[25vw] max-w-[500px] min-w-[400px]">
+        <DialogContent className="max-w-2xl">
           <DialogClose onClose={() => setIsModuleDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>Edit Module</DialogTitle>
@@ -638,7 +643,7 @@ export default function ModulesPage() {
 
       {/* Delete Module Confirmation Dialog */}
       <Dialog open={isDeleteModuleDialogOpen} onOpenChange={setIsDeleteModuleDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogClose onClose={() => setIsDeleteModuleDialogOpen(false)} />
           <DialogHeader>
             <DialogTitle>Delete Module</DialogTitle>

@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import * as invitationController from './invitation.controller';
 import { zodValidator } from '../../middleware/validate';
-import { authGuard, requireRole } from '../../middleware/auth-guard';
+import { authGuard } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { SendInvitationSchema } from './invitation.schemas';
 
 const router = Router();
@@ -46,7 +47,7 @@ router.post(
   '/:workspaceId/invitations',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'invite'),
   zodValidator(SendInvitationSchema),
   invitationController.sendInvitation
 );
@@ -71,7 +72,7 @@ router.get(
   '/:workspaceId/invitations',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'invite'),
   invitationController.listInvitations
 );
 
@@ -125,7 +126,7 @@ router.delete(
   '/:workspaceId/invitations/:invitationId',
   authGuard,
   tenantGuard,
-  requireRole('ADMIN'),
+  requirePermission('members', 'invite'),
   invitationController.cancelInvitation
 );
 

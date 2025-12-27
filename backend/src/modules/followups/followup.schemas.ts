@@ -31,13 +31,15 @@ export const ListFollowupsSchema = z.object({
 
 export const CreateFollowupCallLogSchema = z.object({
   followupId: z.string().min(1, 'Follow-up ID is required'),
+  callerId: z.string().optional(), // Optional caller member ID
   callDuration: z.number().int().min(0).optional(),
   status: z.enum(['completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other']),
-  answers: z.array(AnswerSchema).min(1, 'At least one answer is required'),
+  answers: z.array(AnswerSchema).default([]), // Allow empty array if no questions
   notes: z.string().optional(),
   callerNote: z.string().optional(),
   followUpDate: z.string().optional(),
   followUpRequired: z.boolean().optional().default(false),
+  followUpNote: z.string().optional(), // Note for the new follow-up when scheduling
 });
 
 export type CreateFollowupInput = z.infer<typeof CreateFollowupSchema>;

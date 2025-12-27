@@ -131,7 +131,7 @@ export function GroupCallListCreator({
       }
 
       onOpenChange(false);
-      router.push(`/app/call-lists/${callList.id}`);
+      router.push(`/app/call-lists/${callList.id}?groupId=${groupId}`);
     } catch (error: any) {
       console.error("Failed to create call list:", error);
       const errorMessage = error?.message || error?.error?.message || "Failed to create call list";
@@ -152,7 +152,7 @@ export function GroupCallListCreator({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogClose onClose={() => onOpenChange(false)} />
         <DialogHeader>
           <DialogTitle>Create Call List from Group</DialogTitle>

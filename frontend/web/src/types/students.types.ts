@@ -76,11 +76,40 @@ export interface StudentTimeline {
 
 export interface StudentDetail extends Student {
   notes?: string | null;
+  lastCallDate?: string | null;
+  nextFollowUpDate?: string | null;
+  averageCallDuration?: number | null;
   statuses?: StudentGroupStatus[];
   timeline?: StudentTimeline;
   _count?: {
     calls?: number;
     followups?: number;
+  };
+}
+
+export interface StudentStats {
+  calls: {
+    total: number;
+    thisWeek: number;
+    thisMonth: number;
+    averageDuration: number;
+    lastCallDate: string | null;
+    daysSinceLastCall: number | null;
+    successRate: number; // percentage
+    byStatus: Record<string, number>;
+  };
+  followups: {
+    total: number;
+    pending: number;
+    overdue: number;
+    nextFollowUpDate: string | null;
+    completionRate: number; // percentage
+  };
+  engagement: {
+    responseRate: number;
+    averageTimeBetweenCalls: number; // days
+    callsPerWeek: number;
+    callsPerMonth: number;
   };
 }
 

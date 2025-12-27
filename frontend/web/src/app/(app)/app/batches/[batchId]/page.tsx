@@ -19,11 +19,10 @@ import { Loader2, ChevronLeft, Pencil, Trash2, Users, FolderOpen, Plus, X } from
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { GroupBatchBadge } from "@/components/groups/GroupBatchBadge";
-
-// TODO: Replace with actual role check from auth/store
-const isAdmin = true;
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export default function BatchDetailPage() {
+  const isAdmin = useIsAdmin();
   const params = useParams();
   const router = useRouter();
   const batchId = params?.batchId as string;

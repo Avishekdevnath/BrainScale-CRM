@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as followupController from './followup.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { CreateFollowupSchema, UpdateFollowupSchema, ListFollowupsSchema } from './followup.schemas';
 
 const router = Router();
@@ -41,6 +43,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'create'),
   zodValidator(CreateFollowupSchema),
   followupController.createFollowup
 );
@@ -97,6 +101,8 @@ router.post(
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'read'),
   zodValidator(ListFollowupsSchema, 'query'),
   followupController.listFollowups
 );
@@ -120,6 +126,8 @@ router.get(
 router.get(
   '/:followupId/call-context',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'read'),
   followupController.getFollowupCallContext
 );
 
@@ -142,6 +150,8 @@ router.get(
 router.get(
   '/:followupId',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'read'),
   followupController.getFollowup
 );
 
@@ -180,6 +190,8 @@ router.get(
 router.patch(
   '/:followupId',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'update'),
   zodValidator(UpdateFollowupSchema),
   followupController.updateFollowup
 );
@@ -203,6 +215,8 @@ router.patch(
 router.delete(
   '/:followupId',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'delete'),
   followupController.deleteFollowup
 );
 
@@ -213,6 +227,8 @@ export const groupFollowupRouter = Router();
 groupFollowupRouter.get(
   '/:groupId/followups',
   authGuard,
+  tenantGuard,
+  requirePermission('followups', 'read'),
   followupController.listGroupFollowups
 );
 

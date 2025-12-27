@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useMemo, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,21 +16,23 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useBatch } from "@/hooks/useBatches";
 import { apiClient } from "@/lib/api-client";
 import { extractQuestions } from "@/lib/call-list-utils";
-import { Loader2, ArrowLeft, Pencil, Trash2, UserPlus, MessageSquare, HelpCircle, Clock } from "lucide-react";
+import { Loader2, ArrowLeft, Pencil, Trash2, UserPlus, MessageSquare, HelpCircle, Clock, FileText } from "lucide-react";
 import Link from "next/link";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-// TODO: Replace with actual role check from auth/store
-const isAdmin = true;
-
-export default function CallListDetailPage() {
+function CallListDetailPageContent() {
+  const isAdmin = useIsAdmin();
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const listId = params?.listId as string;
+  const groupId = searchParams.get("groupId");
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isAddStudentsDialogOpen, setIsAddStudentsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const { data: callList, error, isLoading, mutate: mutateCallList } = useCallList(listId);
   const { data: itemsData, mutate: mutateItems } = useCallListItems(listId, { size: 1000 }); // Get all items for stats
@@ -111,46 +113,52 @@ export default function CallListDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <Button
             variant="ghost"
             size="sm"
-            className="mb-2 inline-flex items-center gap-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
-            onClick={() => router.push("/app/call-lists")}
+            className="mb-1 inline-flex items-center gap-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] h-7"
+            onClick={() => {
+              if (groupId) {
+                router.push(`/app/groups/${groupId}/call-lists`);
+              } else {
+                router.push("/app/call-lists");
+              }
+            }}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             Back to Call Lists
           </Button>
-          <h1 className="text-2xl font-bold text-[var(--groups1-text)]">
+          <h1 className="text-xl font-bold text-[var(--groups1-text)] leading-tight">
             {callList.name}
           </h1>
-          <div className="flex items-center gap-4 mt-2">
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
             {callList.groupId ? (
               <>
-                <p className="text-sm text-[var(--groups1-text-secondary)]">
+                <span className="text-xs text-[var(--groups1-text-secondary)]">
                   Group: <Link href={`/app/groups/${callList.groupId}`} className="hover:underline text-[var(--groups1-text)]">{callList.group?.name || "Unknown"}</Link>
-                </p>
+                </span>
                 {callList.group?.batch && (
-                  <p className="text-sm text-[var(--groups1-text-secondary)]">
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">
                     Batch: <Link href={`/app/batches/${callList.group.batch.id}`} className="hover:underline text-[var(--groups1-text)]">{callList.group.batch.name}</Link>
-                  </p>
+                  </span>
                 )}
               </>
             ) : (
-              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)]">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)]">
                 Workspace-wide
               </span>
             )}
             {batchId && batch && !callList.group?.batch && (
-              <p className="text-sm text-[var(--groups1-text-secondary)]">
+              <span className="text-xs text-[var(--groups1-text-secondary)]">
                 Batch: <Link href={`/app/batches/${batchId}`} className="hover:underline text-[var(--groups1-text)]">{batch.name}</Link>
-              </p>
+              </span>
             )}
-            <p className="text-sm text-[var(--groups1-text-secondary)]">
+            <span className="text-xs text-[var(--groups1-text-secondary)]">
               Source: {callList.source}
-            </p>
+            </span>
           </div>
         </div>
         {isAdmin && (
@@ -158,7 +166,7 @@ export default function CallListDetailPage() {
             <Button
               onClick={() => router.push(`/app/followups?callListId=${listId}`)}
               variant="outline"
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
             >
               <Clock className="w-4 h-4 mr-2" />
               View Follow-ups
@@ -173,7 +181,7 @@ export default function CallListDetailPage() {
             <Button
               onClick={handleEdit}
               variant="outline"
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
             >
               <Pencil className="w-4 h-4 mr-2" />
               Edit
@@ -192,86 +200,26 @@ export default function CallListDetailPage() {
       {/* Stats Card */}
       <CallListStatsCard items={items} isLoading={false} />
 
-      {/* Description */}
-      {callList.description && (
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle>Description</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap">
-              {callList.description}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Messages to Convey */}
-      {callList.messages && callList.messages.length > 0 && (
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Messages to Convey
-            </CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            <ul className="list-disc list-inside space-y-2 text-sm text-[var(--groups1-text)]">
-              {callList.messages.map((message, index) => (
-                <li key={index}>{message}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Questions to Ask */}
+      {/* Call List Details Button */}
       {(() => {
         const questions = extractQuestions(callList);
-        return questions.length > 0 ? (
-          <Card variant="groups1">
-            <CardHeader variant="groups1">
-              <CardTitle className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5" />
-                Questions to Ask
-              </CardTitle>
-            </CardHeader>
-            <CardContent variant="groups1">
-              <div className="space-y-4">
-                {questions
-                  .sort((a, b) => a.order - b.order)
-                  .map((question) => (
-                    <div
-                      key={question.id}
-                      className="p-3 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-background)]"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <p className="text-sm font-medium text-[var(--groups1-text)]">
-                          {question.question}
-                          {question.required && (
-                            <span className="text-red-500 ml-1">*</span>
-                          )}
-                        </p>
-                        <span className="text-xs px-2 py-1 rounded bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)]">
-                          {question.type.replace("_", " ")}
-                        </span>
-                      </div>
-                      {question.type === "multiple_choice" && question.options && (
-                        <div className="mt-2">
-                          <p className="text-xs text-[var(--groups1-text-secondary)] mb-1">Options:</p>
-                          <ul className="list-disc list-inside text-xs text-[var(--groups1-text)] space-y-1">
-                            {question.options.map((option, idx) => (
-                              <li key={idx}>{option}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null;
+        const hasDescription = !!callList.description;
+        const hasMessages = callList.messages && callList.messages.length > 0;
+        const hasQuestions = questions.length > 0;
+        
+        if (!hasDescription && !hasMessages && !hasQuestions) return null;
+        
+        return (
+          <Button
+            onClick={() => setIsDetailsModalOpen(true)}
+            variant="outline"
+            size="sm"
+            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] h-8"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1.5" />
+            View Details
+          </Button>
+        );
       })()}
 
       {/* Filter Criteria Display (if FILTER source) */}
@@ -363,8 +311,96 @@ export default function CallListDetailPage() {
         onSuccess={handleItemsUpdated}
       />
 
+      {/* Call List Details Modal */}
+      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogClose onClose={() => setIsDetailsModalOpen(false)} />
+          <DialogHeader>
+            <DialogTitle>Call List Details</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 mt-4">
+            {/* Description */}
+            {callList.description && (
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-[var(--groups1-text)]">Description</h3>
+                <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
+                  <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap">
+                    {callList.description}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Messages to Convey */}
+            {callList.messages && callList.messages.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-[var(--groups1-text)] flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Messages to Convey
+                </h3>
+                <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
+                  <ul className="list-disc list-inside space-y-2 text-sm text-[var(--groups1-text)]">
+                    {callList.messages.map((message, index) => (
+                      <li key={index}>{message}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Questions to Ask */}
+            {(() => {
+              const questions = extractQuestions(callList);
+              return questions.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-[var(--groups1-text)] flex items-center gap-2">
+                    <HelpCircle className="w-5 h-5" />
+                    Questions to Ask
+                  </h3>
+                  <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
+                    <div className="space-y-4">
+                      {questions
+                        .sort((a, b) => a.order - b.order)
+                        .map((question) => (
+                          <div
+                            key={question.id}
+                            className="p-3 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-background)]"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <p className="text-sm font-medium text-[var(--groups1-text)]">
+                                {question.question}
+                                {question.required && (
+                                  <span className="text-red-500 ml-1">*</span>
+                                )}
+                              </p>
+                              <span className="text-xs px-2 py-1 rounded bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)]">
+                                {question.type.replace("_", " ")}
+                              </span>
+                            </div>
+                            {question.type === "multiple_choice" && question.options && (
+                              <div className="mt-2">
+                                <p className="text-xs text-[var(--groups1-text-secondary)] mb-1">Options:</p>
+                                <ul className="list-disc list-inside text-xs text-[var(--groups1-text)] space-y-1">
+                                  {question.options.map((option, idx) => (
+                                    <li key={idx}>{option}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null;
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Delete Call List</DialogTitle>
             <DialogClose onClose={() => setIsDeleteDialogOpen(false)} />
@@ -392,6 +428,21 @@ export default function CallListDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CallListDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call List Details</h1>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-primary)]" />
+        </div>
+      </div>
+    }>
+      <CallListDetailPageContent />
+    </Suspense>
   );
 }
 

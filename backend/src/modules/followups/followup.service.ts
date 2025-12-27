@@ -456,6 +456,7 @@ export const getFollowup = async (followupId: string, workspaceId: string) => {
         select: {
           id: true,
           name: true,
+          meta: true, // Include meta to extract questions
         },
       },
       previousCallLog: {
@@ -676,6 +677,7 @@ export const getFollowupCallContext = async (
           id: true,
           name: true,
           meta: true,
+          messages: true,
         },
       },
       previousCallLog: {
@@ -687,10 +689,9 @@ export const getFollowupCallContext = async (
           answers: true,
           notes: true,
           callerNote: true,
-        },
-        include: {
           assignee: {
-            include: {
+            select: {
+              id: true,
               user: {
                 select: {
                   id: true,
@@ -748,10 +749,40 @@ export const getFollowupCallContext = async (
     throw new AppError(403, 'Access denied to this follow-up');
   }
 
-  // Extract questions from call list meta
-  const questions = followup.callList?.meta
-    ? (followup.callList.meta as any)?.questions || []
-    : [];
+  // Extract questions and messages from call list
+  // Try current call list first, then fall back to previous call log's call list
+  let questions: any[] = [];
+  let messages: string[] = [];
+  if (followup.callList) {
+    if (followup.callList.meta) {
+      questions = (followup.callList.meta as any)?.questions || [];
+    }
+    messages = followup.callList.messages || [];
+  } else if (followup.previousCallLog) {
+    // If no call list on follow-up, try to get questions and messages from previous call log's call list
+    const previousCallLogWithCallList = await prisma.callLog.findUnique({
+      where: { id: followup.previousCallLog.id },
+      include: {
+        callListItem: {
+          include: {
+            callList: {
+              select: {
+                meta: true,
+                messages: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (previousCallLogWithCallList?.callListItem?.callList) {
+      const prevCallList = previousCallLogWithCallList.callListItem.callList;
+      if (prevCallList.meta) {
+        questions = (prevCallList.meta as any)?.questions || [];
+      }
+      messages = prevCallList.messages || [];
+    }
+  }
 
   // Extract previous answers from previous call log
   const previousAnswers = followup.previousCallLog?.answers
@@ -767,7 +798,7 @@ export const getFollowupCallContext = async (
       dueAt: followup.dueAt,
       notes: followup.notes,
       status: followup.status,
-      assignedTo: followup.assignee
+      assignedTo: followup.assignee && followup.assignee.user
         ? {
             id: followup.assignee.id,
             name: followup.assignee.user.name,
@@ -780,6 +811,14 @@ export const getFollowupCallContext = async (
           id: followup.callList.id,
           name: followup.callList.name,
           questions: questions,
+          messages: messages,
+        }
+      : (questions.length > 0 || messages.length > 0)
+        ? {
+            id: '', // No call list ID if we got questions/messages from previous call log
+            name: 'Previous Call List',
+            questions: questions,
+            messages: messages,
         }
       : null,
     previousCallLog: followup.previousCallLog
@@ -791,7 +830,7 @@ export const getFollowupCallContext = async (
           notes: followup.previousCallLog.notes,
           callerNote: followup.previousCallLog.callerNote,
           callDuration: followup.previousCallLog.callDuration,
-          caller: followup.previousCallLog.assignee
+          caller: followup.previousCallLog.assignee && followup.previousCallLog.assignee.user
             ? {
                 id: followup.previousCallLog.assignee.id,
                 name: followup.previousCallLog.assignee.user.name,

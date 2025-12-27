@@ -23,6 +23,8 @@ import { apiClient } from "@/lib/api-client";
 import { saveStudentExportFromCSV, type StudentExportFormat } from "@/lib/student-export";
 import { toast } from "sonner";
 import { Search, Upload, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
 import type { StudentsListParams } from "@/types/students.types";
 
@@ -51,6 +53,7 @@ function GroupStudentsPageContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [pendingExportFormat, setPendingExportFormat] = useState<StudentExportFormat>("csv");
   const [isExportColumnSelectorOpen, setIsExportColumnSelectorOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useCourses();
   const { data: modules, isLoading: modulesLoading, error: modulesError } = useCourseModules(courseId || null);
@@ -204,6 +207,7 @@ function GroupStudentsPageContent() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-end">
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
           <Button
             onClick={() => setIsImportModalOpen(true)}
             className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
@@ -220,34 +224,31 @@ function GroupStudentsPageContent() {
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="pt-6">
-          <div className="space-y-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
-              <Input
-                type="text"
-                placeholder="Search by name, email, or phone..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPage(1); // Reset to first page on search
-                }}
-                className="pl-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
-                aria-label="Search students"
-              />
-              {searchQuery !== debouncedSearchQuery && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 className="w-4 h-4 animate-spin text-[var(--groups1-text-secondary)]" />
-                </div>
-              )}
-            </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+        <Input
+          type="text"
+          placeholder="Search students by name, email, phone, Discord ID, tags, groups, batches, or status..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(1); // Reset to first page on search
+          }}
+          className="pl-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
+          aria-label="Search students"
+        />
+        {searchQuery !== debouncedSearchQuery && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--groups1-text-secondary)]" />
+          </div>
+        )}
+      </div>
 
-            {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
+      {/* Filters */}
+      <CollapsibleFilters open={showFilters} contentClassName="pt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
                   Batch
                 </label>
@@ -261,7 +262,7 @@ function GroupStudentsPageContent() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
                   Course
                 </label>
@@ -273,7 +274,7 @@ function GroupStudentsPageContent() {
                     setPage(1);
                   }}
                   className={cn(
-                    "w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+                    "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
                     "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
                     "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
                   )}
@@ -362,9 +363,7 @@ function GroupStudentsPageContent() {
                 </select>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Students Table */}
       <Card variant="groups1">

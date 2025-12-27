@@ -28,6 +28,7 @@ export interface CallListCardProps {
   onEdit?: (callListId: string) => void;
   onDelete?: (callListId: string) => void;
   isAdmin?: boolean;
+  groupId?: string | null;
 }
 
 export function CallListCard({
@@ -35,8 +36,11 @@ export function CallListCard({
   onEdit,
   onDelete,
   isAdmin = false,
+  groupId,
 }: CallListCardProps) {
   const router = useRouter();
+  
+  const detailUrl = `/app/call-lists/${callList.id}${groupId ? `?groupId=${groupId}` : ''}`;
 
   return (
     <Card variant="groups1" className="hover:shadow-md transition-shadow">
@@ -45,7 +49,7 @@ export function CallListCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <Link
-                href={`/app/call-lists/${callList.id}`}
+                href={detailUrl}
                 className="text-base font-semibold text-[var(--groups1-text)] hover:underline"
               >
                 {callList.name}
@@ -84,7 +88,7 @@ export function CallListCard({
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => router.push(`/app/call-lists/${callList.id}`)}
+              onClick={() => router.push(detailUrl)}
               aria-label="View call list"
               className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
             >

@@ -411,7 +411,7 @@ export function StudentActionsMenu({ student, onChanged, contextGroupId }: Stude
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogClose onClose={() => setDeleteOpen(false)} />
           <DialogHeader>
             <DialogTitle>Delete student</DialogTitle>

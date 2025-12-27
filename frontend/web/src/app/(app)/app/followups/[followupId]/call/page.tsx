@@ -37,6 +37,7 @@ export default function FollowupCallPage() {
   const [status, setStatus] = useState<CallLogStatus>("completed");
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpNote, setFollowUpNote] = useState("");
   const [callDuration, setCallDuration] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -47,8 +48,24 @@ export default function FollowupCallPage() {
   const followup = context?.followup;
   const callList = context?.callList;
   const previousCallLog = context?.previousCallLog;
+  // Get questions from callList, or use empty array if callList is null
   const questions = callList?.questions || [];
+  // Get messages from callList, or use empty array if callList is null
+  const messages = callList?.messages || [];
   const previousAnswers = previousCallLog?.answers || [];
+  
+  // Debug: Log questions to help diagnose
+  useEffect(() => {
+    if (context) {
+      console.log('[FollowupCallPage] Context loaded:', {
+        hasCallList: !!callList,
+        callListId: callList?.id,
+        callListName: callList?.name,
+        questionsCount: questions.length,
+        questions: questions,
+      });
+    }
+  }, [context, callList, questions]);
 
   // Reset form when context loads
   useEffect(() => {
@@ -59,6 +76,7 @@ export default function FollowupCallPage() {
       setStatus("completed");
       setFollowUpRequired(false);
       setFollowUpDate("");
+      setFollowUpNote("");
       setCallDuration("");
       setErrors({});
     }
@@ -125,7 +143,11 @@ export default function FollowupCallPage() {
 
           // Convert answer based on question type
           if (q.type === "number" && typeof answerValue === "string") {
-            answerValue = parseFloat(answerValue);
+            const numValue = parseFloat(answerValue);
+            if (isNaN(numValue)) {
+              throw new Error(`Invalid number for question "${q.question}"`);
+            }
+            answerValue = numValue;
           } else if (q.type === "yes_no" && typeof answerValue === "string") {
             answerValue = answerValue === "true" || answerValue === "yes";
           }
@@ -138,6 +160,13 @@ export default function FollowupCallPage() {
           };
         });
 
+      // Ensure at least one answer is provided (backend requirement)
+      if (answersArray.length === 0) {
+        toast.error("Please provide at least one answer");
+        setSubmitting(false);
+        return;
+      }
+
       await apiClient.createFollowupCallLog({
         followupId: context.followup.id,
         status,
@@ -146,6 +175,7 @@ export default function FollowupCallPage() {
         callerNote: callerNote.trim() || undefined,
         followUpDate: followUpRequired && followUpDate ? new Date(followUpDate).toISOString() : undefined,
         followUpRequired: followUpRequired || undefined,
+        followUpNote: followUpRequired && followUpNote.trim() ? followUpNote.trim() : undefined,
         callDuration: callDuration ? parseInt(callDuration, 10) : undefined,
       });
 
@@ -182,6 +212,23 @@ export default function FollowupCallPage() {
   }
 
   if (error || !context || !context.followup) {
+    let errorMessage = "Failed to load follow-up call context";
+    
+    if (error) {
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && 'status' in error) {
+        const status = (error as any).status;
+        if (status === 403) {
+          errorMessage = "Access denied to this follow-up";
+        } else if (status === 404) {
+          errorMessage = "Follow-up not found";
+        } else if (status === 500) {
+          errorMessage = "An unexpected error occurred. Please try again or contact support.";
+        }
+      }
+    }
+
     return (
       <div className="space-y-6">
         <div>
@@ -198,12 +245,12 @@ export default function FollowupCallPage() {
         </div>
         <Card variant="groups1">
           <CardContent variant="groups1" className="py-8 text-center">
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {error instanceof Error ? error.message : "Failed to load follow-up call context"}
+            <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+              {errorMessage}
             </p>
             <Button
               onClick={() => router.push("/app/followups")}
-              className="mt-4 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
             >
               Back to Follow-ups
             </Button>
@@ -290,12 +337,61 @@ export default function FollowupCallPage() {
         </CardContent>
       </Card>
 
+      {/* Previous Follow-up Note */}
+      <Card variant="groups1" className={context.followup.notes ? "border-[var(--groups1-primary)] border-2" : ""}>
+        <CardHeader variant="groups1">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Clock className={`w-4 h-4 ${context.followup.notes ? "text-[var(--groups1-primary)]" : "text-[var(--groups1-text-secondary)]"}`} />
+            <span className={context.followup.notes ? "text-[var(--groups1-primary)] font-semibold" : "text-[var(--groups1-text-secondary)]"}>
+              Follow-up Note
+            </span>
+            {context.followup.notes && (
+              <span className="text-xs text-[var(--groups1-text-secondary)] font-normal">
+                (from previous follow-up)
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent variant="groups1">
+          {context.followup.notes ? (
+            <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg border border-[var(--groups1-primary)] border-opacity-20">
+              <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap font-medium">
+                {context.followup.notes}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--groups1-text-secondary)] italic">
+              No follow-up note from previous follow-up
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Previous Call Log */}
       {previousCallLog && (
         <PreviousCallLogDisplay
           previousCallLog={previousCallLog}
           questions={questions}
         />
+      )}
+
+      {/* Messages to Convey */}
+      {messages.length > 0 && (
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Phone className="w-4 h-4" />
+              Messages to Convey
+            </CardTitle>
+          </CardHeader>
+          <CardContent variant="groups1">
+            <ul className="list-disc list-inside space-y-1 text-sm text-[var(--groups1-text)]">
+              {messages.map((message, index) => (
+                <li key={index}>{message}</li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
       {/* Questions Form */}
@@ -439,31 +535,46 @@ export default function FollowupCallPage() {
           </div>
 
           {followUpRequired && (
-            <div>
-              <Label htmlFor="followUpDate" className="text-sm font-medium text-[var(--groups1-text)]">
-                Follow-up Date *
-              </Label>
-              <Input
-                id="followUpDate"
-                type="datetime-local"
-                value={followUpDate}
-                onChange={(e) => {
-                  setFollowUpDate(e.target.value);
-                  if (errors.followUpDate) {
-                    setErrors((prev) => {
-                      const next = { ...prev };
-                      delete next.followUpDate;
-                      return next;
-                    });
-                  }
-                }}
-                className="mt-1 bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
-                disabled={submitting}
-              />
-              {errors.followUpDate && (
-                <p className="text-sm text-red-500 mt-1">{errors.followUpDate}</p>
-              )}
-            </div>
+            <>
+              <div>
+                <Label htmlFor="followUpDate" className="text-sm font-medium text-[var(--groups1-text)]">
+                  Follow-up Date *
+                </Label>
+                <Input
+                  id="followUpDate"
+                  type="datetime-local"
+                  value={followUpDate}
+                  onChange={(e) => {
+                    setFollowUpDate(e.target.value);
+                    if (errors.followUpDate) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.followUpDate;
+                        return next;
+                      });
+                    }
+                  }}
+                  className="mt-1 bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                  disabled={submitting}
+                />
+                {errors.followUpDate && (
+                  <p className="text-sm text-red-500 mt-1">{errors.followUpDate}</p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="followUpNote" className="text-sm font-medium text-[var(--groups1-text)]">
+                  Follow-up Note
+                </Label>
+                <textarea
+                  id="followUpNote"
+                  value={followUpNote}
+                  onChange={(e) => setFollowUpNote(e.target.value)}
+                  placeholder="Add a note for this follow-up..."
+                  className="mt-1 w-full min-h-[80px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
+                  disabled={submitting}
+                />
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

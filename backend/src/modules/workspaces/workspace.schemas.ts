@@ -17,6 +17,9 @@ export const UpdateWorkspaceSchema = z.object({
   weeklyDigestDay: z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']).optional(),
   weeklyDigestTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Time must be in HH:MM format').optional(),
   followupRemindersEnabled: z.boolean().optional(),
+  // AI features
+  aiFeaturesEnabled: z.boolean().optional(),
+  aiFeatures: z.array(z.string()).optional(), // Array of enabled AI features: ["summary", "sentiment", "chat"]
 });
 
 export const InviteMemberSchema = z.object({

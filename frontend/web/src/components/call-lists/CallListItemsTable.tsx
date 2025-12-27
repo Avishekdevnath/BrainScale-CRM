@@ -7,11 +7,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { CallExecutionModal } from "./CallExecutionModal";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
 import { useCallListItems } from "@/hooks/useCallLists";
+import { useCurrentMember } from "@/hooks/useCurrentMember";
+import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, ChevronLeft, ChevronRight } from "lucide-react";
-import { mutate } from "swr";
+import { Loader2, Phone, Eye, UserPlus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { mutate as globalMutate } from "swr";
 import Link from "next/link";
 import type { CallListItem, CallListItemState, CallListItemsListParams } from "@/types/call-lists.types";
 
@@ -33,6 +35,11 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
   const [pageSize, setPageSize] = React.useState<number>(25);
   const [isAssigningToMe, setIsAssigningToMe] = React.useState(false);
+  const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
+
+  // Get current user's member ID to check if they're assigned
+  const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
+  const { data: currentMember } = useCurrentMember(workspaceId);
 
   // Notify parent of selection changes
   React.useEffect(() => {
@@ -341,6 +348,12 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
     await mutate();
     onItemsUpdated?.();
     setCallLogsMap(new Map());
+    // Invalidate dashboard cache to refresh stats
+    globalMutate(
+      (key: any) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
   };
 
   const handleDetailsModalClose = () => {
@@ -353,6 +366,34 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
     onItemsUpdated?.();
     setCallLogsMap(new Map());
   };
+
+  const handleDeleteItem = React.useCallback(
+    async (itemId: string, studentName?: string) => {
+      if (!confirm(`Are you sure you want to remove ${studentName || "this student"} from the call list? This action cannot be undone.`)) {
+        return;
+      }
+
+      setDeletingItemId(itemId);
+      try {
+        await apiClient.deleteCallListItem(itemId);
+        toast.success("Student removed from call list");
+        await mutate();
+        onItemsUpdated?.();
+        // Remove from selection if selected
+        setSelectedItemIds((prev) => {
+          const next = new Set(prev);
+          next.delete(itemId);
+          return next;
+        });
+      } catch (error: any) {
+        console.error("Failed to delete item:", error);
+        toast.error(error?.message || "Failed to remove student from call list");
+      } finally {
+        setDeletingItemId(null);
+      }
+    },
+    [mutate, onItemsUpdated]
+  );
 
   const getCallLogData = (item: CallListItem) => {
     if (!item.callLogId) return null;
@@ -369,14 +410,14 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   return (
     <>
       <Card variant="groups1">
-        <CardHeader variant="groups1">
+        <CardHeader variant="groups1" className="py-3">
           <div className="flex items-center justify-between">
             <CardTitle>
               Students ({totalItems})
             </CardTitle>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {/* Pagination Size Selector */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <label className="text-sm text-[var(--groups1-text-secondary)]">Per page:</label>
                 <select
                   value={pageSize}
@@ -395,13 +436,13 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
             </div>
           </div>
         </CardHeader>
-        <CardContent variant="groups1" className="pb-6">
+        <CardContent variant="groups1" className="pb-3 pt-2">
           {/* Filter Toggle Buttons */}
-          <div className="flex items-center justify-between mb-4 pb-4 border-b border-[var(--groups1-border)]">
+          <div className="flex items-center justify-between mb-2 pb-2 border-b border-[var(--groups1-border)]">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setActiveFilter("all")}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   activeFilter === "all"
                     ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                     : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -411,7 +452,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
               </button>
               <button
                 onClick={() => setActiveFilter("success")}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   activeFilter === "success"
                     ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                     : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -421,7 +462,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
               </button>
               <button
                 onClick={() => setActiveFilter("skipped")}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   activeFilter === "skipped"
                     ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                     : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -431,7 +472,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
               </button>
               <button
                 onClick={() => setActiveFilter("follow_up")}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
                   activeFilter === "follow_up"
                     ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                     : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -456,7 +497,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                   size="sm"
                   onClick={handleAssignToMe}
                   disabled={isAssigningToMe || unassignedSelectedCount === 0}
-                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] active:bg-[var(--groups1-primary-active)] border border-[var(--color-slate-900)] dark:border-[var(--color-gray-200)] disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:shadow-sm transition-all duration-200 ease-in-out font-medium px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100 disabled:hover:shadow-md"
                   title={
                     unassignedSelectedCount === 0
                       ? "Selected items are already assigned. Please select unassigned items."
@@ -466,7 +507,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                   {isAssigningToMe ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
-                    <UserPlus className="w-4 h-4 mr-2" />
+                    <UserPlus className="w-4 h-4 mr-2 stroke-[2.5]" />
                   )}
                   Assign to Me ({unassignedSelectedCount > 0 ? unassignedSelectedCount : selectedItemIds.size})
                 </Button>
@@ -494,36 +535,36 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
                       <input
                         type="checkbox"
                         checked={isAllSelectedOnCurrentPage}
                         onChange={handleSelectAll}
-                        className="rounded border-[var(--groups1-border)]"
+                        className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-primary)] focus:ring-offset-0 cursor-pointer"
                       />
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
                       SL
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Name
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Phone
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Assigned
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Summary Note (AI)
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Follow-up Date
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Actions
                     </th>
                   </tr>
@@ -549,20 +590,20 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             : "hover:bg-[var(--groups1-secondary)]"
                         }`}
                       >
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleSelectItem(item.id, isAssigned)}
-                            className="rounded border-[var(--groups1-border)]"
+                            className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-primary)] focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isUpdating || isAssigned}
                             title={isAssigned ? "This item is already assigned" : ""}
                           />
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)] text-sm text-[var(--groups1-text-secondary)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-sm text-[var(--groups1-text-secondary)]">
                           {serialNumber}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           {item.student ? (
                             <Link
                               href={`/app/students/${item.student.id}`}
@@ -578,7 +619,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           {primaryPhone ? (
                             <a
                               href={`tel:${primaryPhone.phone}`}
@@ -590,7 +631,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           {item.assignedTo ? (
                             <span className="text-sm text-[var(--groups1-text)]">
                               {item.assignee?.user?.name || "Assigned"}
@@ -601,7 +642,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           <StatusBadge
                             variant={getStateVariant(item.state)}
                             size="sm"
@@ -609,7 +650,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             {getStateLabel(item.state)}
                           </StatusBadge>
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)] max-w-xs">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] max-w-xs">
                           {summaryNote ? (
                             <p className="text-sm text-[var(--groups1-text-secondary)] truncate" title={summaryNote}>
                               {summaryNote}
@@ -618,7 +659,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           {followUpDate ? (
                             <span className="text-sm text-[var(--groups1-text)]">
                               {new Date(followUpDate).toLocaleDateString()}
@@ -627,14 +668,30 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)] text-right">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {item.state !== "DONE" && item.assignedTo && (
+                            {!item.assignedTo && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAssignItem(item.id, null)}
+                                disabled={isUpdating || deletingItemId === item.id}
+                                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                title="Assign to me"
+                              >
+                                {updatingItemId === item.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <UserPlus className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
+                            {item.state !== "DONE" && item.assignedTo && currentMember?.id === item.assignedTo && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleStartCall(item)}
-                                disabled={isUpdating}
+                                disabled={isUpdating || deletingItemId === item.id}
                                 className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] border-0"
                               >
                                 <Phone className="w-4 h-4 mr-1" />
@@ -645,11 +702,27 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                               variant="outline"
                               size="sm"
                               onClick={() => handleViewDetails(item)}
-                              disabled={isUpdating}
+                              disabled={isUpdating || deletingItemId === item.id}
                               className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteItem(item.id, item.student?.name)}
+                                disabled={isUpdating || deletingItemId === item.id}
+                                className="bg-red-500 text-white hover:bg-red-600 border-0"
+                                title="Remove student from call list"
+                              >
+                                {deletingItemId === item.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -662,7 +735,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--groups1-border)]">
+            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--groups1-border)]">
               <div className="text-sm text-[var(--groups1-text-secondary)]">
                 Showing {paginatedItems.length > 0 ? (filters.page! - 1) * pageSize + 1 : 0} to{" "}
                 {Math.min(filters.page! * pageSize, totalItems)} of {totalItems} items
@@ -714,3 +787,4 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
     </>
   );
 }
+

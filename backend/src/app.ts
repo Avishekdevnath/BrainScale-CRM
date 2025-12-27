@@ -5,8 +5,7 @@ import { env } from './config/env';
 import { logger } from './config/logger';
 import { mountSwagger } from './config/swagger';
 import { errorHandler } from './middleware/error-handler';
-// Rate limiters disabled for testing
-// import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
+import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
 
 // Create Express app
 export const app: Express = express();
@@ -16,20 +15,63 @@ export const app: Express = express();
 app.set('trust proxy', true);
 
 // CORS (must be before helmet to allow preflight requests)
-// Open for testing - allows all origins
-app.use(cors({
-  origin: true, // Allow all origins for testing
+// Environment-aware CORS configuration:
+// - Development: Allow all origins for local testing
+// - Production: Restrict to CORS_ORIGINS from environment variables
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // In development, allow all origins
+    if (env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed origins
+    // If no origin (e.g., Postman, curl), allow it (for API testing)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in the allowed list
+    const allowedOrigins = env.CORS_ORIGINS;
+    if (allowedOrigins.length === 0) {
+      // If CORS_ORIGINS is not set, log warning but allow (for backward compatibility during migration)
+      logger.warn('CORS_ORIGINS not configured. Allowing all origins in production. Please set CORS_ORIGINS environment variable.');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Origin not allowed
+    logger.warn({ origin, allowedOrigins }, 'CORS: Origin not allowed');
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Workspace-Id', 'X-Cron-Secret'],
   exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: env.NODE_ENV === 'production' ? {
     directives: {
       defaultSrc: ["'self'"],
+      // SECURITY NOTE: 'unsafe-inline' is used for scripts and styles
+      // This is often required for Next.js apps due to dynamic script/style injection
+      // and inline event handlers. However, it reduces XSS protection.
+      // 
+      // Security Risk: If malicious content is injected into the application,
+      // 'unsafe-inline' allows it to execute inline scripts/styles, increasing XSS risk.
+      // 
+      // Recommendations for future hardening:
+      // 1. Use nonces or hashes for trusted inline scripts/styles where possible
+      // 2. Review all user-generated content and ensure proper sanitization
+      // 3. Consider using stricter CSP in non-Next.js routes if applicable
+      // 4. Monitor CSP violation reports to identify potential security issues
       scriptSrc: ["'self'", "'unsafe-inline'"],
       scriptSrcElem: ["'self'", "'unsafe-inline'"], // For <script> elements
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -46,8 +88,9 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting (apply to all API routes) - DISABLED FOR TESTING
-// app.use('/api/v1', apiLimiter);
+// Rate limiting (apply to all API routes)
+// Global API rate limiter: 100 requests per 15 minutes per IP
+app.use('/api/v1', apiLimiter);
 
 // HTTPS enforcement only in production deployments (Vercel, etc.), not for local development
 // Skip HTTPS enforcement if running locally (not in Vercel) or if localhost
@@ -79,8 +122,8 @@ app.use((req, res, next) => {
 
 // Health check
 // Recommended interval: 10 minutes (configure in Kubernetes liveness/readiness probes)
-// Rate limiter disabled for testing
-app.get('/health', (req, res) => {
+// Rate limiter: 10 requests per 10 minutes per IP (skip successful requests)
+app.get('/health', healthCheckLimiter, (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -204,6 +247,7 @@ import exportRouter from './modules/exports/export.router';
 import dashboardRouter from './modules/dashboard/dashboard.router';
 import emailRouter from './modules/emails/email.router';
 import revenueRouter from './modules/revenue/revenue.router';
+import aiChatRouter from './modules/ai-chat/ai-chat.router';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/workspaces', workspaceRouter);
@@ -235,6 +279,7 @@ app.use('/api/v1/exports', exportRouter); // Exports routes
 app.use('/api/v1/dashboard', dashboardRouter); // Dashboard routes
 app.use('/api/v1/emails', emailRouter); // Email routes
 app.use('/api/v1/revenue', revenueRouter); // Revenue routes
+app.use('/api/v1/ai-chat', aiChatRouter); // AI Chat routes
 
 // 404 handler
 app.use((req, res) => {

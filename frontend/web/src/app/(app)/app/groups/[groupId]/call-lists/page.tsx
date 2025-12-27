@@ -18,16 +18,17 @@ import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { CallListDetailsModal } from "@/components/call-lists/CallListDetailsModal";
 import { mutate } from "swr";
 import { Plus, Pencil, Trash2, Loader2, Search, AlertCircle, Eye } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type { CallList } from "@/types/call-lists.types";
-
-// TODO: Replace with actual role check from auth/store
-const isAdmin = true;
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export default function GroupCallListsPage() {
   const params = useParams();
   const router = useRouter();
+  const isAdmin = useIsAdmin();
   const groupId = params?.groupId as string;
   const { isLoading: isInitializing } = useGroupInitializer();
   const { data: group, error: groupError, isLoading: groupLoading } = useGroup(groupId);
@@ -40,6 +41,7 @@ export default function GroupCallListsPage() {
   const [deletingCallList, setDeletingCallList] = useState<CallList | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewingCallListId, setViewingCallListId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(true);
 
   const groupName = group?.name || `Group ${groupId}`;
   usePageTitle(group ? `${groupName} - Call Lists` : "Group Call Lists");
@@ -189,30 +191,31 @@ export default function GroupCallListsPage() {
             Manage call lists for this group
           </p>
         </div>
-        <Button
-          onClick={handleCreate}
-          className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Create New Call List
-        </Button>
+        <div className="flex items-center gap-2">
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
+          <Button
+            onClick={handleCreate}
+            className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create New Call List
+          </Button>
+        </div>
       </div>
 
       {/* Search Filter */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="py-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
-            <Input
-              type="text"
-              placeholder="Search call lists by name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <CollapsibleFilters open={showFilters} contentClassName="py-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+          <Input
+            type="text"
+            placeholder="Search call lists by name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
+          />
+        </div>
+      </CollapsibleFilters>
 
       {/* Call Lists Table */}
       <Card variant="groups1">
@@ -263,7 +266,7 @@ export default function GroupCallListsPage() {
                   {filteredCallLists.map((callList) => (
                     <tr key={callList.id} className="hover:bg-[var(--groups1-secondary)]">
                       <td className="px-4 py-3 text-sm font-medium text-[var(--groups1-text)] whitespace-nowrap">
-                        <Link href={`/app/call-lists/${callList.id}`} className="hover:underline">
+                        <Link href={`/app/call-lists/${callList.id}?groupId=${groupId}`} className="hover:underline">
                           {callList.name}
                         </Link>
                       </td>
@@ -354,7 +357,7 @@ export default function GroupCallListsPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Delete Call List</DialogTitle>
             <DialogClose onClose={() => setIsDeleteDialogOpen(false)} />

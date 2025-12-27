@@ -247,6 +247,7 @@ export default function MembersPage() {
         member={selectedMember}
         workspaceId={workspaceId}
         onSuccess={handleSuccess}
+        allMembers={members}
       />
 
       <GrantGroupAccessDialog

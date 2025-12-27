@@ -1,0 +1,17 @@
+Full Name,Email Address,Mobile Number,Alternate Phone,Discord Handle,Student Tags,Batch Group,Course Enrollment,Student Status
+Robert Martinez,robert.martinez@example.com,9876543210,9876543211,robertm#1111,Tech Enthusiast|Beginner,JavaScript Fundamentals,Modern JavaScript,ACTIVE
+Sarah Connor,sarah.connor@example.com,9876543212,9876543213,sarahc#2222,Advanced|VIP,React Development,React Mastery Course,ACTIVE
+Tom Hanks,tom.hanks@example.com,9876543214,,tomh#3333,Beginner,Angular Framework,Angular Complete Guide,PENDING
+Uma Thurman,uma.thurman@example.com,9876543215,9876543216,umath#4444,Intermediate,TypeScript,TypeScript Deep Dive,ACTIVE
+Vincent Vega,vincent.vega@example.com,9876543217,,vincentv#5555,Advanced,Next.js,Next.js Full Stack,ACTIVE
+Wendy Williams,wendy.williams@example.com,9876543218,9876543219,wendyw#6666,Beginner|New,Express.js,Node.js Backend,ACTIVE
+Xavier Woods,xavier.woods@example.com,9876543220,,xavierw#7777,Intermediate,Database Systems,MongoDB & Mongoose,ACTIVE
+Yara Shahidi,yara.shahidi@example.com,9876543221,9876543222,yaras#8888,Advanced|VIP,GraphQL,GraphQL API Design,ACTIVE
+Zachary Levi,zachary.levi@example.com,9876543223,,zacharyl#9999,Beginner,Microservices,Microservices Architecture,ACTIVE
+Amy Adams,amy.adams@example.com,9876543224,9876543225,amya#1010,Intermediate,DevOps Tools,Git & CI/CD,ACTIVE
+Brad Pitt,brad.pitt@example.com,9876543226,,bradp#2020,Advanced,Cloud Platforms,Azure Fundamentals,ACTIVE
+Cate Blanchett,cate.blanchett@example.com,9876543227,9876543228,cateb#3030,Beginner|New,Docker,Containerization Basics,ACTIVE
+Daniel Craig,daniel.craig@example.com,9876543229,,danielc#4040,Intermediate,Kubernetes,Orchestration Mastery,ACTIVE
+Emma Stone,emma.stone@example.com,9876543230,9876543231,emmas#5050,Advanced|VIP,Monitoring,Observability & Logging,ACTIVE
+Frank Ocean,frank.ocean@example.com,9876543232,,franko#6060,Beginner,API Security,OAuth & JWT,ACTIVE
+

@@ -70,6 +70,12 @@ export function CallsTable({ callListId, searchQuery = "", onItemsUpdated }: Cal
     setSelectedItem(null);
     await mutate();
     onItemsUpdated?.();
+    // Invalidate dashboard cache to refresh stats
+    await mutate(
+      (key) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
   };
 
   const getStateVariant = (state: CallListItemState): "success" | "warning" | "info" | "error" => {

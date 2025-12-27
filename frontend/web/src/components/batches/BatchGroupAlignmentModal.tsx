@@ -125,7 +125,7 @@ export function BatchGroupAlignmentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[25vw] h-[50vh] flex flex-col">
+      <DialogContent className="max-w-2xl w-[90vw] md:w-auto h-[50vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {mode === "align" ? `Align Groups to ${batchName}` : `Remove Groups from ${batchName}`}

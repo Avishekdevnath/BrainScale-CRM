@@ -35,7 +35,11 @@ export const requireRole = (...roles: Array<string>) => {
       return next(new AppError(401, 'Authentication required'));
     }
     
-    if (!roles.includes(req.user.role)) {
+    // Normalize roles to uppercase for case-insensitive comparison
+    const userRole = req.user.role?.toUpperCase();
+    const allowedRoles = roles.map(r => r.toUpperCase());
+    
+    if (!userRole || !allowedRoles.includes(userRole)) {
       return next(new AppError(403, 'Insufficient permissions'));
     }
     

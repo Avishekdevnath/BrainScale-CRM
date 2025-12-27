@@ -3,6 +3,7 @@ import * as callController from './call.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { CreateCallSchema, UpdateCallSchema, ListCallsSchema } from './call.schemas';
 
 const router = Router();
@@ -42,6 +43,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'create'),
   zodValidator(CreateCallSchema),
   callController.createCall
 );
@@ -65,6 +68,8 @@ router.post(
 router.get(
   '/:callId',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   callController.getCall
 );
 
@@ -100,6 +105,8 @@ router.get(
 router.patch(
   '/:callId',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'update'),
   zodValidator(UpdateCallSchema),
   callController.updateCall
 );
@@ -123,6 +130,8 @@ router.patch(
 router.delete(
   '/:callId',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'delete'),
   callController.deleteCall
 );
 
@@ -133,6 +142,8 @@ export const studentCallRouter = Router();
 studentCallRouter.get(
   '/:studentId/calls',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   callController.listStudentCalls
 );
 
@@ -140,6 +151,8 @@ export const groupCallRouter = Router();
 groupCallRouter.get(
   '/:groupId/calls',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   callController.listGroupCalls
 );
 

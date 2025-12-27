@@ -144,15 +144,15 @@
     --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
     --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
     --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
-    --groups1-border: rgba(var(--color-gray-400-rgb), 0.3);
+    --groups1-border: rgba(var(--color-gray-400-rgb), 0.4);
     --groups1-error: var(--color-red-400);
     --groups1-success: var(--color-teal-300);
     --groups1-warning: var(--color-orange-400);
     --groups1-info: var(--color-gray-300);
     --groups1-focus-ring: rgba(var(--color-teal-300-rgb), 0.4);
-    --groups1-btn-primary-text: var(--color-slate-900);
-    --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.2);
-    --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
+    --groups1-btn-primary-text: var(--color-white);
+    --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
+    --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
 
     /* RGB versions for dark mode - Groups1 */
     --groups1-success-rgb: var(--color-teal-300-rgb);
@@ -191,15 +191,18 @@
   --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
   --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
   --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
-  --groups1-border: rgba(var(--color-gray-400-rgb), 0.3);
+    --groups1-border: rgba(var(--color-gray-400-rgb), 0.4);
   --groups1-error: var(--color-red-400);
   --groups1-success: var(--color-teal-300);
   --groups1-warning: var(--color-orange-400);
   --groups1-info: var(--color-gray-300);
   --groups1-focus-ring: rgba(var(--color-teal-300-rgb), 0.4);
-  --groups1-btn-primary-text: var(--color-slate-900);
-  --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.2);
-  --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.15);
+    --groups1-btn-primary-text: var(--color-white);
+    --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
+    --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
+    
+    /* Dark mode disabled state opacity - more visible */
+    --groups1-disabled-opacity: 0.7;
 
   /* RGB versions for dark mode */
   --groups1-success-rgb: var(--color-teal-300-rgb);
@@ -286,4 +289,35 @@ body {
   background: linear-gradient(180deg, hsl(var(--muted) / .35), transparent 60%);
   border-radius: 1rem;
   border: 1px solid color-mix(in oklab, hsl(var(--border)) 70%, transparent);
+}
+
+/* Custom scrollbar styling - Global */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--groups1-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--groups1-border);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--groups1-text-secondary);
+}
+
+/* For horizontal scrollbars */
+*::-webkit-scrollbar:horizontal {
+  height: 8px;
 }

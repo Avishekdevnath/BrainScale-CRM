@@ -473,6 +473,7 @@ export const commitCallListImport = async (
           },
         },
         create: {
+          workspaceId: workspaceId, // For tenant isolation
           callListId: listId,
           studentId: student.id,
           state: 'QUEUED',

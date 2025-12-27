@@ -95,9 +95,6 @@ export function MembersTable({
                   Role
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
-                  Custom Role
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
                   Group Access
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
@@ -111,7 +108,7 @@ export function MembersTable({
             <tbody>
               {filteredMembers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
                     No members found matching your search.
                   </td>
                 </tr>
@@ -155,15 +152,6 @@ export function MembersTable({
                         >
                           {getRoleLabel(member.role)}
                         </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3">
-                        {member.customRole ? (
-                          <span className="text-sm text-[var(--groups1-text)]">
-                            {member.customRole.name}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
-                        )}
                       </td>
                       <td className="px-4 py-3">
                         {groupAccess.length > 0 ? (

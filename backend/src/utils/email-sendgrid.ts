@@ -27,9 +27,17 @@ export const sendEmailWithSendGrid = async (
   }
 
   try {
+    // Format sender name - only quote if it contains special characters that require quoting
+    // RFC 5322: Quotes are optional for simple names with spaces, but required for special chars
+    const fromName = env.EMAIL_FROM_NAME || 'BrainScale CRM';
+    const hasSpecialChars = /[<>,;:\[\]\\"]/.test(fromName);
+    const formattedFrom = hasSpecialChars
+      ? `"${fromName.replace(/"/g, '\\"')}" <${env.EMAIL_FROM}>`
+      : `${fromName} <${env.EMAIL_FROM}>`;
+
     const msg = {
       to: options.to,
-      from: `"${env.EMAIL_FROM_NAME}" <${env.EMAIL_FROM}>`,
+      from: formattedFrom,
       replyTo: env.EMAIL_REPLY_TO,
       subject: options.subject,
       text: options.text || options.html.replace(/<[^>]*>/g, ''),

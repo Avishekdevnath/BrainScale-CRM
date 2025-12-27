@@ -21,6 +21,7 @@ export const UpdateStudentSchema = z.object({
   email: z.string().email().optional().nullable(),
   discordId: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
+  notes: z.string().optional().nullable(),
 });
 
 export const ListStudentsSchema = z.object({

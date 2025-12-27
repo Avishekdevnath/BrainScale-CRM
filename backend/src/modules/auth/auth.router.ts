@@ -2,8 +2,7 @@ import { Router } from 'express';
 import * as authController from './auth.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
-// Rate limiters disabled for testing
-// import { authLimiter, resendVerificationLimiter, resetPasswordLimiter } from '../../middleware/rate-limit';
+import { authLimiter, resendVerificationLimiter, resetPasswordLimiter } from '../../middleware/rate-limit';
 import {
   SignupSchema,
   LoginSchema,
@@ -59,7 +58,7 @@ const router = Router();
  *       409:
  *         description: User already exists
  */
-router.post('/signup', /* authLimiter, */ zodValidator(SignupSchema), authController.signup);
+router.post('/signup', authLimiter, zodValidator(SignupSchema), authController.signup);
 
 /**
  * @openapi
@@ -90,7 +89,7 @@ router.post('/signup', /* authLimiter, */ zodValidator(SignupSchema), authContro
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', /* authLimiter, */ zodValidator(LoginSchema), authController.login);
+router.post('/login', authLimiter, zodValidator(LoginSchema), authController.login);
 
 /**
  * @openapi
@@ -116,7 +115,7 @@ router.post('/login', /* authLimiter, */ zodValidator(LoginSchema), authControll
  *       401:
  *         description: Invalid refresh token
  */
-router.post('/refresh', /* authLimiter, */ zodValidator(RefreshTokenSchema), authController.refresh);
+router.post('/refresh', authLimiter, zodValidator(RefreshTokenSchema), authController.refresh);
 
 /**
  * @openapi
@@ -169,7 +168,7 @@ router.post('/logout', authGuard, authController.logout);
  *       400:
  *         description: Invalid or expired token
  */
-router.post('/verify-email', /* authLimiter, */ zodValidator(VerifyEmailSchema), authController.verifyEmail);
+router.post('/verify-email', authLimiter, zodValidator(VerifyEmailSchema), authController.verifyEmail);
 
 /**
  * @openapi
@@ -201,7 +200,7 @@ router.post('/verify-email', /* authLimiter, */ zodValidator(VerifyEmailSchema),
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/verify-email-otp', /* authLimiter, */ zodValidator(VerifyEmailOtpSchema), authController.verifyEmailOtp);
+router.post('/verify-email-otp', authLimiter, zodValidator(VerifyEmailOtpSchema), authController.verifyEmailOtp);
 
 /**
  * @openapi
@@ -228,7 +227,7 @@ router.post('/verify-email-otp', /* authLimiter, */ zodValidator(VerifyEmailOtpS
  *       400:
  *         description: Email already verified or invalid
  */
-router.post('/resend-verification', /* resendVerificationLimiter, */ zodValidator(ResendVerificationSchema), authController.resendVerificationEmail);
+router.post('/resend-verification', resendVerificationLimiter, zodValidator(ResendVerificationSchema), authController.resendVerificationEmail);
 
 /**
  * @openapi
@@ -259,7 +258,7 @@ router.post('/resend-verification', /* resendVerificationLimiter, */ zodValidato
  */
 router.post(
   '/resend-verification-otp',
-  /* resendVerificationLimiter, */
+  resendVerificationLimiter,
   zodValidator(ResendVerificationOtpSchema),
   authController.resendVerificationOtp
 );
@@ -289,7 +288,7 @@ router.post(
  *       400:
  *         description: Invalid or expired token
  */
-router.post('/verify-signup-email', /* authLimiter, */ zodValidator(VerifyEmailSchema), authController.verifySignupEmail);
+router.post('/verify-signup-email', authLimiter, zodValidator(VerifyEmailSchema), authController.verifySignupEmail);
 
 /**
  * @openapi
@@ -321,7 +320,7 @@ router.post('/verify-signup-email', /* authLimiter, */ zodValidator(VerifyEmailS
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/verify-signup-otp', /* authLimiter, */ zodValidator(VerifyEmailOtpSchema), authController.verifySignupOtp);
+router.post('/verify-signup-otp', authLimiter, zodValidator(VerifyEmailOtpSchema), authController.verifySignupOtp);
 
 /**
  * @openapi
@@ -348,7 +347,7 @@ router.post('/verify-signup-otp', /* authLimiter, */ zodValidator(VerifyEmailOtp
  *       429:
  *         description: Too many requests
  */
-router.post('/resend-signup-verification', /* resendVerificationLimiter, */ zodValidator(ResendVerificationSchema), authController.resendSignupVerification);
+router.post('/resend-signup-verification', resendVerificationLimiter, zodValidator(ResendVerificationSchema), authController.resendSignupVerification);
 
 /**
  * @openapi
@@ -480,7 +479,7 @@ router.post(
 router.post(
   '/request-password-change-otp',
   authGuard,
-  /* resendVerificationLimiter, */
+  resendVerificationLimiter,
   zodValidator(RequestPasswordChangeOtpSchema),
   authController.requestPasswordChangeOtp
 );
@@ -526,7 +525,7 @@ router.post(
 router.post(
   '/change-password-otp',
   authGuard,
-  /* authLimiter, */
+  authLimiter,
   zodValidator(ChangePasswordWithOtpSchema),
   authController.changePasswordWithOtp
 );
@@ -564,7 +563,7 @@ router.post(
 router.post(
   '/resend-password-change-otp',
   authGuard,
-  /* resendVerificationLimiter, */
+  resendVerificationLimiter,
   zodValidator(ResendPasswordChangeOtpSchema),
   authController.resendPasswordChangeOtp
 );
@@ -604,7 +603,7 @@ router.post(
  */
 router.post(
   '/forgot-password',
-  /* resendVerificationLimiter, */
+  resetPasswordLimiter,
   zodValidator(ForgotPasswordSchema),
   authController.forgotPassword
 );
@@ -648,7 +647,7 @@ router.post(
  */
 router.post(
   '/reset-password',
-  /* resetPasswordLimiter, */
+  resetPasswordLimiter,
   zodValidator(ResetPasswordSchema),
   authController.resetPassword
 );
@@ -688,7 +687,7 @@ router.post(
  */
 router.post(
   '/resend-reset-password-otp',
-  /* resendVerificationLimiter, */
+  resendVerificationLimiter,
   zodValidator(ResendResetPasswordOtpSchema),
   authController.resendResetPasswordOtp
 );

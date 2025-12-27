@@ -34,6 +34,8 @@ model User {
   followupsCreated   Followup[]
   auditLogs          AuditLog[]
   emailVerifications EmailVerification[]
+  chatMessages       ChatMessage[]
+  chats              Chat[]
 }
 
 model Workspace {
@@ -49,23 +51,29 @@ model Workspace {
   weeklyDigestDay          String?  @default("MONDAY") // MONDAY, TUESDAY, etc.
   weeklyDigestTime         String?  @default("09:00") // HH:MM format
   followupRemindersEnabled Boolean  @default(true)
+  aiFeaturesEnabled        Boolean  @default(false) // Master switch for AI features
+  aiFeatures               Json? // Array of enabled AI features: ["summary", "sentiment"]
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
   // Relations
-  members     WorkspaceMember[]
-  groups      Group[]
-  batches     Batch[]
-  courses     Course[]
-  students    Student[]
-  calls       Call[]
-  followups   Followup[]
-  callLists   CallList[]
-  imports     Import[]
-  auditLogs   AuditLog[]
-  invitations Invitation[]
-  customRoles CustomRole[]
-  payments    Payment[]
+  members      WorkspaceMember[]
+  groups       Group[]
+  batches      Batch[]
+  courses      Course[]
+  students     Student[]
+  calls        Call[]
+  followups    Followup[]
+  callLists    CallList[]
+  callListItems CallListItem[]
+  callLogs     CallLog[]
+  imports      Import[]
+  auditLogs    AuditLog[]
+  invitations  Invitation[]
+  customRoles  CustomRole[]
+  payments     Payment[]
+  chatMessages ChatMessage[]
+  chats        Chat[]
 }
 
 model WorkspaceMember {
@@ -203,6 +211,7 @@ model Student {
   email       String?
   discordId   String?
   tags        String[] @default([])
+  notes       String?
   isDeleted   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -342,6 +351,9 @@ model CallList {
   description String? // Optional description for the call list
   messages    String[] @default([]) // Array of messages to convey during calls
   meta        Json? // Custom fields configuration (includes questions structure)
+  status      String   @default("ACTIVE") // "ACTIVE", "COMPLETED", or "ARCHIVED"
+  completedAt DateTime? // Timestamp when marked complete
+  completedBy String? // User ID who marked it complete
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -351,31 +363,38 @@ model CallList {
   items     CallListItem[]
   callLogs  CallLog[]
   followups Followup[] // Follow-ups created from this call list
+
+  @@index([workspaceId, status]) // For efficient status filtering
 }
 
 model CallListItem {
-  id         String   @id @default(cuid()) @map("_id")
-  callListId String
-  studentId  String
-  assignedTo String?
-  callLogId  String? // Reference to CallLog when call is completed
-  state      String   @default("QUEUED")
-  priority   Int      @default(0)
-  custom     Json? // Custom field values
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String   // For tenant isolation and efficient querying
+  callListId  String
+  studentId   String
+  assignedTo  String?
+  callLogId   String? // Reference to CallLog when call is completed
+  state       String   @default("QUEUED")
+  priority    Int      @default(0)
+  custom      Json? // Custom field values
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
-  callList CallList         @relation(fields: [callListId], references: [id], onDelete: Cascade)
-  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  assignee WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
-  callLog  CallLog?
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  callList  CallList      @relation(fields: [callListId], references: [id], onDelete: Cascade)
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignee  WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  callLog   CallLog?
 
   @@unique([callListId, studentId])
+  @@index([workspaceId, state]) // For efficient workspace filtering
+  @@index([workspaceId, assignedTo, state]) // For My Calls queries
 }
 
 model CallLog {
   id               String    @id @default(cuid()) @map("_id")
+  workspaceId      String    // For tenant isolation and efficient querying
   callListItemId   String    @unique // Links to CallListItem
   callListId       String // Quick access to call list
   studentId        String // Quick access to student
@@ -387,21 +406,63 @@ model CallLog {
   notes            String? // Additional notes
   callerNote       String? // Caller's manual notes (separate from AI-generated summary)
   summaryNote      String? // AI-generated summary (optional)
+  sentiment        String? // AI sentiment analysis: 'positive', 'neutral', 'negative', 'concerned'
+  sentimentScore   Float? // Confidence score 0.0 to 1.0
+  aiProcessedAt    DateTime? // Timestamp when AI processing completed
+  aiProcessingStatus String? // AI processing status: 'pending', 'completed', 'failed'
   followUpDate     DateTime? // When to follow up
   followUpRequired Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   // Relations
-  callListItem CallListItem    @relation(fields: [callListItemId], references: [id], onDelete: Cascade)
-  callList     CallList        @relation(fields: [callListId], references: [id], onDelete: Cascade)
-  student      Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  callListItem CallListItem  @relation(fields: [callListItemId], references: [id], onDelete: Cascade)
+  callList     CallList      @relation(fields: [callListId], references: [id], onDelete: Cascade)
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignee     WorkspaceMember @relation(fields: [assignedTo], references: [id])
   followups    Followup[] // Follow-ups created from this call log
 
-  @@index([assignedTo, callDate]) // For My Calls queries
-  @@index([studentId, callDate]) // For student call history
-  @@index([callListId, callDate]) // For call list history
+  @@index([workspaceId, callDate]) // For efficient workspace filtering
+  @@index([workspaceId, assignedTo, callDate]) // For My Calls queries
+  @@index([workspaceId, studentId, callDate]) // For student call history
+  @@index([workspaceId, callListId, callDate]) // For call list history
+  @@index([workspaceId, status]) // For status-based queries
+}
+
+model Chat {
+  id          String       @id @default(cuid()) @map("_id")
+  workspaceId String       // Tenant isolation
+  userId      String       // User who owns the chat
+  title       String?      // Optional title (can be auto-generated from first message)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  // Relations
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    ChatMessage[]
+  
+  @@index([workspaceId, userId, updatedAt]) // For efficient querying per user/workspace
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid()) @map("_id")
+  chatId      String   // Link to Chat
+  workspaceId String   // Tenant isolation
+  userId      String   // User who sent/received the message
+  role        String   // 'user' | 'assistant'
+  content     String   // Message content
+  metadata    Json?    // Store function calls, tokens used, etc.
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([chatId, createdAt]) // For efficient querying per chat
+  @@index([workspaceId, userId, createdAt]) // For backward compatibility during migration period
 }
 
 model Import {

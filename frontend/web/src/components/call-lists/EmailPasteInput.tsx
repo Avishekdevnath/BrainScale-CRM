@@ -63,7 +63,7 @@ export function EmailPasteInput({
               : hasErrors
               ? "border-red-500 dark:border-red-400"
               : "border-[var(--groups1-border)]",
-            disabled && "opacity-50 cursor-not-allowed"
+            disabled && "opacity-70 dark:opacity-75 cursor-not-allowed"
           )}
         />
         {value && !disabled && (

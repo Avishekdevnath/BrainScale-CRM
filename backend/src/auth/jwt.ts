@@ -5,6 +5,7 @@ export interface JWTPayload {
   sub: string; // user id
   workspaceId: string;
   role: string; // 'ADMIN' | 'MEMBER' or custom role
+  permissions?: Array<{ resource: string; action: string }>; // Permissions from custom role
 }
 
 export interface RefreshTokenPayload {

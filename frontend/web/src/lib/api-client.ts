@@ -28,6 +28,8 @@ import type {
   CallListItemsListParams,
   CallListItemsListResponse,
   AddCallListItemsPayload,
+  BulkPasteCallListRequest,
+  BulkPasteCallListResponse,
   UpdateCallListItemPayload,
   AssignCallListItemsPayload,
   UnassignCallListItemsPayload,
@@ -47,6 +49,18 @@ import type {
   BulkEmailPasteRequest,
   BulkEmailPasteResponse,
 } from "@/types/call-lists.types";
+import {
+  Chat,
+  ChatMessage,
+  SendMessageRequest,
+  SendMessageResponse,
+  ChatHistoryResponse,
+  ChatListResponse,
+  CreateChatRequest,
+  UpdateChatRequest,
+  ExportChatHistoryOptions,
+  ExportAIDataOptions,
+} from "@/types/ai-chat.types";
 import type {
   WorkspaceMember,
   Invitation,
@@ -81,6 +95,14 @@ import type {
   FollowupCallContext,
   CreateFollowupCallLogRequest,
 } from "@/types/followups.types";
+import type {
+  CustomRole,
+  CustomRolesResponse,
+  CreateRolePayload,
+  UpdateRolePayload,
+  AssignPermissionsPayload,
+  PermissionsResponse,
+} from "@/types/roles.types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -127,8 +149,10 @@ export class ApiClient {
   }
 
   private async request<T>(endpoint: string, init: RequestInit = {}): Promise<T> {
+    // Don't set Content-Type for FormData - browser needs to set it with boundary
+    const isFormData = init.body instanceof FormData;
     const headers: HeadersInit = {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(init.headers || {}),
     };
 
@@ -147,7 +171,7 @@ export class ApiClient {
       // Try refresh once
       await this.refreshAccessToken();
       const retryHeaders: HeadersInit = {
-        "Content-Type": "application/json",
+        ...(!isFormData ? { "Content-Type": "application/json" } : {}),
         ...(init.headers || {}),
       };
       const newAccess = this.accessToken;
@@ -492,10 +516,41 @@ export class ApiClient {
       logo: string | null;
       plan: "FREE" | "PRO" | "BUSINESS";
       timezone: string;
+      aiFeaturesEnabled: boolean;
+      aiFeatures: string[] | null;
       createdAt: string;
       updatedAt: string;
     }>(`/workspaces/${workspaceId}`, {
       method: "GET",
+    });
+  }
+
+  updateWorkspace(workspaceId: string, data: {
+    name?: string;
+    logo?: string | null;
+    timezone?: string;
+    dailyDigestEnabled?: boolean;
+    dailyDigestTime?: string;
+    weeklyDigestEnabled?: boolean;
+    weeklyDigestDay?: string;
+    weeklyDigestTime?: string;
+    followupRemindersEnabled?: boolean;
+    aiFeaturesEnabled?: boolean;
+    aiFeatures?: string[];
+  }) {
+    return this.request<{
+      id: string;
+      name: string;
+      logo: string | null;
+      plan: "FREE" | "PRO" | "BUSINESS";
+      timezone: string;
+      aiFeaturesEnabled: boolean;
+      aiFeatures: string[] | null;
+      createdAt: string;
+      updatedAt: string;
+    }>(`/workspaces/${workspaceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     });
   }
 
@@ -1284,8 +1339,11 @@ export class ApiClient {
       groupId: payload.groupId,
       batchId: payload.batchId,
       studentIds: payload.studentIds,
+      studentsData: payload.studentsData,
       groupIds: payload.groupIds,
       messages: payload.messages || [],
+      matchBy: payload.matchBy,
+      skipDuplicates: payload.skipDuplicates,
       meta: Object.keys(meta).length > 0 ? meta : undefined,
     };
 
@@ -1299,6 +1357,7 @@ export class ApiClient {
     const queryString = buildQueryString({
       groupId: params?.groupId,
       batchId: params?.batchId,
+      status: params?.status,
       page: params?.page,
       size: params?.size,
     });
@@ -1316,6 +1375,18 @@ export class ApiClient {
         totalPages: 1,
       },
     };
+  }
+
+  async markCallListComplete(callListId: string): Promise<CallList> {
+    return this.request<CallList>(`/call-lists/${callListId}/complete`, {
+      method: "PATCH",
+    });
+  }
+
+  async markCallListActive(callListId: string): Promise<CallList> {
+    return this.request<CallList>(`/call-lists/${callListId}/reopen`, {
+      method: "PATCH",
+    });
   }
 
   getCallListById(listId: string) {
@@ -1426,6 +1497,17 @@ export class ApiClient {
     );
   }
 
+  // Create call list from bulk pasted data
+  bulkPasteCallList(data: BulkPasteCallListRequest): Promise<BulkPasteCallListResponse> {
+    return this.request<BulkPasteCallListResponse>(
+      '/call-lists/bulk-paste',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
   getAvailableStudents(
     listId: string,
     params?: {
@@ -1462,6 +1544,15 @@ export class ApiClient {
     });
   }
 
+  deleteCallListItem(itemId: string) {
+    return this.request<{ message: string; deletedItem: { id: string; studentName?: string } }>(
+      `/call-list-items/${itemId}`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
   assignCallListItems(listId: string, payload: AssignCallListItemsPayload) {
     return this.request<{ message: string; assignedCount: number }>(
       `/call-lists/${listId}/items/assign`,
@@ -1491,6 +1582,7 @@ export class ApiClient {
       groupId: params?.groupId,
       callListId: params?.callListId,
       state: params?.state,
+      followUpRequired: params?.followUpRequired,
     });
     return this.request<MyCallsResponse>(`/my-calls${queryString}`, {
       method: "GET",
@@ -1599,7 +1691,7 @@ export class ApiClient {
       batchId: params?.batchId,
       groupId: params?.groupId,
     });
-    return this.request<CallLogsResponse>(`/students/${studentId}/call-logs${queryString}`, {
+    return this.request<CallLogsResponse>(`/call-logs/students/${studentId}/call-logs${queryString}`, {
       method: "GET",
     });
   }
@@ -1662,6 +1754,15 @@ export class ApiClient {
     });
   }
 
+  getStudentStats(studentId: string) {
+    return this.request<import("@/types/students.types").StudentStats>(
+      `/students/${studentId}/stats`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
   updateStudent(studentId: string, payload: UpdateStudentPayload) {
     return this.request<StudentDetail>(`/students/${studentId}`, {
       method: "PATCH",
@@ -1669,10 +1770,221 @@ export class ApiClient {
     });
   }
 
+  updateStudentNotes(studentId: string, notes: string) {
+    return this.request<StudentDetail>(`/students/${studentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes }),
+    });
+  }
+
   deleteStudent(studentId: string) {
     return this.request<void>(`/students/${studentId}`, {
       method: "DELETE",
     });
+  }
+
+  // Roles methods
+  listCustomRoles(workspaceId: string): Promise<CustomRolesResponse> {
+    return this.request<CustomRolesResponse>(`/workspaces/${workspaceId}/roles`, {
+      method: "GET",
+    });
+  }
+
+  getCustomRole(workspaceId: string, roleId: string): Promise<CustomRole> {
+    return this.request<CustomRole>(`/workspaces/${workspaceId}/roles/${roleId}`, {
+      method: "GET",
+    });
+  }
+
+  createCustomRole(workspaceId: string, payload: CreateRolePayload): Promise<CustomRole> {
+    return this.request<CustomRole>(`/workspaces/${workspaceId}/roles`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  updateCustomRole(
+    workspaceId: string,
+    roleId: string,
+    payload: UpdateRolePayload
+  ): Promise<CustomRole> {
+    return this.request<CustomRole>(`/workspaces/${workspaceId}/roles/${roleId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteCustomRole(workspaceId: string, roleId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/workspaces/${workspaceId}/roles/${roleId}`, {
+      method: "DELETE",
+    });
+  }
+
+  assignPermissionsToRole(
+    workspaceId: string,
+    roleId: string,
+    payload: AssignPermissionsPayload
+  ): Promise<CustomRole> {
+    return this.request<CustomRole>(`/workspaces/${workspaceId}/roles/${roleId}/permissions`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  listPermissions(): Promise<PermissionsResponse> {
+    const workspaceId = getWorkspaceId();
+    if (!workspaceId) {
+      throw new Error("Workspace ID is required to list permissions.");
+    }
+    // Use the correct endpoint path - workspace ID is already added by request() method via X-Workspace-Id header
+    return this.request<PermissionsResponse>("/workspaces/available-permissions", {
+      method: "GET",
+    });
+  }
+
+  createDefaultRoles(workspaceId: string): Promise<{
+    message: string;
+    admin: CustomRole;
+    member: CustomRole;
+    permissionsGranted: number;
+  }> {
+    return this.request(`/workspaces/${workspaceId}/roles/create-default`, {
+      method: "POST",
+    });
+  }
+
+  // AI Chat methods - Chat CRUD
+  async getChats(): Promise<ChatListResponse> {
+    return this.request("/ai-chat/chats", {
+      method: "GET",
+    });
+  }
+
+  async getChatById(chatId: string): Promise<Chat> {
+    return this.request(`/ai-chat/chats/${chatId}`, {
+      method: "GET",
+    });
+  }
+
+  async createChat(title?: string): Promise<Chat> {
+    return this.request("/ai-chat/chats", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async updateChat(chatId: string, title: string): Promise<Chat> {
+    return this.request(`/ai-chat/chats/${chatId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async deleteChat(chatId: string): Promise<void> {
+    return this.request(`/ai-chat/chats/${chatId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // AI Chat methods - Messages
+  sendChatMessage(message: string, chatId?: string): Promise<SendMessageResponse> {
+    return this.request("/ai-chat/messages", {
+      method: "POST",
+      body: JSON.stringify({ message, chatId }),
+    });
+  }
+
+  getChatHistory(chatId: string, limit?: number): Promise<ChatHistoryResponse> {
+    const params = limit ? `?limit=${limit}` : "";
+    return this.request(`/ai-chat/chats/${chatId}/messages${params}`, {
+      method: "GET",
+    });
+  }
+
+  clearChatHistory(chatId: string): Promise<void> {
+    return this.request(`/ai-chat/chats/${chatId}/messages`, {
+      method: "DELETE",
+    });
+  }
+
+  async exportChatHistory(chatId: string, options?: ExportChatHistoryOptions): Promise<void> {
+    const params = new URLSearchParams();
+    if (options?.dateFrom) params.append('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.append('dateTo', options.dateTo);
+    if (options?.role) params.append('role', options.role);
+    
+    const queryString = params.toString();
+    const endpoint = `/ai-chat/chats/${chatId}/export/history${queryString ? `?${queryString}` : ''}`;
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken || ''}`,
+        'X-Workspace-Id': getWorkspaceId() || '',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      try {
+        const error = await this.parseError(response);
+        throw error;
+      } catch (err) {
+        throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('content-disposition');
+    const filename = contentDisposition
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'chat-history.csv'
+      : 'chat-history.csv';
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  }
+
+  async exportAIData(options: ExportAIDataOptions): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/ai-chat/export/data`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken || ''}`,
+        'X-Workspace-Id': getWorkspaceId() || '',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(options),
+    });
+
+    if (!response.ok) {
+      try {
+        const error = await this.parseError(response);
+        throw error;
+      } catch (err) {
+        throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const blob = await response.blob();
+    const contentDisposition = response.headers.get('content-disposition');
+    const filename = contentDisposition
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'ai-data.csv'
+      : 'ai-data.csv';
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   }
 }
 

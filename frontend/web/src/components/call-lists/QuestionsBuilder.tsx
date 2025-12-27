@@ -124,7 +124,7 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
           size="sm"
           onClick={addQuestion}
           disabled={disabled}
-          className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
         >
           <Plus className="w-4 h-4 mr-1" />
           Add Question
@@ -238,7 +238,7 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
                           size="sm"
                           onClick={() => addOption(question.id)}
                           disabled={disabled}
-                          className="h-7 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                          className="h-7 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           Add Option

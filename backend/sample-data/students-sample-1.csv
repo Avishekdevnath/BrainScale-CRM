@@ -1,0 +1,17 @@
+Name,Email,Phone,Secondary Phone,Discord ID,Tags,Group Name,Course Name,Status
+John Doe,john.doe@example.com,+1234567890,+1234567891,johndoe#1234,VIP,Advanced Python,Python Mastery,ACTIVE
+Jane Smith,jane.smith@example.com,+1234567892,+1234567893,janesmith#5678,New Student,Web Development,Full Stack Bootcamp,ACTIVE
+Bob Johnson,bob.johnson@example.com,+1234567894,,bobjohnson#9012,Returning,Data Science,Data Analytics Pro,PENDING
+Alice Williams,alice.williams@example.com,+1234567895,+1234567896,alicew#3456,Scholarship,UI/UX Design,Design Fundamentals,ACTIVE
+Charlie Brown,charlie.brown@example.com,+1234567897,,charlieb#7890,New Student,Mobile Development,React Native Basics,ACTIVE
+Diana Prince,diana.prince@example.com,+1234567898,+1234567899,dianap#2468,VIP,Cloud Computing,AWS Certification,ACTIVE
+Edward Norton,edward.norton@example.com,+1234567900,,edwardn#1357,Returning,Cybersecurity,Ethical Hacking,ACTIVE
+Fiona Apple,fiona.apple@example.com,+1234567901,+1234567902,fionaa#4680,New Student,Machine Learning,ML Foundations,ACTIVE
+George Lucas,george.lucas@example.com,+1234567903,,georgel#8024,VIP,Game Development,Unity Basics,ACTIVE
+Helen Keller,helen.keller@example.com,+1234567904,+1234567905,helenk#3691,Scholarship,DevOps,Docker & Kubernetes,ACTIVE
+Michael Jackson,michael.jackson@example.com,+1234567906,,michaelj#1470,Returning,Backend Development,Node.js Advanced,ACTIVE
+Nina Simone,nina.simone@example.com,+1234567907,+1234567908,ninas#2580,New Student,Frontend Development,Vue.js Mastery,ACTIVE
+Oscar Wilde,oscar.wilde@example.com,+1234567909,,oscarw#3691,VIP,Database Design,PostgreSQL Expert,ACTIVE
+Penelope Cruz,penelope.cruz@example.com,+1234567910,+1234567911,penelopec#4702,New Student,API Development,REST & GraphQL,ACTIVE
+Quentin Tarantino,quentin.tarantino@example.com,+1234567912,,quentint#5813,Returning,Testing,QA Automation,ACTIVE
+

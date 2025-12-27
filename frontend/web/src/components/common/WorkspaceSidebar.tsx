@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -13,7 +13,6 @@ import {
   Download,
   UserCog,
   Settings,
-  HelpCircle,
   Menu,
   LogOut,
   GraduationCap,
@@ -21,17 +20,19 @@ import {
   FolderOpen,
   Upload,
   UserPlus,
-  Shield,
   Mail,
   FileText,
   CreditCard,
   FileCheck,
   Layers,
+  ChevronDown,
+  ChevronRight,
+  Database,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useMyCallsStats } from "@/hooks/useMyCalls";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface NavItem {
   href: string;
@@ -40,51 +41,101 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const workspaceNavItems: NavItem[] = [
+interface NavSection {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+  adminOnly?: boolean;
+  collapsible?: boolean;
+}
+
+const navSections: NavSection[] = [
   // Overview
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+  {
+    label: "",
+    items: [
+      { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
   
   // Student Management
-  { href: "/app/students", label: "Students", icon: Users },
-  { href: "/app/group-management", label: "Groups", icon: FolderOpen },
-  { href: "/app/batches", label: "Batches", icon: Layers, adminOnly: true },
-  { href: "/app/enrollments", label: "Enrollments", icon: GraduationCap },
+  {
+    label: "Students & Learning",
+    icon: Users,
+    items: [
+      { href: "/app/students", label: "Students", icon: Users },
+      { href: "/app/group-management", label: "Groups", icon: FolderOpen },
+      { href: "/app/batches", label: "Batches", icon: Layers, adminOnly: true },
+      { href: "/app/enrollments", label: "Enrollments", icon: GraduationCap },
+      { href: "/app/courses", label: "Courses", icon: BookOpen },
+      { href: "/app/modules", label: "Modules", icon: FileText },
+    ],
+  },
   
-  // Learning Content
-  { href: "/app/courses", label: "Courses", icon: BookOpen },
-  { href: "/app/modules", label: "Modules", icon: FileText },
+  // Engagement & Communication
+  {
+    label: "Engagement",
+    icon: Phone,
+    items: [
+      { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
+      { href: "/app/calls", label: "All Calls", icon: Phone },
+      { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
+      { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
+      { href: "/app/followups", label: "Follow-ups", icon: Clock },
+    ],
+  },
   
-  // Engagement
-  { href: "/app/calls", label: "Calls", icon: Phone },
-  { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
-  { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
-  { href: "/app/followups", label: "Follow-ups", icon: Clock },
-  
-  // Data Operations
-  { href: "/app/imports", label: "Imports", icon: Upload },
-  { href: "/app/exports", label: "Exports", icon: Download },
+  // Data Management
+  {
+    label: "Data",
+    icon: Database,
+    items: [
+      { href: "/app/imports", label: "Imports", icon: Upload },
+      { href: "/app/exports", label: "Exports", icon: Download },
+    ],
+  },
   
   // Administration (Admin Only)
-  { href: "/app/members", label: "Members & Roles", icon: UserCog, adminOnly: true },
-  { href: "/app/custom-roles", label: "Custom Roles", icon: Shield, adminOnly: true },
-  { href: "/app/invitations", label: "Invitations", icon: UserPlus, adminOnly: true },
-  { href: "/app/workspace-settings", label: "Workspace Settings", icon: Settings, adminOnly: true },
+  {
+    label: "Administration",
+    icon: UserCog,
+    adminOnly: true,
+    items: [
+      { href: "/app/members", label: "Members & Roles", icon: UserCog },
+      { href: "/app/invitations", label: "Invitations", icon: UserPlus },
+      { href: "/app/workspace-settings", label: "Workspace Settings", icon: Settings },
+    ],
+  },
   
-  // System (Admin Only)
-  { href: "/app/audit-logs", label: "Audit Logs", icon: FileCheck, adminOnly: true },
-  { href: "/app/email-settings", label: "Email Settings", icon: Mail, adminOnly: true },
-  { href: "/app/billing", label: "Plan & Billing", icon: CreditCard, adminOnly: true },
+  // System Settings (Admin Only)
+  {
+    label: "System",
+    icon: Settings,
+    adminOnly: true,
+    items: [
+      { href: "/app/audit-logs", label: "Audit Logs", icon: FileCheck },
+      { href: "/app/email-settings", label: "Email Settings", icon: Mail },
+      { href: "/app/billing", label: "Plan & Billing", icon: CreditCard },
+      { href: "/app/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export function WorkspaceSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const workspaceName = useWorkspaceStore((state) => state.getCurrentName());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set([])
+  );
+  const [workspaceName, setWorkspaceName] = useState("");
+  const currentWorkspace = useWorkspaceStore((state) => state.current);
   const { data: myCallsStats } = useMyCallsStats();
+  const isAdmin = useIsAdmin();
 
-  // TODO: Replace with actual role check from auth/store
-  // For now, showing all items (assuming admin)
-  const isAdmin = true;
+  // Handle workspace name client-side only to avoid hydration mismatch
+  useEffect(() => {
+    setWorkspaceName(currentWorkspace?.name || "");
+  }, [currentWorkspace]);
 
   const pendingCallsCount = myCallsStats?.pending || 0;
 
@@ -102,13 +153,32 @@ export function WorkspaceSidebar() {
     if (href === "/app/call-lists") {
       return pathname === "/app/call-lists" || pathname?.startsWith("/app/call-lists/");
     }
+    if (href === "/app/call-logs") {
+      return pathname === "/app/call-logs" || pathname?.startsWith("/app/call-logs/");
+    }
     return pathname?.startsWith(href);
   };
 
-  // Filter items based on admin status
-  const visibleItems = workspaceNavItems.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const toggleSection = (label: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
+
+  // Filter sections and items based on admin status
+  const visibleSections = navSections
+    .filter((section) => !section.adminOnly || isAdmin)
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => !item.adminOnly || isAdmin),
+    }))
+    .filter((section) => section.items.length > 0); // Only show sections with visible items
 
   return (
     <aside
@@ -145,62 +215,78 @@ export function WorkspaceSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-2 overflow-y-auto">
-        {visibleItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          const showBadge = item.href === "/app/my-calls" && pendingCallsCount > 0;
+        {visibleSections.map((section, sectionIndex) => {
+          const isExpanded = !section.label || expandedSections.has(section.label);
+          const SectionIcon = section.icon;
+          
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all mb-1 relative",
-                "hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
-                active
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary)] hover:text-[var(--groups1-btn-primary-text)]"
-                  : "text-[var(--groups1-text)]"
+            <div key={section.label || `section-${sectionIndex}`} className="mb-4">
+              {/* Section Header */}
+              {section.label && !collapsed && (
+                <button
+                  onClick={() => section.collapsible !== false && toggleSection(section.label)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-2 mb-1 rounded-md text-xs font-semibold uppercase tracking-wider",
+                    "text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors",
+                    section.collapsible !== false && "cursor-pointer hover:bg-[var(--groups1-secondary)]"
+                  )}
+                >
+                  {SectionIcon && <SectionIcon className="w-3.5 h-3.5" />}
+                  <span className="flex-1 text-left">{section.label}</span>
+                  {section.collapsible !== false && (
+                    isExpanded ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )
+                  )}
+                </button>
               )}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="truncate flex-1">{item.label}</span>}
-              {showBadge && (
-                <span className={cn(
-                  "flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold",
-                  active
-                    ? "bg-[var(--groups1-btn-primary-text)] text-[var(--groups1-primary)]"
-                    : "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                )}>
-                  {pendingCallsCount > 99 ? "99+" : pendingCallsCount}
-                </span>
+
+              {/* Section Items */}
+              {isExpanded && (
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    const showBadge = item.href === "/app/my-calls" && pendingCallsCount > 0;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all relative",
+                          "hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
+                          active
+                            ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary)] hover:text-[var(--groups1-btn-primary-text)]"
+                            : "text-[var(--groups1-text)]"
+                        )}
+                        title={collapsed ? item.label : undefined}
+                      >
+                        <Icon className="w-5 h-5 flex-shrink-0" />
+                        {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+                        {showBadge && (
+                          <span className={cn(
+                            "flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-semibold",
+                            active
+                              ? "bg-[var(--groups1-btn-primary-text)] text-[var(--groups1-primary)]"
+                              : "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                          )}>
+                            {pendingCallsCount > 99 ? "99+" : pendingCallsCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            </Link>
+            </div>
           );
         })}
       </nav>
 
       {/* Utility Section */}
       <div className="p-2 border-t border-[var(--groups1-border)] space-y-1 flex-shrink-0">
-        <button
-          type="button"
-          className={cn(
-            "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all",
-            "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-          )}
-          title={collapsed ? "Help & Docs" : undefined}
-        >
-          <HelpCircle className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span>Help & Docs</span>}
-        </button>
-        <div
-          className={cn(
-            "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm",
-            "text-[var(--groups1-text)]"
-          )}
-        >
-          <ThemeToggle />
-          {!collapsed && <span className="text-sm">Theme</span>}
-        </div>
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}

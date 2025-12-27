@@ -17,9 +17,16 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { CallExecutionModal } from "@/components/call-lists/CallExecutionModal";
 import { getStateLabel, getStateColor, formatCallDuration } from "@/lib/call-list-utils";
 import { mutate } from "swr";
-import { Phone, Loader2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Phone, Loader2, Search, X, ChevronLeft, ChevronRight, MoreVertical, Pencil, Eye, UserX } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { EditCallLogDialog } from "@/components/call-lists/EditCallLogDialog";
+import { CallLogDetailsModal } from "@/components/call-lists/CallLogDetailsModal";
+import { useCallLog } from "@/hooks/useCallLogs";
 import { cn } from "@/lib/utils";
-import type { CallListItem, CallListItemState } from "@/types/call-lists.types";
+import { apiClient } from "@/lib/api-client";
+import type { CallListItem, CallListItemState, CallLog } from "@/types/call-lists.types";
 
 function MyCallsPageContent() {
   const router = useRouter();
@@ -29,14 +36,27 @@ function MyCallsPageContent() {
   const [groupId, setGroupId] = useState<string | null>(searchParams.get("groupId") || null);
   const [callListId, setCallListId] = useState<string | null>(searchParams.get("callListId") || null);
   const [state, setState] = useState<CallListItemState | null>(() => {
+    // Don't initialize state if follow-ups filter is active
+    if (searchParams.get("followUps") === "true") return null;
     const stateParam = searchParams.get("state");
-    if (!stateParam) return null;
+    if (!stateParam) return "QUEUED"; // Default to pending calls
     const validStates: CallListItemState[] = ["QUEUED", "CALLING", "DONE", "SKIPPED"];
-    return validStates.includes(stateParam as CallListItemState) ? (stateParam as CallListItemState) : null;
+    return validStates.includes(stateParam as CallListItemState) ? (stateParam as CallListItemState) : "QUEUED";
+  });
+  const [showFollowUps, setShowFollowUps] = useState(() => {
+    return searchParams.get("followUps") === "true";
   });
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [viewingLogId, setViewingLogId] = useState<string | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [isUnassigning, setIsUnassigning] = useState(false);
+  const [unassigningItemId, setUnassigningItemId] = useState<string | null>(null);
 
   usePageTitle("My Calls");
 
@@ -46,7 +66,8 @@ function MyCallsPageContent() {
     batchId: batchId || undefined,
     groupId: groupId || undefined,
     callListId: callListId || undefined,
-    state: state || undefined,
+    state: showFollowUps ? undefined : (state || "QUEUED"), // Don't filter by state if showing follow-ups
+    followUpRequired: showFollowUps ? true : undefined, // Filter by follow-ups when active
   });
 
   const { data: stats, mutate: mutateStats } = useMyCallsStats();
@@ -56,7 +77,7 @@ function MyCallsPageContent() {
   const items = callsData?.items || [];
   const pagination = callsData?.pagination || { page: 1, size: 20, total: 0, totalPages: 0 };
 
-  // Filter items by search query
+  // Filter items by search query (follow-ups filtering is now done via API)
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
     const query = searchQuery.toLowerCase();
@@ -75,11 +96,13 @@ function MyCallsPageContent() {
     if (batchId) params.set("batchId", batchId);
     if (groupId) params.set("groupId", groupId);
     if (callListId) params.set("callListId", callListId);
-    if (state) params.set("state", state);
+    // Only add state to URL if follow-ups filter is not active
+    if (state && !showFollowUps) params.set("state", state);
+    if (showFollowUps) params.set("followUps", "true");
     if (searchQuery) params.set("q", searchQuery);
     const newUrl = params.toString() ? `/app/my-calls?${params.toString()}` : "/app/my-calls";
     router.replace(newUrl, { scroll: false });
-  }, [page, batchId, groupId, callListId, state, searchQuery, router]);
+  }, [page, batchId, groupId, callListId, state, showFollowUps, searchQuery, router]);
 
   const handleStartCall = (item: CallListItem) => {
     setSelectedItem(item);
@@ -91,8 +114,42 @@ function MyCallsPageContent() {
     setSelectedItem(null);
     await mutateCalls();
     await mutateStats();
+    // Invalidate dashboard cache to refresh stats
+    await mutate(
+      (key) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
     toast.success("Call completed successfully");
   };
+
+  const handleEditCall = (callLogId: string) => {
+    setEditingLogId(callLogId);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleViewCall = (callLogId: string) => {
+    setViewingLogId(callLogId);
+    setIsViewDialogOpen(true);
+  };
+
+  const handleEditSuccess = async () => {
+    await mutateCalls();
+    await mutateStats();
+    setEditingLogId(null);
+    // Invalidate dashboard cache to refresh stats
+    await mutate(
+      (key) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
+  };
+
+  // Fetch call log for editing
+  const { data: editingLog } = useCallLog(editingLogId);
+  
+  // Fetch call log for viewing
+  const { data: viewingLog } = useCallLog(viewingLogId);
 
   const clearFilters = () => {
     setBatchId(null);
@@ -105,6 +162,91 @@ function MyCallsPageContent() {
 
   const hasActiveFilters = batchId || groupId || callListId || state || searchQuery;
 
+  const handleUnassignItem = async (item: CallListItem) => {
+    if (!item.callListId) {
+      toast.error("Call list ID is missing");
+      return;
+    }
+    setUnassigningItemId(item.id);
+    try {
+      await apiClient.unassignCallListItems(item.callListId, {
+        itemIds: [item.id],
+      });
+      toast.success("Item unassigned successfully");
+      await mutateCalls();
+      await mutateStats();
+    } catch (error: any) {
+      console.error("Failed to unassign item:", error);
+      toast.error(error?.message || "Failed to unassign item");
+    } finally {
+      setUnassigningItemId(null);
+    }
+  };
+
+  const handleBulkUnassign = async () => {
+    if (selectedItemIds.size === 0) {
+      toast.info("Please select items to unassign");
+      return;
+    }
+
+    // Group items by callListId
+    const itemsByListId = new Map<string, string[]>();
+    filteredItems.forEach((item) => {
+      if (selectedItemIds.has(item.id) && item.callListId) {
+        const listId = item.callListId;
+        if (!itemsByListId.has(listId)) {
+          itemsByListId.set(listId, []);
+        }
+        itemsByListId.get(listId)!.push(item.id);
+      }
+    });
+
+    if (itemsByListId.size === 0) {
+      toast.error("No valid items selected");
+      return;
+    }
+
+    setIsUnassigning(true);
+    try {
+      // Unassign from each call list
+      const promises = Array.from(itemsByListId.entries()).map(([listId, itemIds]) =>
+        apiClient.unassignCallListItems(listId, { itemIds })
+      );
+      await Promise.all(promises);
+      toast.success(`${selectedItemIds.size} item(s) unassigned successfully`);
+      setSelectedItemIds(new Set());
+      await mutateCalls();
+      await mutateStats();
+    } catch (error: any) {
+      console.error("Failed to unassign items:", error);
+      toast.error(error?.message || "Failed to unassign items");
+    } finally {
+      setIsUnassigning(false);
+    }
+  };
+
+  const handleSelectItem = (itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItemIds.size === filteredItems.length) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(filteredItems.map((item) => item.id)));
+    }
+  };
+
+  const isAllSelected = filteredItems.length > 0 && selectedItemIds.size === filteredItems.length;
+
   if (error) {
     return (
       <div className="space-y-6">
@@ -116,7 +258,7 @@ function MyCallsPageContent() {
             </p>
             <Button
               onClick={() => mutateCalls()}
-              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
             >
               Retry
             </Button>
@@ -130,39 +272,69 @@ function MyCallsPageContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--groups1-text)]">My Calls</h1>
+        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* Statistics Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <KPICard
-            label="Total Assigned"
-            value={stats.totalAssigned}
-          />
-          <KPICard
-            label="Completed"
-            value={stats.completed}
-            trend={{
-              value: stats.totalAssigned > 0
-                ? `${Math.round((stats.completed / stats.totalAssigned) * 100)}%`
-                : "0%",
-              type: "positive",
-            }}
-          />
-          <KPICard
-            label="Pending"
-            value={stats.pending}
-          />
-          <KPICard
-            label="This Week"
-            value={stats.totalAssigned}
-          />
+        <div className="space-y-4">
+          {/* Bottom Section - Filter Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <KPICard
+              label="Pending"
+              value={stats.pending}
+              onClick={() => {
+                setShowFollowUps(false);
+                // Toggle: if already showing QUEUED, keep it (it's the default), otherwise show QUEUED
+                setState("QUEUED");
+                setPage(1);
+              }}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-md",
+                state === "QUEUED" && !showFollowUps && "ring-2 ring-[var(--groups1-primary)] border-[var(--groups1-primary)]"
+              )}
+            />
+            <KPICard
+              label="Completed"
+              value={stats.completed}
+              onClick={() => {
+                setShowFollowUps(false);
+                // Toggle: if already showing DONE, reset to QUEUED (default), otherwise show DONE
+                setState(state === "DONE" ? "QUEUED" : "DONE");
+                setPage(1);
+              }}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-md",
+                state === "DONE" && !showFollowUps && "ring-2 ring-[var(--groups1-primary)] border-[var(--groups1-primary)]"
+              )}
+            />
+            <KPICard
+              label="Follow-ups"
+              value={stats.followUps || 0}
+              onClick={() => {
+                // Toggle follow-ups filter
+                if (showFollowUps) {
+                  // If already showing follow-ups, reset to QUEUED (default)
+                  setShowFollowUps(false);
+                  setState("QUEUED");
+                } else {
+                  // Show follow-ups
+                  setShowFollowUps(true);
+                  setState(null); // Clear state filter when showing follow-ups
+                }
+                setPage(1);
+              }}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-md",
+                showFollowUps && "ring-2 ring-[var(--groups1-primary)] border-[var(--groups1-primary)]"
+              )}
+            />
+          </div>
         </div>
       )}
 
       {/* Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="pt-6">
+      <CollapsibleFilters open={showFilters} contentClassName="pt-6">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -240,20 +412,37 @@ function MyCallsPageContent() {
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
               >
                 <X className="w-4 h-4 mr-1" />
                 Clear Filters
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Calls Table */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle>Assigned Calls</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Assigned Calls</CardTitle>
+            {selectedItemIds.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkUnassign}
+                disabled={isUnassigning}
+                className="bg-orange-500 text-white hover:bg-orange-600 border-0"
+              >
+                {isUnassigning ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <UserX className="w-4 h-4 mr-2" />
+                )}
+                Unassign ({selectedItemIds.size})
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent variant="groups1">
           {isLoading ? (
@@ -272,6 +461,14 @@ function MyCallsPageContent() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-[var(--groups1-border)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)] w-12">
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          onChange={handleSelectAll}
+                          className="rounded border-[var(--groups1-border)]"
+                        />
+                      </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)]">
                         Student
                       </th>
@@ -298,13 +495,35 @@ function MyCallsPageContent() {
                   <tbody>
                     {filteredItems.map((item) => {
                       const primaryPhone = item.student?.phones?.find((p) => p.isPrimary) || item.student?.phones?.[0];
+                      const isSelected = selectedItemIds.has(item.id);
+                      const isUnassigningThis = unassigningItemId === item.id;
                       return (
                         <tr
                           key={item.id}
-                          className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]"
+                          className={`border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)] ${
+                            isSelected ? "bg-[var(--groups1-secondary)]" : ""
+                          }`}
                         >
+                          <td className="py-3 px-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectItem(item.id)}
+                              className="rounded border-[var(--groups1-border)]"
+                              disabled={isUnassigningThis}
+                            />
+                          </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
-                            {item.student?.name || "Unknown"}
+                            {item.student?.id ? (
+                              <button
+                                onClick={() => router.push(`/app/students/${item.student!.id}`)}
+                                className="text-blue-600 hover:underline hover:text-blue-800 font-medium cursor-pointer"
+                              >
+                                {item.student.name || "Unknown"}
+                              </button>
+                            ) : (
+                              <span>{item.student?.name || "Unknown"}</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
                             {primaryPhone ? (
@@ -325,29 +544,118 @@ function MyCallsPageContent() {
                             {item.callList?.group?.name || "-"}
                           </td>
                           <td className="py-3 px-4 text-sm">
-                            <StatusBadge
-                              variant={getStateColor(item.state) === "green" ? "success" : getStateColor(item.state) === "yellow" ? "warning" : getStateColor(item.state) === "blue" ? "info" : "info"}
-                            >
-                              {getStateLabel(item.state)}
-                            </StatusBadge>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge
+                                variant={getStateColor(item.state) === "green" ? "success" : getStateColor(item.state) === "yellow" ? "warning" : getStateColor(item.state) === "blue" ? "info" : "info"}
+                              >
+                                {getStateLabel(item.state)}
+                              </StatusBadge>
+                              {item.callLog?.followUpRequired && (
+                                <StatusBadge
+                                  variant="info"
+                                  className="bg-teal-100 text-teal-800 border-teal-300"
+                                >
+                                  Follow-up
+                                  {item.callLog.followUpDate && new Date(item.callLog.followUpDate) < new Date() && (
+                                    <span className="ml-1 text-orange-600">(Overdue)</span>
+                                  )}
+                                </StatusBadge>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
                             {new Date(item.createdAt).toLocaleDateString()}
                           </td>
                           <td className="py-3 px-4 text-right">
-                            {item.state === "DONE" ? (
-                              <span className="text-sm text-gray-400">Completed</span>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStartCall(item)}
-                                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] border-0"
-                              >
-                                <Phone className="w-4 h-4 mr-1" />
-                                Start Call
-                              </Button>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Hide unassign button for follow-ups */}
+                              {!showFollowUps && !item.callLog?.followUpRequired && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleUnassignItem(item)}
+                                  disabled={isUnassigningThis || isUnassigning}
+                                  className="bg-orange-500 text-white hover:bg-orange-600 border-0"
+                                  title="Unassign this call"
+                                >
+                                  {isUnassigningThis ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <UserX className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              )}
+                              {/* Show "Call" button for follow-ups */}
+                              {item.callLog?.followUpRequired && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartCall(item)}
+                                  disabled={isUnassigningThis || isUnassigning}
+                                  className="bg-teal-600 text-white hover:bg-teal-700 border-0"
+                                  title="Make follow-up call"
+                                >
+                                  <Phone className="w-4 h-4 mr-1" />
+                                  Call
+                                </Button>
+                              )}
+                              {/* Show dropdown menu for completed calls (always show Edit/View for DONE items) */}
+                              {item.state === "DONE" && item.callLogId && (
+                                <DropdownMenu.Root>
+                                  <DropdownMenu.Trigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      aria-label="Call log actions"
+                                      disabled={isUnassigningThis || isUnassigning}
+                                    >
+                                      <MoreVertical className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenu.Trigger>
+                                  <DropdownMenu.Portal>
+                                    <DropdownMenu.Content
+                                      className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
+                                      align="end"
+                                    >
+                                      <DropdownMenu.Item
+                                        className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                        onSelect={(e) => {
+                                          e.preventDefault();
+                                          handleEditCall(item.callLogId!);
+                                        }}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                        Edit Call
+                                      </DropdownMenu.Item>
+                                      <DropdownMenu.Item
+                                        className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                        onSelect={(e) => {
+                                          e.preventDefault();
+                                          handleViewCall(item.callLogId!);
+                                        }}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                        View Call
+                                      </DropdownMenu.Item>
+                                    </DropdownMenu.Content>
+                                  </DropdownMenu.Portal>
+                                </DropdownMenu.Root>
+                              )}
+                              {/* Show "Start Call" button for pending calls */}
+                              {item.state !== "DONE" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleStartCall(item)}
+                                  disabled={isUnassigningThis || isUnassigning}
+                                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] border-0"
+                                >
+                                  <Phone className="w-4 h-4 mr-1" />
+                                  Start Call
+                                </Button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -370,7 +678,7 @@ function MyCallsPageContent() {
                       size="sm"
                       onClick={() => setPage(page - 1)}
                       disabled={page === 1 || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Previous
@@ -383,7 +691,7 @@ function MyCallsPageContent() {
                       size="sm"
                       onClick={() => setPage(page + 1)}
                       disabled={page >= pagination.totalPages || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />
@@ -401,7 +709,37 @@ function MyCallsPageContent() {
         open={isExecutionModalOpen}
         onOpenChange={setIsExecutionModalOpen}
         callListItem={selectedItem}
+        previousCallLog={
+          selectedItem?.callLog?.followUpRequired && selectedItem?.callLog
+            ? selectedItem.callLog
+            : null
+        }
         onSuccess={handleExecutionSuccess}
+      />
+
+      {/* Edit Call Log Dialog */}
+      <EditCallLogDialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingLogId(null);
+          }
+        }}
+        callLog={editingLog || null}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* View Call Log Modal */}
+      <CallLogDetailsModal
+        open={isViewDialogOpen}
+        onOpenChange={(open) => {
+          setIsViewDialogOpen(open);
+          if (!open) {
+            setViewingLogId(null);
+          }
+        }}
+        callLog={viewingLog || null}
       />
     </div>
   );

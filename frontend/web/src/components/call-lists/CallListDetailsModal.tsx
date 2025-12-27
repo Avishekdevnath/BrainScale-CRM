@@ -43,7 +43,12 @@ export function CallListDetailsModal({
 
   const handleViewFullPage = () => {
     if (callListId) {
-      router.push(`/app/call-lists/${callListId}`);
+      // Include groupId in URL if the call list belongs to a group
+      const groupId = callList?.groupId;
+      const url = groupId 
+        ? `/app/call-lists/${callListId}?groupId=${groupId}`
+        : `/app/call-lists/${callListId}`;
+      router.push(url);
       onOpenChange(false);
     }
   };

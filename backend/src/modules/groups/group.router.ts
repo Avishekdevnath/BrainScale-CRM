@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as groupController from './group.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { CreateGroupSchema, UpdateGroupSchema, AlignGroupsToBatchSchema, ListGroupsSchema } from './group.schemas';
 
 const router = Router();
@@ -32,6 +34,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('groups', 'create'),
   zodValidator(CreateGroupSchema),
   groupController.createGroup
 );
@@ -60,6 +64,8 @@ router.post(
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('groups', 'read'),
   zodValidator(ListGroupsSchema, 'query'),
   groupController.listGroups
 );
@@ -80,7 +86,13 @@ router.get(
  *       200:
  *         description: Group details
  */
-router.get('/:groupId', authGuard, groupController.getGroup);
+router.get(
+  '/:groupId',
+  authGuard,
+  tenantGuard,
+  requirePermission('groups', 'read'),
+  groupController.getGroup
+);
 
 /**
  * @openapi
@@ -114,6 +126,8 @@ router.get('/:groupId', authGuard, groupController.getGroup);
 router.patch(
   '/:groupId',
   authGuard,
+  tenantGuard,
+  requirePermission('groups', 'update'),
   zodValidator(UpdateGroupSchema),
   groupController.updateGroup
 );
@@ -134,7 +148,13 @@ router.patch(
  *       200:
  *         description: Group deleted or deactivated
  */
-router.delete('/:groupId', authGuard, groupController.deleteGroup);
+router.delete(
+  '/:groupId',
+  authGuard,
+  tenantGuard,
+  requirePermission('groups', 'delete'),
+  groupController.deleteGroup
+);
 
 export default router;
 
@@ -157,7 +177,13 @@ export const batchGroupRouter = Router();
  *       200:
  *         description: List of groups in the batch
  */
-batchGroupRouter.get('/:batchId/groups', authGuard, groupController.getGroupsByBatch);
+batchGroupRouter.get(
+  '/:batchId/groups',
+  authGuard,
+  tenantGuard,
+  requirePermission('groups', 'read'),
+  groupController.getGroupsByBatch
+);
 
 /**
  * @openapi
@@ -191,6 +217,8 @@ batchGroupRouter.get('/:batchId/groups', authGuard, groupController.getGroupsByB
 batchGroupRouter.post(
   '/:batchId/groups',
   authGuard,
+  tenantGuard,
+  requirePermission('groups', 'update'),
   zodValidator(AlignGroupsToBatchSchema),
   groupController.alignGroupsToBatch
 );
@@ -227,6 +255,8 @@ batchGroupRouter.post(
 batchGroupRouter.delete(
   '/:batchId/groups',
   authGuard,
+  tenantGuard,
+  requirePermission('groups', 'update'),
   zodValidator(AlignGroupsToBatchSchema),
   groupController.removeGroupsFromBatch
 );

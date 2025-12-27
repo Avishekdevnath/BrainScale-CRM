@@ -24,8 +24,7 @@ export function SendInvitationDialog({
   onSuccess,
 }: SendInvitationDialogProps) {
   const [email, setEmail] = React.useState("");
-  const [role, setRole] = React.useState<"ADMIN" | "MEMBER" | "CUSTOM">("MEMBER");
-  const [customRoleId, setCustomRoleId] = React.useState<string>("");
+  const [role, setRole] = React.useState<"ADMIN" | "MEMBER">("MEMBER");
   const [selectedGroupIds, setSelectedGroupIds] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -48,22 +47,11 @@ export function SendInvitationDialog({
       return;
     }
 
-    if (role === "CUSTOM" && !customRoleId) {
-      setErrors({ customRole: "Please select a custom role" });
-      return;
-    }
-
-    // XOR validation: either role OR customRoleId, not both
     const payload: SendInvitationPayload = {
       email,
+      role: role,
       groupIds: selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
     };
-
-    if (role === "CUSTOM") {
-      payload.customRoleId = customRoleId;
-    } else {
-      payload.role = role;
-    }
 
     setIsSubmitting(true);
     try {
@@ -80,7 +68,6 @@ export function SendInvitationDialog({
   const handleClose = () => {
     setEmail("");
     setRole("MEMBER");
-    setCustomRoleId("");
     setSelectedGroupIds([]);
     setErrors({});
     onOpenChange(false);
@@ -94,7 +81,7 @@ export function SendInvitationDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl">
         <DialogClose onClose={handleClose} />
         <DialogHeader>
           <DialogTitle>Send Invitation</DialogTitle>
@@ -128,10 +115,7 @@ export function SendInvitationDialog({
                   name="role"
                   value="MEMBER"
                   checked={role === "MEMBER"}
-                  onChange={() => {
-                    setRole("MEMBER");
-                    setCustomRoleId("");
-                  }}
+                  onChange={() => setRole("MEMBER")}
                   disabled={isSubmitting}
                   className="w-4 h-4"
                 />
@@ -143,47 +127,13 @@ export function SendInvitationDialog({
                   name="role"
                   value="ADMIN"
                   checked={role === "ADMIN"}
-                  onChange={() => {
-                    setRole("ADMIN");
-                    setCustomRoleId("");
-                  }}
+                  onChange={() => setRole("ADMIN")}
                   disabled={isSubmitting}
                   className="w-4 h-4"
                 />
                 <span className="text-sm text-[var(--groups1-text)]">Admin</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="CUSTOM"
-                  checked={role === "CUSTOM"}
-                  onChange={() => setRole("CUSTOM")}
-                  disabled={isSubmitting}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-[var(--groups1-text)]">Custom Role</span>
-              </label>
             </div>
-            {role === "CUSTOM" && (
-              <div className="mt-2">
-                <select
-                  value={customRoleId}
-                  onChange={(e) => setCustomRoleId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-[var(--groups1-background)] border border-[var(--groups1-border)] rounded-md text-[var(--groups1-text)]"
-                  disabled={isSubmitting}
-                >
-                  <option value="">Select custom role...</option>
-                  {/* TODO: Fetch custom roles from API */}
-                  <option value="" disabled>
-                    Custom roles not yet implemented
-                  </option>
-                </select>
-                {errors.customRole && (
-                  <p className="mt-1 text-sm text-red-600">{errors.customRole}</p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Group Access */}

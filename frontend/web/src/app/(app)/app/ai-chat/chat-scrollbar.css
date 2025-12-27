@@ -1,0 +1,26 @@
+/* Custom scrollbar styling for chat messages container */
+.chat-messages-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-messages-container::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb {
+  background: var(--groups1-border);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb:hover {
+  background: var(--groups1-text-secondary);
+}
+
+/* Firefox */
+.chat-messages-container {
+  scrollbar-width: thin;
+  scrollbar-color: var(--groups1-border) transparent;
+}
+

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as myCallsController from './my-calls.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { GetMyCallsSchema } from './call-list.schemas';
 import { ListCallLogsSchema as CallLogListSchema } from './call-log.schemas';
 import * as callLogController from './call-log.controller';
@@ -48,6 +50,8 @@ const router = Router();
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
   zodValidator(GetMyCallsSchema, 'query'),
   myCallsController.getMyCalls
 );
@@ -62,7 +66,13 @@ router.get(
  *       200:
  *         description: Call statistics
  */
-router.get('/stats', authGuard, myCallsController.getMyCallsStats);
+router.get(
+  '/stats',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  myCallsController.getMyCallsStats
+);
 
 /**
  * @openapi
@@ -107,6 +117,8 @@ router.get('/stats', authGuard, myCallsController.getMyCallsStats);
 router.get(
   '/history',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   zodValidator(CallLogListSchema, 'query'),
   async (req, res, next) => {
     // Filter to current user's calls

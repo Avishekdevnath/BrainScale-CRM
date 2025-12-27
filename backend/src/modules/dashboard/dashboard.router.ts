@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as dashboardController from './dashboard.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import { DashboardFiltersSchema } from './dashboard.schemas';
 
 const router = Router();
@@ -42,6 +44,8 @@ const router = Router();
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
   zodValidator(DashboardFiltersSchema, 'query'),
   dashboardController.getDashboardSummary
 );
@@ -76,6 +80,8 @@ router.get(
 router.get(
   '/kpis',
   authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
   zodValidator(DashboardFiltersSchema, 'query'),
   dashboardController.getKPIs
 );
@@ -110,6 +116,8 @@ router.get(
 router.get(
   '/calls-by-status',
   authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
   zodValidator(DashboardFiltersSchema, 'query'),
   dashboardController.getCallsByStatus
 );
@@ -134,6 +142,8 @@ router.get(
 router.get(
   '/followups-by-status',
   authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
   zodValidator(DashboardFiltersSchema, 'query'),
   dashboardController.getFollowupsByStatus
 );
@@ -150,7 +160,13 @@ router.get(
  *       200:
  *         description: Students by group distribution
  */
-router.get('/students-by-group', authGuard, dashboardController.getStudentsByGroup);
+router.get(
+  '/students-by-group',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  dashboardController.getStudentsByGroup
+);
 
 /**
  * @openapi
@@ -164,7 +180,13 @@ router.get('/students-by-group', authGuard, dashboardController.getStudentsByGro
  *       200:
  *         description: Students by batch distribution
  */
-router.get('/students-by-batch', authGuard, dashboardController.getStudentsByBatch);
+router.get(
+  '/students-by-batch',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  dashboardController.getStudentsByBatch
+);
 
 /**
  * @openapi
@@ -185,7 +207,13 @@ router.get('/students-by-batch', authGuard, dashboardController.getStudentsByBat
  *       200:
  *         description: Calls trend data
  */
-router.get('/calls-trend', authGuard, dashboardController.getCallsTrend);
+router.get(
+  '/calls-trend',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  dashboardController.getCallsTrend
+);
 
 /**
  * @openapi
@@ -205,7 +233,13 @@ router.get('/calls-trend', authGuard, dashboardController.getCallsTrend);
  *       200:
  *         description: Recent activity list
  */
-router.get('/recent-activity', authGuard, dashboardController.getRecentActivity);
+router.get(
+  '/recent-activity',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  dashboardController.getRecentActivity
+);
 
 export default router;
 

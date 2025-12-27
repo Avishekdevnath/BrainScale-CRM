@@ -78,8 +78,9 @@ export const ChangePasswordWithOtpSchema = z.object({
   otp: z.string()
     .length(6, 'OTP must be exactly 6 digits')
     .regex(otpRegex, 'OTP must contain only digits'),
-  newPassword: z.string().min(8),
-  currentPassword: z.string(),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  // email is optional - not used by service but frontend sends it for consistency
+  email: z.string().email().optional(),
 });
 
 export const ForgotPasswordSchema = z.object({

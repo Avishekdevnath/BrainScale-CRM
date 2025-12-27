@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useUpdateMember } from "@/hooks/useMembers";
 import type { WorkspaceMember, UpdateMemberPayload } from "@/types/members.types";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { getRoleLabel } from "@/lib/member-utils";
 
 export interface UpdateMemberRoleDialogProps {
@@ -15,6 +15,7 @@ export interface UpdateMemberRoleDialogProps {
   member: WorkspaceMember | null;
   workspaceId: string;
   onSuccess: () => void;
+  allMembers?: WorkspaceMember[]; // For checking if this is the last admin
 }
 
 export function UpdateMemberRoleDialog({
@@ -23,23 +24,27 @@ export function UpdateMemberRoleDialog({
   member,
   workspaceId,
   onSuccess,
+  allMembers = [],
 }: UpdateMemberRoleDialogProps) {
-  const [role, setRole] = React.useState<"ADMIN" | "MEMBER" | "CUSTOM">("MEMBER");
-  const [customRoleId, setCustomRoleId] = React.useState<string>("");
+  const [role, setRole] = React.useState<"ADMIN" | "MEMBER">("MEMBER");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const updateMember = useUpdateMember(workspaceId);
 
+  // Check if this is the last admin
+  const isLastAdmin = React.useMemo(() => {
+    if (!member || member.role !== "ADMIN") return false;
+    const adminCount = allMembers.filter((m) => m.role === "ADMIN").length;
+    return adminCount <= 1;
+  }, [member, allMembers]);
+
+  // Check if trying to demote the last admin
+  const isDemotingLastAdmin = isLastAdmin && role === "MEMBER";
+
   React.useEffect(() => {
     if (member) {
-      if (member.customRoleId) {
-        setRole("CUSTOM");
-        setCustomRoleId(member.customRoleId);
-      } else {
-        setRole(member.role);
-        setCustomRoleId("");
-      }
+      setRole(member.role);
     }
   }, [member]);
 
@@ -49,17 +54,9 @@ export function UpdateMemberRoleDialog({
 
     setErrors({});
 
-    if (role === "CUSTOM" && !customRoleId) {
-      setErrors({ customRole: "Please select a custom role" });
-      return;
-    }
-
-    const payload: UpdateMemberPayload = {};
-    if (role === "CUSTOM") {
-      payload.customRoleId = customRoleId;
-    } else {
-      payload.role = role;
-    }
+    const payload: UpdateMemberPayload = {
+      role: role,
+    };
 
     setIsSubmitting(true);
     try {
@@ -75,7 +72,6 @@ export function UpdateMemberRoleDialog({
 
   const handleClose = () => {
     setRole("MEMBER");
-    setCustomRoleId("");
     setErrors({});
     onOpenChange(false);
   };
@@ -84,7 +80,7 @@ export function UpdateMemberRoleDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl">
         <DialogClose onClose={handleClose} />
         <DialogHeader>
           <DialogTitle>Update Member Role</DialogTitle>
@@ -96,12 +92,25 @@ export function UpdateMemberRoleDialog({
             <Label>Current Role</Label>
             <div className="mt-1 p-2 bg-[var(--groups1-secondary)] rounded-md">
               <p className="text-sm text-[var(--groups1-text)]">
-                {member.customRole
-                  ? `Custom: ${member.customRole.name}`
-                  : getRoleLabel(member.role)}
+                {getRoleLabel(member.role)}
               </p>
             </div>
           </div>
+
+          {/* Warning if trying to demote last admin */}
+          {isDemotingLastAdmin && (
+            <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-md">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                  Cannot demote the last admin
+                </p>
+                <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                  This member is the only admin. Please promote another member to admin first before demoting this one.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* New Role Selection */}
           <div>
@@ -113,10 +122,7 @@ export function UpdateMemberRoleDialog({
                   name="role"
                   value="MEMBER"
                   checked={role === "MEMBER"}
-                  onChange={() => {
-                    setRole("MEMBER");
-                    setCustomRoleId("");
-                  }}
+                  onChange={() => setRole("MEMBER")}
                   disabled={isSubmitting}
                   className="w-4 h-4"
                 />
@@ -128,47 +134,13 @@ export function UpdateMemberRoleDialog({
                   name="role"
                   value="ADMIN"
                   checked={role === "ADMIN"}
-                  onChange={() => {
-                    setRole("ADMIN");
-                    setCustomRoleId("");
-                  }}
+                  onChange={() => setRole("ADMIN")}
                   disabled={isSubmitting}
                   className="w-4 h-4"
                 />
                 <span className="text-sm text-[var(--groups1-text)]">Admin</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="CUSTOM"
-                  checked={role === "CUSTOM"}
-                  onChange={() => setRole("CUSTOM")}
-                  disabled={isSubmitting}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-[var(--groups1-text)]">Custom Role</span>
-              </label>
             </div>
-            {role === "CUSTOM" && (
-              <div className="mt-2">
-                <select
-                  value={customRoleId}
-                  onChange={(e) => setCustomRoleId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-[var(--groups1-background)] border border-[var(--groups1-border)] rounded-md text-[var(--groups1-text)]"
-                  disabled={isSubmitting}
-                >
-                  <option value="">Select custom role...</option>
-                  {/* TODO: Fetch custom roles from API */}
-                  <option value="" disabled>
-                    Custom roles not yet implemented
-                  </option>
-                </select>
-                {errors.customRole && (
-                  <p className="mt-1 text-sm text-red-600">{errors.customRole}</p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Actions */}
@@ -181,7 +153,7 @@ export function UpdateMemberRoleDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || isDemotingLastAdmin}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as batchController from './batch.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateBatchSchema,
   UpdateBatchSchema,
@@ -44,6 +46,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('batches', 'create'),
   zodValidator(CreateBatchSchema),
   batchController.createBatch
 );
@@ -74,6 +78,8 @@ router.post(
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('batches', 'read'),
   zodValidator(ListBatchesSchema, 'query'),
   batchController.listBatches
 );
@@ -94,7 +100,13 @@ router.get(
  *       200:
  *         description: Batch details
  */
-router.get('/:batchId', authGuard, batchController.getBatch);
+router.get(
+  '/:batchId',
+  authGuard,
+  tenantGuard,
+  requirePermission('batches', 'read'),
+  batchController.getBatch
+);
 
 /**
  * @openapi
@@ -133,6 +145,8 @@ router.get('/:batchId', authGuard, batchController.getBatch);
 router.patch(
   '/:batchId',
   authGuard,
+  tenantGuard,
+  requirePermission('batches', 'update'),
   zodValidator(UpdateBatchSchema),
   batchController.updateBatch
 );
@@ -153,7 +167,13 @@ router.patch(
  *       200:
  *         description: Batch deleted or deactivated
  */
-router.delete('/:batchId', authGuard, batchController.deleteBatch);
+router.delete(
+  '/:batchId',
+  authGuard,
+  tenantGuard,
+  requirePermission('batches', 'delete'),
+  batchController.deleteBatch
+);
 
 /**
  * @openapi
@@ -171,7 +191,13 @@ router.delete('/:batchId', authGuard, batchController.deleteBatch);
  *       200:
  *         description: Batch statistics
  */
-router.get('/:batchId/stats', authGuard, batchController.getBatchStats);
+router.get(
+  '/:batchId/stats',
+  authGuard,
+  tenantGuard,
+  requirePermission('batches', 'read'),
+  batchController.getBatchStats
+);
 
 export default router;
 

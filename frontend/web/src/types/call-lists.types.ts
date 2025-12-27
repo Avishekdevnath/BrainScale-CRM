@@ -46,6 +46,9 @@ export interface CallList {
   description: string | null; // Optional description text
   messages: string[]; // Array of messages to convey during calls
   meta?: Record<string, any> | null; // JSON object containing questions and custom configuration
+  status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'; // Call list status
+  completedAt?: string | null; // ISO 8601 datetime when marked complete
+  completedBy?: string | null; // User ID who marked it complete
   createdAt: string; // ISO 8601 datetime
   updatedAt: string; // ISO 8601 datetime
   group?: CallListGroupRef | null; // null for workspace-level call lists
@@ -120,7 +123,22 @@ export interface CallListItem {
     status: string;
     callDate: string;
     callDuration: number | null;
+    assignedTo: string;
+    followUpRequired: boolean;
+    answers?: Answer[];
+    notes?: string | null;
+    callerNote?: string | null;
+    followUpDate?: string | null;
   } | null;
+}
+
+export interface StudentData {
+  name: string;
+  email?: string;
+  phone?: string;
+  secondaryPhone?: string;
+  discordId?: string;
+  tags?: string[];
 }
 
 export interface CreateCallListPayload {
@@ -130,9 +148,12 @@ export interface CreateCallListPayload {
   groupId?: string | null; // Optional - for group-specific lists
   batchId?: string; // Optional - Batch ID for filtering students by batch
   studentIds?: string[]; // Optional - for workspace-level lists
+  studentsData?: StudentData[]; // Optional - student data for auto-creation
   groupIds?: string[]; // Optional - filter students by groups
   messages?: string[]; // Optional - array of messages to convey
   questions?: Question[]; // Optional - array of questions
+  matchBy?: 'email' | 'phone' | 'email_or_phone' | 'name'; // Optional - matching strategy
+  skipDuplicates?: boolean; // Optional - skip duplicate students
   meta?: Record<string, any>; // Optional - custom fields configuration
 }
 
@@ -142,11 +163,13 @@ export interface UpdateCallListPayload {
   messages?: string[]; // Optional
   questions?: Question[]; // Optional
   meta?: Record<string, any>; // Optional
+  status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'; // Optional - admin only
 }
 
 export interface CallListsListParams {
   groupId?: string;
   batchId?: string;
+  status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
   page?: number;
   size?: number;
 }
@@ -211,6 +234,10 @@ export interface CallLog {
   notes: string | null; // Additional notes
   callerNote: string | null; // Caller's manual notes (separate from AI summary)
   summaryNote: string | null; // AI-generated summary (optional)
+  sentiment?: string | null; // AI sentiment analysis: 'positive', 'neutral', 'negative', 'concerned'
+  sentimentScore?: number | null; // Confidence score 0.0 to 1.0
+  aiProcessedAt?: string | null; // ISO 8601 datetime when AI processing completed
+  aiProcessingStatus?: string | null; // AI processing status: 'pending', 'completed', 'failed'
   followUpDate: string | null; // ISO 8601 datetime
   followUpRequired: boolean; // Default: false
   createdAt: string; // ISO 8601 datetime
@@ -223,6 +250,14 @@ export interface CallLog {
     description: string | null;
     messages: string[];
     questions?: Question[];
+    group?: {
+      id: string;
+      name: string;
+      batch?: {
+        id: string;
+        name: string;
+      } | null;
+    } | null;
   };
   student?: {
     id: string;
@@ -251,6 +286,7 @@ export interface CreateCallLogRequest {
   callerNote?: string; // Optional - caller's manual notes
   followUpDate?: string; // Optional, ISO 8601 datetime
   followUpRequired?: boolean; // Optional, default: false
+  followUpNote?: string; // Optional - note for the follow-up call
 }
 
 export interface UpdateCallLogRequest {
@@ -261,6 +297,7 @@ export interface UpdateCallLogRequest {
   callerNote?: string; // Optional
   followUpDate?: string; // Optional, ISO 8601
   followUpRequired?: boolean; // Optional
+  followUpNote?: string; // Optional - note for the follow-up call
 }
 
 // My Calls Types
@@ -271,6 +308,7 @@ export interface GetMyCallsParams {
   groupId?: string; // Optional
   callListId?: string; // Optional
   state?: CallListItemState; // Optional
+  followUpRequired?: boolean; // Optional - filter by follow-ups required
 }
 
 export interface MyCallsResponse {
@@ -287,6 +325,8 @@ export interface MyCallsStats {
   totalAssigned: number; // Total items assigned to user
   completed: number; // Items with state DONE
   pending: number; // Items with state QUEUED or CALLING
+  thisWeek: number; // Call logs created this week
+  followUps: number; // Call list items with follow-ups required
   byCallList: Array<{
     callListId: string;
     callListName: string;
@@ -409,12 +449,79 @@ export interface BulkEmailPasteResponse {
   }>;
 }
 
+// Bulk Paste Call List Types (for creating call lists from pasted data)
+export type BulkPasteCallListMappingOld = {
+  name?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type BulkPasteCallListMappingFlexible = {
+  "student.name": string;
+  "student.email"?: string;
+  "student.discordId"?: string;
+  "student.tags"?: string;
+  [key: `phone.${number}`]: string; // phone.0, phone.1, etc.
+  [key: `phone.${string}`]: string; // phone.primary, phone.secondary, etc.
+};
+
+export type BulkPasteCallListMapping = BulkPasteCallListMappingOld | BulkPasteCallListMappingFlexible;
+
+export interface BulkPasteCallListRequest {
+  name: string;
+  description?: string;
+  data: string; // CSV or tab-separated text data
+  columnMapping: BulkPasteCallListMapping;
+  matchBy?: 'email' | 'phone' | 'email_or_phone' | 'name';
+  createNewStudents?: boolean;
+  skipDuplicates?: boolean;
+  messages?: string[];
+  questions?: Question[];
+  meta?: Record<string, any>;
+}
+
+export interface BulkPasteCallListResponse {
+  callList: CallList;
+  stats: {
+    matched: number;
+    created: number;
+    added: number;
+    duplicates: number;
+    errors: number;
+  };
+  errors: string[];
+  message: string;
+}
+
 // Current Workspace Member Type
 export interface CurrentWorkspaceMember {
   id: string; // WorkspaceMember ID
   userId: string; // User ID
   workspaceId: string;
   role: string;
+  customRole?: {
+    id: string;
+    name: string;
+    description: string | null;
+  } | null;
+  permissions?: Array<{
+    id: string;
+    resource: string;
+    action: string;
+    description: string | null;
+  }>;
+  groupAccess?: Array<{
+    id: string;
+    group: {
+      id: string;
+      name: string;
+    };
+  }>;
+  user?: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

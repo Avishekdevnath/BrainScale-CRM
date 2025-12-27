@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as callLogController from './call-log.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreateCallLogSchema,
   UpdateCallLogSchema,
@@ -55,6 +57,8 @@ const router = Router();
 router.post(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'create'),
   zodValidator(CreateCallLogSchema),
   callLogController.createCallLog
 );
@@ -113,6 +117,8 @@ router.post(
 router.get(
   '/',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   zodValidator(ListCallLogsSchema, 'query'),
   callLogController.listCallLogs
 );
@@ -163,6 +169,8 @@ router.get(
 router.post(
   '/followup',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'create'),
   zodValidator(CreateFollowupCallLogSchema),
   callLogController.createFollowupCallLog
 );
@@ -183,7 +191,13 @@ router.post(
  *       200:
  *         description: Call log details
  */
-router.get('/:logId', authGuard, callLogController.getCallLog);
+router.get(
+  '/:logId',
+  authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
+  callLogController.getCallLog
+);
 
 /**
  * @openapi
@@ -228,6 +242,8 @@ router.get('/:logId', authGuard, callLogController.getCallLog);
 router.patch(
   '/:logId',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'update'),
   zodValidator(UpdateCallLogSchema),
   callLogController.updateCallLog
 );
@@ -275,6 +291,8 @@ router.patch(
 router.get(
   '/students/:studentId/call-logs',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   zodValidator(ListCallLogsSchema, 'query'),
   callLogController.getStudentCallLogs
 );
@@ -318,6 +336,8 @@ router.get(
 router.get(
   '/call-lists/:callListId/call-logs',
   authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
   zodValidator(ListCallLogsSchema, 'query'),
   callLogController.getCallListCallLogs
 );

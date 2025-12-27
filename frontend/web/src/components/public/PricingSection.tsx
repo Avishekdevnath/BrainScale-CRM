@@ -109,7 +109,7 @@ export function PricingSection() {
                       </ul>
                       <Link href="/signup">
                         <Button
-                          className={`w-full h-10 ${isFeatured ? "bg-[var(--groups1-btn-primary-text)] text-[var(--groups1-primary)] hover:bg-[var(--groups1-btn-primary-text)]/90" : i === 0 ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]" : "border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"}`}
+                          className={`w-full h-10 ${isFeatured ? "bg-[var(--groups1-btn-primary-text)] text-[var(--groups1-primary)] hover:bg-[var(--groups1-btn-primary-text)]/90" : i === 0 ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]" : "border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"}`}
                           variant={isFeatured ? "secondary" : i === 0 ? "default" : "outline"}
                         >
                           {t.cta}

@@ -173,7 +173,7 @@ export function ExportColumnSelector({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-[var(--groups1-surface)] border border-[var(--groups1-border)]">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-[var(--groups1-surface)] border border-[var(--groups1-border)]">
         <DialogHeader>
           <DialogTitle>Select Export Columns</DialogTitle>
           <DialogClose onClose={() => onOpenChange(false)} />

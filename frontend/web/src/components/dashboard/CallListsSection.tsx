@@ -27,6 +27,7 @@ export interface CallListsSectionProps {
   onEdit?: (callListId: string) => void;
   onDelete?: (callListId: string) => void;
   isAdmin?: boolean;
+  groupId?: string | null;
 }
 
 export function CallListsSection({
@@ -35,6 +36,7 @@ export function CallListsSection({
   onEdit,
   onDelete,
   isAdmin = false,
+  groupId,
 }: CallListsSectionProps) {
   return (
     <Card variant="groups1">
@@ -80,6 +82,7 @@ export function CallListsSection({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 isAdmin={isAdmin}
+                groupId={groupId}
               />
             ))}
           </div>

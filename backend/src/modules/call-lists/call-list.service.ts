@@ -11,7 +11,363 @@ import {
   ListCallListItemsInput,
   GetAvailableStudentsInput,
   BulkPasteCallListInput,
+  CreateCallListFromFollowupsInput,
 } from './call-list.schemas';
+import {
+  normalizeMapping,
+  parseStudentFromMapping,
+  parsePhonesFromMapping,
+  type NormalizedMapping,
+} from '../students/import-export-utils';
+
+/**
+ * Helper function to update matched student with missing fields
+ */
+async function updateMatchedStudent(
+  studentId: string,
+  workspaceId: string,
+  studentData: { 
+    name: string; 
+    email?: string; 
+    phone?: string;
+    secondaryPhone?: string;
+    discordId?: string;
+    tags?: string[];
+  },
+  email?: string,
+  phone?: string
+): Promise<any> {
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: { phones: true },
+  });
+
+  if (!student) return null;
+
+  const updateData: any = {};
+  let needsUpdate = false;
+
+  // Update email if missing
+  if (email && !student.email) {
+    updateData.email = email;
+    needsUpdate = true;
+  }
+
+  // Update discordId if missing
+  if (studentData.discordId?.trim() && !student.discordId) {
+    updateData.discordId = studentData.discordId.trim();
+    needsUpdate = true;
+  }
+
+  // Merge tags (combine existing with new, remove duplicates)
+  if (studentData.tags && studentData.tags.length > 0) {
+    const existingTags = (student.tags || []) as string[];
+    const newTags = studentData.tags;
+    const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+    if (mergedTags.length !== existingTags.length) {
+      updateData.tags = mergedTags;
+      needsUpdate = true;
+    }
+  }
+
+  // Update student if any fields need updating
+  let updatedStudent = student;
+  if (needsUpdate) {
+    updatedStudent = await prisma.student.update({
+      where: { id: student.id },
+      data: updateData,
+      include: {
+        phones: true,
+      },
+    });
+  }
+
+  // Handle phones - add missing phones
+  const existingPhones = (updatedStudent.phones || []).map(p => p.phone);
+  
+  // Add primary phone if provided and doesn't exist
+  if (phone && !existingPhones.includes(phone)) {
+    // Check if student already has a primary phone
+    const hasPrimary = updatedStudent.phones?.some(p => p.isPrimary);
+    await prisma.studentPhone.create({
+      data: {
+        studentId: updatedStudent.id,
+        workspaceId,
+        phone: phone,
+        isPrimary: !hasPrimary, // Make primary only if no primary exists
+      },
+    });
+  }
+
+  // Add secondary phone if provided and doesn't exist
+  if (studentData.secondaryPhone?.trim() && !existingPhones.includes(studentData.secondaryPhone.trim())) {
+    await prisma.studentPhone.create({
+      data: {
+        studentId: updatedStudent.id,
+        workspaceId,
+        phone: studentData.secondaryPhone.trim(),
+        isPrimary: false,
+      },
+    });
+  }
+
+  // Reload student with updated phones
+  return await prisma.student.findUnique({
+    where: { id: updatedStudent.id },
+    include: { phones: true },
+  });
+}
+
+/**
+ * Helper function to match or create a student
+ * Returns the student and whether it was created or matched
+ */
+const matchOrCreateStudent = async (
+  workspaceId: string,
+  studentData: { 
+    name: string; 
+    email?: string; 
+    phone?: string;
+    secondaryPhone?: string;
+    discordId?: string;
+    tags?: string[];
+  },
+  matchBy: 'email' | 'phone' | 'email_or_phone' | 'name' = 'email_or_phone',
+  skipDuplicates: boolean = true
+): Promise<{ student: any; wasCreated: boolean; wasMatched: boolean }> => {
+  let student = null;
+  let wasMatched = false;
+  let wasCreated = false;
+
+  // Normalize email
+  const email = studentData.email?.trim().toLowerCase() || undefined;
+  const phone = studentData.phone?.trim() || undefined;
+
+  // Match by email_or_phone strategy
+  if (matchBy === 'email_or_phone' || matchBy === 'email') {
+    if (email) {
+      student = await prisma.student.findFirst({
+        where: {
+          workspaceId,
+          email: email,
+          isDeleted: false,
+        },
+        include: {
+          phones: true,
+        },
+      });
+      if (student) wasMatched = true;
+    }
+  }
+
+  if (!student && (matchBy === 'email_or_phone' || matchBy === 'phone')) {
+    if (phone) {
+      const studentPhone = await prisma.studentPhone.findFirst({
+        where: {
+          workspaceId,
+          phone: phone,
+          student: {
+            workspaceId,
+            isDeleted: false,
+          },
+        },
+        include: {
+          student: {
+            include: {
+              phones: true,
+            },
+          },
+        },
+      });
+      if (studentPhone) {
+        student = studentPhone.student;
+        wasMatched = true;
+      }
+    }
+  }
+
+  if (!student && matchBy === 'name') {
+    student = await prisma.student.findFirst({
+      where: {
+        workspaceId,
+        name: {
+          equals: studentData.name.trim(),
+          mode: 'insensitive',
+        },
+        isDeleted: false,
+      },
+      include: {
+        phones: true,
+      },
+    });
+    if (student) wasMatched = true;
+  }
+
+  // If student was matched, update missing fields
+  if (student && wasMatched) {
+    const updateData: any = {};
+    let needsUpdate = false;
+
+    // Update email if missing
+    if (email && !student.email) {
+      updateData.email = email;
+      needsUpdate = true;
+    }
+
+    // Update discordId if missing
+    if (studentData.discordId?.trim() && !student.discordId) {
+      updateData.discordId = studentData.discordId.trim();
+      needsUpdate = true;
+    }
+
+    // Merge tags (combine existing with new, remove duplicates)
+    if (studentData.tags && studentData.tags.length > 0) {
+      const existingTags = (student.tags || []) as string[];
+      const newTags = studentData.tags;
+      const mergedTags = Array.from(new Set([...existingTags, ...newTags]));
+      if (mergedTags.length !== existingTags.length) {
+        updateData.tags = mergedTags;
+        needsUpdate = true;
+      }
+    }
+
+    // Update student if any fields need updating
+    if (needsUpdate) {
+      student = await prisma.student.update({
+        where: { id: student.id },
+        data: updateData,
+        include: {
+          phones: true,
+        },
+      });
+    }
+
+    // Handle phones - add missing phones
+    if (!student.phones) {
+      student = await prisma.student.findUnique({
+        where: { id: student.id },
+        include: { phones: true },
+      });
+    }
+
+    if (!student) {
+      // This shouldn't happen, but handle it gracefully
+      return { student: null, wasCreated: false, wasMatched: false };
+    }
+
+    const existingPhones = (student.phones || []).map(p => p.phone);
+    
+    // Add primary phone if provided and doesn't exist
+    if (phone && !existingPhones.includes(phone)) {
+      // Check if student already has a primary phone
+      const hasPrimary = student?.phones?.some(p => p.isPrimary);
+      await prisma.studentPhone.create({
+        data: {
+          studentId: student.id,
+          workspaceId,
+          phone: phone,
+          isPrimary: !hasPrimary, // Make primary only if no primary exists
+        },
+      });
+    }
+
+    // Add secondary phone if provided and doesn't exist
+    if (studentData.secondaryPhone?.trim() && !existingPhones.includes(studentData.secondaryPhone.trim())) {
+      await prisma.studentPhone.create({
+        data: {
+          studentId: student.id,
+          workspaceId,
+          phone: studentData.secondaryPhone.trim(),
+          isPrimary: false,
+        },
+      });
+    }
+
+    // Reload student with updated phones
+    student = await prisma.student.findUnique({
+      where: { id: student.id },
+      include: { phones: true },
+    });
+  }
+
+  // Create student if not found
+  if (!student) {
+    // Check for duplicates if skipDuplicates is true
+    if (skipDuplicates) {
+      if (email) {
+        const exists = await prisma.student.findFirst({
+          where: { workspaceId, email: email, isDeleted: false },
+        });
+        if (exists) {
+          // Update missing fields for matched student
+          const updated = await updateMatchedStudent(exists.id, workspaceId, studentData, email, phone);
+          return { student: updated, wasCreated: false, wasMatched: true };
+        }
+      }
+
+      if (phone) {
+        const exists = await prisma.studentPhone.findFirst({
+          where: {
+            workspaceId,
+            phone: phone,
+            student: { workspaceId, isDeleted: false },
+          },
+          include: {
+            student: {
+              include: {
+                phones: true,
+              },
+            },
+          },
+        });
+        if (exists) {
+          // Update missing fields for matched student
+          const updated = await updateMatchedStudent(exists.student.id, workspaceId, studentData, email, phone);
+          return { student: updated, wasCreated: false, wasMatched: true };
+        }
+      }
+    }
+
+    // Create student
+    const createData: any = {
+      workspaceId,
+      name: studentData.name.trim(),
+      email: email || null,
+      discordId: studentData.discordId?.trim() || null,
+      tags: studentData.tags && studentData.tags.length > 0 ? studentData.tags : [],
+    };
+
+    // Create phones (primary and secondary if provided)
+    const phonesToCreate: any[] = [];
+    if (phone) {
+      phonesToCreate.push({
+        workspaceId,
+        phone: phone,
+        isPrimary: true,
+      });
+    }
+    if (studentData.secondaryPhone?.trim()) {
+      phonesToCreate.push({
+        workspaceId,
+        phone: studentData.secondaryPhone.trim(),
+        isPrimary: false,
+      });
+    }
+
+    if (phonesToCreate.length > 0) {
+      createData.phones = {
+        create: phonesToCreate,
+      };
+    }
+
+    student = await prisma.student.create({
+      data: createData,
+    });
+    wasCreated = true;
+  }
+
+  return { student, wasCreated, wasMatched };
+};
 
 /**
  * Create a call list
@@ -93,6 +449,67 @@ export const createCallList = async (
       if (!hasAccess) {
     throw new AppError(403, 'Access denied to this group');
   }
+    }
+  }
+
+  // If studentsData provided, match or create students
+  if (data.studentsData && data.studentsData.length > 0) {
+    const matchBy = data.matchBy || 'email_or_phone';
+    const skipDuplicates = data.skipDuplicates !== undefined ? data.skipDuplicates : true;
+    const stats = {
+      matched: 0,
+      created: 0,
+      errors: 0,
+    };
+    const errors: string[] = [];
+
+    for (const studentData of data.studentsData) {
+      try {
+        // Skip if name is empty
+        if (!studentData.name || studentData.name.trim().length === 0) {
+          stats.errors++;
+          errors.push(`Student missing required name field`);
+          continue;
+        }
+
+        // Normalize data (convert empty strings to undefined)
+        const normalizedData = {
+          name: studentData.name,
+          email: studentData.email && studentData.email.trim() ? studentData.email.trim() : undefined,
+          phone: studentData.phone && studentData.phone.trim() ? studentData.phone.trim() : undefined,
+          secondaryPhone: studentData.secondaryPhone && studentData.secondaryPhone.trim() ? studentData.secondaryPhone.trim() : undefined,
+          discordId: studentData.discordId && studentData.discordId.trim() ? studentData.discordId.trim() : undefined,
+          tags: studentData.tags && Array.isArray(studentData.tags) ? studentData.tags : (studentData.tags ? [studentData.tags] : []),
+        };
+
+        const result = await matchOrCreateStudent(
+          workspaceId,
+          normalizedData,
+          matchBy,
+          skipDuplicates
+        );
+
+        if (result.student) {
+          validatedStudentIds.push(result.student.id);
+          if (result.wasCreated) {
+            stats.created++;
+          } else if (result.wasMatched) {
+            stats.matched++;
+          }
+        } else {
+          stats.errors++;
+          errors.push(`Failed to create or match student: ${studentData.name}`);
+        }
+      } catch (error: any) {
+        stats.errors++;
+        errors.push(`Error processing student "${studentData.name}": ${error.message || 'Unknown error'}`);
+      }
+    }
+
+    // Store stats in meta for response (optional, for debugging)
+    if (stats.errors > 0) {
+      // Log errors but don't fail if we have at least some valid students
+      console.warn(`Call list creation: ${stats.matched} matched, ${stats.created} created, ${stats.errors} errors`);
     }
   }
 
@@ -212,6 +629,7 @@ export const createCallList = async (
           },
           update: {}, // Don't update if exists
           create: {
+            workspaceId: workspaceId, // For tenant isolation
             callListId: callList.id,
             studentId,
             state: 'QUEUED',
@@ -254,30 +672,56 @@ export const createCallList = async (
 /**
  * List call lists for a workspace/group
  */
-export const listCallLists = async (workspaceId: string, groupId?: string, batchId?: string) => {
+export const listCallLists = async (
+  workspaceId: string,
+  options?: { groupId?: string; batchId?: string; status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' }
+) => {
   const where: any = { workspaceId };
+  
+  // Filter by status
+  if (options?.status) {
+    where.status = options.status;
+  }
+  // If no status specified, don't filter by status (show all for backward compatibility)
   
   // If groupId provided (for group dashboard), include both:
   // - Call lists for that specific group
   // - Workspace-level call lists (groupId = null)
-  if (groupId) {
-    where.OR = [
-      { groupId: groupId },
-      { groupId: null }, // Include workspace-level call lists
-    ];
-  }
-  
-  // Filter by batchId if provided (via group's batchId)
-  if (batchId) {
-    // If we already have an OR condition, we need to combine it
+  if (options?.groupId) {
+    const groupFilter = {
+      OR: [
+        { groupId: options.groupId },
+        { groupId: null },
+      ],
+    };
+    
+    // Combine status filter with group filter using AND
     if (where.OR) {
       where.AND = [
         { OR: where.OR },
-        { group: { batchId } },
+        groupFilter,
       ];
       delete where.OR;
     } else {
-      where.group = { batchId };
+      where.OR = groupFilter.OR;
+    }
+  }
+  
+  // Filter by batchId if provided (via group's batchId)
+  if (options?.batchId) {
+    const batchFilter = { group: { batchId: options.batchId } };
+    
+    // Combine with existing filters using AND
+    if (where.AND) {
+      where.AND.push(batchFilter);
+    } else if (where.OR) {
+      where.AND = [
+        { OR: where.OR },
+        batchFilter,
+      ];
+      delete where.OR;
+    } else {
+      where.group = { batchId: options.batchId };
     }
   }
 
@@ -357,6 +801,7 @@ export const getCallList = async (listId: string, workspaceId: string) => {
 export const updateCallList = async (
   listId: string,
   workspaceId: string,
+  userId: string,
   data: UpdateCallListInput
 ) => {
   const callList = await prisma.callList.findFirst({
@@ -368,6 +813,20 @@ export const updateCallList = async (
 
   if (!callList) {
     throw new AppError(404, 'Call list not found');
+  }
+
+  // If status is being changed, verify user is admin
+  if (data.status !== undefined && data.status !== callList.status) {
+    const membership = await prisma.workspaceMember.findFirst({
+      where: {
+        userId,
+        workspaceId,
+      },
+    });
+
+    if (!membership || membership.role !== 'ADMIN') {
+      throw new AppError(403, 'Only admins can change call list status');
+    }
   }
 
   // Prepare meta object - merge existing meta with new questions if provided
@@ -403,6 +862,18 @@ export const updateCallList = async (
   }
   if (metaData !== undefined) {
     updateData.meta = metaData;
+  }
+  if (data.status !== undefined) {
+    updateData.status = data.status;
+    // Handle completion tracking
+    if (data.status === 'COMPLETED') {
+      updateData.completedAt = new Date();
+      updateData.completedBy = userId;
+    } else if (data.status === 'ACTIVE' || data.status === 'ARCHIVED') {
+      // Clear completion tracking when moving to ACTIVE or ARCHIVED
+      updateData.completedAt = null;
+      updateData.completedBy = null;
+    }
   }
 
   const updated = await prisma.callList.update({
@@ -471,6 +942,7 @@ export const addCallListItems = async (
         },
         update: {}, // Don't update if exists
         create: {
+          workspaceId: workspaceId, // For tenant isolation
           callListId: listId,
           studentId,
           state: 'QUEUED',
@@ -925,12 +1397,18 @@ export const updateCallListItem = async (
     throw new AppError(404, 'Call list item not found');
   }
 
+  // Merge custom fields if provided (preserve existing fields)
+  let customData = item.custom as Record<string, any> | null;
+  if (data.custom !== undefined) {
+    customData = { ...(customData || {}), ...data.custom };
+  }
+
   const updated = await prisma.callListItem.update({
     where: { id: itemId },
     data: {
       state: data.state,
       priority: data.priority,
-      custom: data.custom !== undefined ? data.custom : undefined,
+      custom: customData !== undefined && Object.keys(customData).length > 0 ? customData : null,
     },
     include: {
       student: {
@@ -983,6 +1461,142 @@ export const deleteCallList = async (listId: string, workspaceId: string) => {
   });
 
   return { message: 'Call list deleted successfully' };
+};
+
+/**
+ * Mark call list as complete (Admin only)
+ */
+export const markCallListComplete = async (
+  listId: string,
+  workspaceId: string,
+  userId: string
+) => {
+  // Verify user is admin
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      workspaceId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  if (membership.role !== 'ADMIN') {
+    throw new AppError(403, 'Only admins can mark call lists as complete');
+  }
+
+  // Verify call list exists and belongs to workspace
+  const callList = await prisma.callList.findFirst({
+    where: {
+      id: listId,
+      workspaceId,
+    },
+  });
+
+  if (!callList) {
+    throw new AppError(404, 'Call list not found');
+  }
+
+  // Update status to COMPLETED
+  const updated = await prisma.callList.update({
+    where: { id: listId },
+    data: {
+      status: 'COMPLETED',
+      completedAt: new Date(),
+      completedBy: userId,
+    },
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          batch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          items: true,
+        },
+      },
+    },
+  });
+
+  return updated;
+};
+
+/**
+ * Mark call list as active (reopen) - Admin only
+ */
+export const markCallListActive = async (
+  listId: string,
+  workspaceId: string,
+  userId: string
+) => {
+  // Verify user is admin
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      workspaceId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  if (membership.role !== 'ADMIN') {
+    throw new AppError(403, 'Only admins can reopen call lists');
+  }
+
+  // Verify call list exists and belongs to workspace
+  const callList = await prisma.callList.findFirst({
+    where: {
+      id: listId,
+      workspaceId,
+    },
+  });
+
+  if (!callList) {
+    throw new AppError(404, 'Call list not found');
+  }
+
+  // Update status to ACTIVE and clear completion fields
+  const updated = await prisma.callList.update({
+    where: { id: listId },
+    data: {
+      status: 'ACTIVE',
+      completedAt: null,
+      completedBy: null,
+    },
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+          batch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          items: true,
+        },
+      },
+    },
+  });
+
+  return updated;
 };
 
 /**
@@ -1062,6 +1676,45 @@ export const unassignCallListItems = async (
   };
 };
 
+/**
+ * Delete a call list item (remove student from call list)
+ */
+export const deleteCallListItem = async (itemId: string, workspaceId: string) => {
+  // Verify item exists and belongs to workspace
+  const item = await prisma.callListItem.findFirst({
+    where: {
+      id: itemId,
+      callList: {
+        workspaceId,
+      },
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!item) {
+    throw new AppError(404, 'Call list item not found');
+  }
+
+  await prisma.callListItem.delete({
+    where: { id: itemId },
+  });
+
+  return { 
+    message: 'Call list item deleted successfully',
+    deletedItem: {
+      id: item.id,
+      studentName: item.student?.name,
+    },
+  };
+};
+
 export const createCallListFromBulkPaste = async (
   workspaceId: string,
   userId: string,
@@ -1085,6 +1738,9 @@ export const createCallListFromBulkPaste = async (
   if (parsed.rows.length === 0) {
     throw new AppError(400, 'No data found in pasted content');
   }
+
+  // Normalize column mapping (supports both old and new format)
+  const normalizedMapping = normalizeMapping(data.columnMapping as any);
 
   // Prepare meta with description and questions if provided
   const metaData: any = data.meta || {};
@@ -1110,7 +1766,7 @@ export const createCallListFromBulkPaste = async (
     data: createData,
   });
 
-  // Process rows (similar to commitCallListImport but WITHOUT group/batch assignment)
+  // Process rows using the same logic as student import
   const stats = {
     matched: 0,
     created: 0,
@@ -1121,26 +1777,37 @@ export const createCallListFromBulkPaste = async (
   const errors: string[] = [];
   const existingStudentIds = new Set<string>();
 
-  const extractField = (row: Record<string, any>, columnName?: string): string | null => {
-    if (!columnName) return null;
-    const value = row[columnName];
-    return typeof value === 'string' ? value.trim() : (value?.toString().trim() || null);
-  };
+  const maxReportedErrors = 100;
 
   for (let idx = 0; idx < parsed.rows.length; idx++) {
     const row = parsed.rows[idx] as Record<string, any>;
     const rowNum = idx + 2;
 
-    try {
-      const name = extractField(row, data.columnMapping.name);
-      const email = extractField(row, data.columnMapping.email);
-      const phone = extractField(row, data.columnMapping.phone);
+    // Skip rows that are completely empty/whitespace
+    const isEmptyRow = Object.values(row).every((value) => {
+      if (value === null || value === undefined) return true;
+      const str = String(value).trim();
+      return str.length === 0;
+    });
+    if (isEmptyRow) {
+      continue;
+    }
 
-      if (!name || name.length === 0) {
+    try {
+      // Parse student data using flexible mapping (like student import)
+      const studentData = parseStudentFromMapping(row, normalizedMapping);
+
+      if (!studentData.name) {
+        if (errors.length < maxReportedErrors) {
+          errors.push(`Row ${rowNum}: Name is required`);
+        }
         stats.errors++;
-        errors.push(`Row ${rowNum}: Name is required`);
         continue;
       }
+
+      // Parse phones using flexible mapping (supports multiple phones)
+      const phones = parsePhonesFromMapping(row, normalizedMapping);
+      const primaryPhone = phones.find((p) => p.isPrimary)?.phone || phones[0]?.phone;
 
       // Match existing student
       let student = null;
@@ -1148,11 +1815,11 @@ export const createCallListFromBulkPaste = async (
 
       // Match by email_or_phone strategy
       if (data.matchBy === 'email_or_phone' || data.matchBy === 'email') {
-        if (email) {
+        if (studentData.email) {
           student = await prisma.student.findFirst({
             where: {
               workspaceId,
-              email: email.toLowerCase(),
+              email: studentData.email.toLowerCase(),
               isDeleted: false,
             },
           });
@@ -1161,11 +1828,11 @@ export const createCallListFromBulkPaste = async (
       }
 
       if (!student && (data.matchBy === 'email_or_phone' || data.matchBy === 'phone')) {
-        if (phone) {
+        if (primaryPhone) {
           const studentPhone = await prisma.studentPhone.findFirst({
             where: {
               workspaceId,
-              phone,
+              phone: primaryPhone,
               student: {
                 workspaceId,
                 isDeleted: false,
@@ -1187,7 +1854,7 @@ export const createCallListFromBulkPaste = async (
           where: {
             workspaceId,
             name: {
-              equals: name,
+              equals: studentData.name,
               mode: 'insensitive',
             },
             isDeleted: false,
@@ -1200,9 +1867,9 @@ export const createCallListFromBulkPaste = async (
       if (!student && data.createNewStudents) {
         // Check for duplicates if skipDuplicates is true
         if (data.skipDuplicates) {
-          if (email) {
+          if (studentData.email) {
             const exists = await prisma.student.findFirst({
-              where: { workspaceId, email: email.toLowerCase(), isDeleted: false },
+              where: { workspaceId, email: studentData.email.toLowerCase(), isDeleted: false },
             });
             if (exists) {
               stats.duplicates++;
@@ -1210,9 +1877,9 @@ export const createCallListFromBulkPaste = async (
             }
           }
 
-          if (phone) {
+          if (primaryPhone) {
             const exists = await prisma.studentPhone.findFirst({
-              where: { workspaceId, phone, student: { workspaceId, isDeleted: false } },
+              where: { workspaceId, phone: primaryPhone, student: { workspaceId, isDeleted: false } },
             });
             if (exists) {
               stats.duplicates++;
@@ -1221,37 +1888,39 @@ export const createCallListFromBulkPaste = async (
           }
         }
 
+        // Create student with all data
         student = await prisma.student.create({
           data: {
             workspaceId,
-            name,
-            email: email?.toLowerCase() || null,
+            name: studentData.name,
+            email: studentData.email?.toLowerCase() || null,
+            discordId: studentData.discordId || null,
+            tags: studentData.tags || [],
+            phones: {
+              create: phones.map((p) => ({
+                workspaceId,
+                phone: p.phone,
+                isPrimary: p.isPrimary,
+              })),
+            },
           },
         });
         stats.created++;
-
-        // Create phone if provided
-        if (phone) {
-          await prisma.studentPhone.create({
-            data: {
-              studentId: student.id,
-              workspaceId,
-              phone,
-              isPrimary: true,
-            },
-          });
-        }
       } else if (!student) {
+        if (errors.length < maxReportedErrors) {
+          errors.push(`Row ${rowNum}: Student not found and createNewStudents is false`);
+        }
         stats.errors++;
-        errors.push(`Row ${rowNum}: Student not found and createNewStudents is false`);
         continue;
       } else {
         stats.matched++;
       }
 
       if (!student) {
+        if (errors.length < maxReportedErrors) {
+          errors.push(`Row ${rowNum}: Could not create or match student`);
+        }
         stats.errors++;
-        errors.push(`Row ${rowNum}: Could not create or match student`);
         continue;
       }
 
@@ -1270,6 +1939,7 @@ export const createCallListFromBulkPaste = async (
           },
         },
         create: {
+          workspaceId: workspaceId, // For tenant isolation
           callListId: callList.id,
           studentId: student.id,
           state: 'QUEUED',
@@ -1281,8 +1951,10 @@ export const createCallListFromBulkPaste = async (
       stats.added++;
       existingStudentIds.add(student.id); // Track in memory to avoid duplicates in same import
     } catch (error: any) {
+      if (errors.length < maxReportedErrors) {
+        errors.push(`Row ${rowNum}: ${error.message || 'Unknown error'}`);
+      }
       stats.errors++;
-      errors.push(`Row ${rowNum}: ${error.message || 'Unknown error'}`);
     }
   }
 
@@ -1303,6 +1975,158 @@ export const createCallListFromBulkPaste = async (
     stats,
     errors: errors.slice(0, 10),
     message: `Call list created: ${stats.matched} matched, ${stats.created} created, ${stats.added} added, ${stats.duplicates} duplicates, ${stats.errors} errors`,
+  };
+};
+
+/**
+ * Create a call list from selected follow-ups
+ * Admin-only feature that creates a new call list with items from follow-ups
+ * Each item preserves the follow-up's note in the custom field
+ */
+export const createCallListFromFollowups = async (
+  workspaceId: string,
+  userId: string,
+  data: CreateCallListFromFollowupsInput
+) => {
+  // Verify user is ADMIN
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      workspaceId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  if (membership.role !== 'ADMIN') {
+    throw new AppError(403, 'Only admins can create call lists from follow-ups');
+  }
+
+  // Validate all follow-up IDs exist and belong to workspace
+  const followups = await prisma.followup.findMany({
+    where: {
+      id: { in: data.followupIds },
+      workspaceId,
+    },
+    include: {
+      callList: {
+        select: {
+          id: true,
+          name: true,
+          messages: true,
+          meta: true,
+        },
+      },
+      student: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (followups.length !== data.followupIds.length) {
+    throw new AppError(404, 'One or more follow-ups not found');
+  }
+
+  // Ensure all follow-ups are PENDING status
+  const nonPendingFollowups = followups.filter((f) => f.status !== 'PENDING');
+  if (nonPendingFollowups.length > 0) {
+    throw new AppError(400, 'All follow-ups must be in PENDING status');
+  }
+
+  // Ensure all follow-ups have associated call lists (for questions/messages)
+  const followupsWithoutCallList = followups.filter((f) => !f.callList);
+  if (followupsWithoutCallList.length > 0) {
+    throw new AppError(400, 'All follow-ups must be associated with a call list');
+  }
+
+  // Determine messages and questions
+  // Use provided messages/questions, or copy from first follow-up's call list
+  let messages: string[] = data.messages || [];
+  let questions: any[] = data.questions || [];
+
+  if (messages.length === 0 && followups[0].callList?.messages) {
+    messages = followups[0].callList.messages;
+  }
+
+  if (questions.length === 0 && followups[0].callList?.meta) {
+    const meta = followups[0].callList.meta as any;
+    if (meta.questions) {
+      questions = meta.questions;
+    }
+  }
+
+  // Prepare meta object with questions
+  let metaData: any = data.meta || {};
+  if (questions.length > 0) {
+    metaData.questions = questions;
+  }
+
+  // Create call list (workspace-level, no groupId)
+  const callList = await prisma.callList.create({
+    data: {
+      workspaceId,
+      name: data.name,
+      source: data.source || 'FILTER',
+      description: data.description,
+      messages,
+      meta: Object.keys(metaData).length > 0 ? metaData : null,
+    },
+    include: {
+      _count: {
+        select: {
+          items: true,
+        },
+      },
+    },
+  });
+
+  // Create call list items for each follow-up
+  const items = await Promise.all(
+    followups.map((followup) =>
+      prisma.callListItem.create({
+        data: {
+          workspaceId: workspaceId, // For tenant isolation
+          callListId: callList.id,
+          studentId: followup.studentId,
+          assignedTo: null, // No assignment required for follow-ups
+          state: 'QUEUED',
+          custom: {
+            followupNote: followup.notes || null,
+          },
+        },
+        include: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      })
+    )
+  );
+
+  // Fetch updated call list with item count
+  const updatedCallList = await prisma.callList.findUnique({
+    where: { id: callList.id },
+    include: {
+      _count: {
+        select: {
+          items: true,
+        },
+      },
+    },
+  });
+
+  return {
+    callList: updatedCallList || callList,
+    items,
+    message: `Call list created with ${items.length} items from follow-ups`,
   };
 };
 

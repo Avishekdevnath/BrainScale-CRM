@@ -7,6 +7,9 @@ import {
 } from './call-log.schemas';
 import { CreateFollowupCallLogInput } from '../followups/followup.schemas';
 import * as followupService from '../followups/followup.service';
+import { env } from '../../config/env';
+import { logger } from '../../config/logger';
+import * as aiService from '../ai/ai.service';
 
 /**
  * Create a call log
@@ -108,6 +111,7 @@ export const createCallLog = async (
   // Create call log
   const callLog = await prisma.callLog.create({
     data: {
+      workspaceId: workspaceId, // For tenant isolation
       callListItemId: data.callListItemId,
       callListId: callListItem.callListId,
       studentId: callListItem.studentId,
@@ -176,19 +180,48 @@ export const createCallLog = async (
   // If follow-up required, create Followup record
   if (data.followUpRequired && followUpDate) {
     try {
+      // Extract follow-up note from notes field if it contains the delimiter, or use separate followUpNote field
+      let followUpNotes = '';
+      if ((data as any).followUpNote) {
+        // Use separate followUpNote field if provided
+        followUpNotes = (data as any).followUpNote;
+      } else if (data.notes && data.notes.includes('--- Follow-up Note ---')) {
+        // Extract from notes field if delimiter is present
+        const parts = data.notes.split('--- Follow-up Note ---');
+        followUpNotes = parts[1]?.trim() || '';
+      }
+      
+      // Build follow-up notes: use extracted note, or fallback to general notes
+      const finalFollowUpNotes = followUpNotes 
+        ? followUpNotes 
+        : (data.notes ? `Follow-up from call log: ${data.notes}` : 'Follow-up from call log: No additional notes');
+      
       await followupService.createFollowup(workspaceId, userId, {
         studentId: callListItem.studentId,
         groupId: callListItem.callList.groupId || callListItem.callList.group?.id || '',
         callListId: callListItem.callListId,
         previousCallLogId: callLog.id,
         dueAt: followUpDate.toISOString(),
-        notes: `Follow-up from call log: ${data.notes || 'No additional notes'}`,
+        notes: finalFollowUpNotes,
         assignedTo: member.id,
       });
     } catch (error) {
       // Log error but don't fail call log creation
       console.error('Error creating follow-up:', error);
     }
+  }
+
+  // Trigger AI processing asynchronously (non-blocking)
+  if (env.AI_ENABLED) {
+    // Use setImmediate to process after response is sent
+    setImmediate(async () => {
+      try {
+        await aiService.processCallLog(callLog.id);
+      } catch (error) {
+        logger.error({ callLogId: callLog.id, error }, 'AI processing failed');
+        // Don't throw - this is background processing
+      }
+    });
   }
 
   return callLog;
@@ -219,9 +252,7 @@ export const updateCallLog = async (
   const callLog = await prisma.callLog.findFirst({
     where: {
       id: logId,
-      callList: {
-        workspaceId,
-      },
+      workspaceId, // Direct workspace filtering for tenant isolation
     },
   });
 
@@ -316,6 +347,18 @@ export const updateCallLog = async (
     },
   });
 
+  // Trigger AI reprocessing if notes or answers changed (non-blocking)
+  if (env.AI_ENABLED && (data.notes !== undefined || data.answers !== undefined || data.callerNote !== undefined)) {
+    setImmediate(async () => {
+      try {
+        await aiService.processCallLog(logId);
+      } catch (error) {
+        logger.error({ callLogId: logId, error }, 'AI reprocessing failed');
+        // Don't throw - this is background processing
+      }
+    });
+  }
+
   return updated;
 };
 
@@ -326,9 +369,7 @@ export const getCallLog = async (logId: string, workspaceId: string) => {
   const callLog = await prisma.callLog.findFirst({
     where: {
       id: logId,
-      callList: {
-        workspaceId,
-      },
+      workspaceId, // Direct workspace filtering for tenant isolation
     },
     include: {
       callListItem: true,
@@ -396,11 +437,9 @@ export const listCallLogs = async (
   workspaceId: string,
   options: ListCallLogsInput
 ) => {
-  // Build where clause
+  // Build where clause - use workspaceId directly on CallLog for tenant isolation
   const where: any = {
-    callList: {
-      workspaceId,
-    },
+    workspaceId, // Direct workspace filtering for tenant isolation
   };
 
   if (options.studentId) {
@@ -432,7 +471,6 @@ export const listCallLogs = async (
   // Filter by batchId via callList.group.batchId
   if (options.batchId) {
     where.callList = {
-      ...where.callList,
       group: {
         batchId: options.batchId,
       },
@@ -441,14 +479,10 @@ export const listCallLogs = async (
 
   // Filter by groupId via callList.groupId
   if (options.groupId) {
-    if (where.callList.group) {
-      where.callList.group.groupId = options.groupId;
-    } else {
-      where.callList = {
-        ...where.callList,
-        groupId: options.groupId,
-      };
-    }
+    where.callList = {
+      ...(where.callList || {}),
+      groupId: options.groupId,
+    };
   }
 
   // Pagination
@@ -612,7 +646,33 @@ export const createFollowupCallLog = async (
     throw new AppError(400, 'Follow-up is not associated with a call list');
   }
 
+  // Determine caller: if callerId provided, use it; else default to first caller; else use current user
+  let callerMemberId: string;
+  
+  if (data.callerId) {
+    // Validate provided caller is a workspace member
+    const callerMember = await prisma.workspaceMember.findFirst({
+      where: {
+        id: data.callerId,
+        workspaceId,
+      },
+    });
+
+    if (!callerMember) {
+      throw new AppError(404, 'Caller member not found');
+    }
+
+    callerMemberId = data.callerId;
+  } else if (followup.previousCallLog?.assignedTo) {
+    // Use first caller from previous call log
+    callerMemberId = followup.previousCallLog.assignedTo;
+  } else {
+    // Fallback to current user
+    callerMemberId = member.id;
+  }
+
   // Get or find/create CallListItem for the call list and student
+  // Note: Follow-ups don't require assignment, so assignedTo is null
   let callListItem = await prisma.callListItem.findFirst({
     where: {
       callListId: followup.callListId!,
@@ -621,12 +681,13 @@ export const createFollowupCallLog = async (
   });
 
   if (!callListItem) {
-    // Create call list item if doesn't exist
+    // Create call list item if doesn't exist (no assignment for follow-ups)
     callListItem = await prisma.callListItem.create({
       data: {
+        workspaceId: workspaceId, // For tenant isolation
         callListId: followup.callListId!,
         studentId: followup.studentId,
-        assignedTo: member.id,
+        assignedTo: null, // Follow-ups don't require assignment
         state: 'QUEUED',
       },
     });
@@ -682,13 +743,14 @@ export const createFollowupCallLog = async (
     }
   }
 
-  // Create call log
+  // Create call log with determined caller
   const callLog = await prisma.callLog.create({
     data: {
+      workspaceId: workspaceId, // For tenant isolation
       callListItemId: callListItem.id,
       callListId: followup.callListId!,
       studentId: followup.studentId,
-      assignedTo: member.id,
+      assignedTo: callerMemberId, // Use determined caller
       callDate: new Date(),
       callDuration: data.callDuration,
       status: data.status,
@@ -765,13 +827,26 @@ export const createFollowupCallLog = async (
         callListId: followup.callListId!,
         previousCallLogId: callLog.id,
         dueAt: followUpDate.toISOString(),
-        notes: `Follow-up call: ${data.notes || ''}`,
+        notes: (data as any).followUpNote || `Follow-up call: ${data.notes || ''}`,
         assignedTo: member.id,
       });
     } catch (error) {
       // Log error but don't fail call log creation
       console.error('Error creating new follow-up:', error);
     }
+  }
+
+  // Trigger AI processing asynchronously (non-blocking)
+  if (env.AI_ENABLED) {
+    // Use setImmediate to process after response is sent
+    setImmediate(async () => {
+      try {
+        await aiService.processCallLog(callLog.id);
+      } catch (error) {
+        logger.error({ callLogId: callLog.id, error }, 'AI processing failed');
+        // Don't throw - this is background processing
+      }
+    });
   }
 
   return callLog;

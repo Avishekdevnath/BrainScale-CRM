@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Plus, Phone, Bell, Building2, Users } from "lucide-react";
+import { Search, Bell, Building2, Users, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
   const hasGroups = groups && groups.length > 0;
   const isGroupsRoute = pathname?.startsWith("/app/groups");
   const showGroupsButton = hasGroups || isGroupsRoute;
+  const isChatRoute = pathname?.startsWith("/app/ai-chat");
   
   // Use real groups data or fallback to current group
   const availableGroups = groups || [];
@@ -64,8 +65,8 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
     }
   };
 
-  // Determine active state for workspace and groups buttons
-  const isWorkspaceRoute = pathname === "/app" || pathname === "/app/" || (pathname?.startsWith("/app/") && !pathname?.startsWith("/app/groups"));
+  // Determine active state for workspace, groups, and chat buttons
+  const isWorkspaceRoute = pathname === "/app" || pathname === "/app/" || (pathname?.startsWith("/app/") && !pathname?.startsWith("/app/groups") && !pathname?.startsWith("/app/ai-chat"));
   
   // Get the groups link - use current group if available, otherwise use first group or group-management
   const groupsLink = currentGroup?.id 
@@ -76,7 +77,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
 
   return (
     <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] flex items-center px-4 gap-4 flex-shrink-0">
-      {/* Left: Workspace/Groups Toggle Buttons */}
+      {/* Left: Workspace/Groups/Brain Toggle Buttons */}
       <div className="flex items-center gap-2">
         <Link href="/app">
           <Button
@@ -110,13 +111,31 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
             </Button>
           </Link>
         )}
+        <Link href="/app/ai-chat">
+          <Button
+            size="sm"
+            variant={isChatRoute ? "default" : "ghost"}
+            className={cn(
+              "gap-2",
+              isChatRoute
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+            )}
+          >
+            <Brain className="w-4 h-4" />
+            <span className="hidden sm:inline">Brain</span>
+          </Button>
+        </Link>
       </div>
 
       {/* Workspace Name or Group Selector */}
       <div className="flex items-center gap-3">
         <div className="min-w-[180px]">
           {showWorkspaceName ? (
-            <div className="px-3 py-2 text-sm font-medium text-[var(--groups1-text)]">
+            <div 
+              className="px-3 py-2 text-sm font-medium text-[var(--groups1-text)]"
+              suppressHydrationWarning
+            >
               {workspaceName}
             </div>
           ) : showGroupSelector ? (
@@ -173,21 +192,6 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Add Student</span>
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="bg-[var(--groups1-secondary)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary-hover)]"
-        >
-          <Phone className="w-4 h-4" />
-          <span className="hidden sm:inline">Log Call</span>
-        </Button>
         <button
           type="button"
           className="relative w-10 h-10 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"

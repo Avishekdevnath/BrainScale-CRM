@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as revenueController from './revenue.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
+import { tenantGuard } from '../../middleware/tenant-guard';
+import { requirePermission } from '../../middleware/permission-guard';
 import {
   CreatePaymentSchema,
   UpdatePaymentSchema,
@@ -58,6 +60,8 @@ const router = Router();
 router.post(
   '/payments',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'create'),
   zodValidator(CreatePaymentSchema),
   revenueController.createPayment
 );
@@ -111,6 +115,8 @@ router.post(
 router.get(
   '/payments',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'read'),
   zodValidator(ListPaymentsSchema, 'query'),
   revenueController.listPayments
 );
@@ -131,7 +137,13 @@ router.get(
  *       200:
  *         description: Payment details
  */
-router.get('/payments/:paymentId', authGuard, revenueController.getPayment);
+router.get(
+  '/payments/:paymentId',
+  authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'read'),
+  revenueController.getPayment
+);
 
 /**
  * @openapi
@@ -174,6 +186,8 @@ router.get('/payments/:paymentId', authGuard, revenueController.getPayment);
 router.patch(
   '/payments/:paymentId',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'update'),
   zodValidator(UpdatePaymentSchema),
   revenueController.updatePayment
 );
@@ -194,7 +208,13 @@ router.patch(
  *       200:
  *         description: Payment deleted
  */
-router.delete('/payments/:paymentId', authGuard, revenueController.deletePayment);
+router.delete(
+  '/payments/:paymentId',
+  authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'delete'),
+  revenueController.deletePayment
+);
 
 /**
  * @openapi
@@ -228,6 +248,8 @@ router.delete('/payments/:paymentId', authGuard, revenueController.deletePayment
 router.get(
   '/stats',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'read'),
   zodValidator(RevenueStatsSchema, 'query'),
   revenueController.getRevenueStats
 );
@@ -260,6 +282,8 @@ router.get(
 router.get(
   '/by-batch',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'read'),
   zodValidator(RevenueStatsSchema, 'query'),
   revenueController.getRevenueByBatch
 );
@@ -296,6 +320,8 @@ router.get(
 router.get(
   '/by-group',
   authGuard,
+  tenantGuard,
+  requirePermission('revenue', 'read'),
   zodValidator(RevenueStatsSchema, 'query'),
   revenueController.getRevenueByGroup
 );

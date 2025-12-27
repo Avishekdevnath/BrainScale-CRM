@@ -46,7 +46,15 @@ export function GroupSidebar() {
     if (href === "call-lists") {
       return pathname === `/app/groups/${currentGroupId}/call-lists`;
     }
-    // For other routes, check if pathname matches nested routes like /app/groups/[groupId]/students
+    // Followups is active if we're on the group followups page
+    if (href === "followups") {
+      return pathname === `/app/groups/${currentGroupId}/followups`;
+    }
+    // Settings is active if we're on the group settings page
+    if (href === "settings") {
+      return pathname === `/app/groups/${currentGroupId}/settings`;
+    }
+    // For other routes, check if pathname matches nested routes like /app/groups/[groupId]/students, imports
     if (isOnGroupDetail) {
       return pathname === `/app/groups/${currentGroupId}/${href}`;
     }
@@ -100,8 +108,11 @@ export function GroupSidebar() {
           } else if (item.href === "call-lists") {
             // Group-specific call lists page
             href = `/app/groups/${currentGroupId}/call-lists`;
+          } else if (item.href === "followups") {
+            // Group-specific followups page
+            href = `/app/groups/${currentGroupId}/followups`;
           } else {
-            // For future nested routes like /app/groups/[groupId]/students
+            // For other nested routes like /app/groups/[groupId]/students, imports, settings
             href = `/app/groups/${currentGroupId}/${item.href}`;
           }
           

@@ -23,37 +23,53 @@ type WorkspaceState = {
   getCurrentId: () => string | null;
 };
 
-const defaultWorkspace: Workspace = {
-  id: "1",
-  name: "DreamEd Academy",
-};
+export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
+  // Initialize from localStorage if available
+  let initialWorkspace: Workspace | null = null;
+  
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("currentWorkspace");
+      if (stored) {
+        initialWorkspace = JSON.parse(stored);
+      }
+    } catch {}
+  }
 
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  current: defaultWorkspace,
-  setCurrent: (ws) => set({ current: ws }),
-  setCurrentFromApi: (ws) => {
-    set({
-      current: {
+  return {
+    current: initialWorkspace,
+    setCurrent: (ws) => {
+      try {
+        localStorage.setItem("currentWorkspace", JSON.stringify(ws));
+      } catch {}
+      set({ current: ws });
+    },
+    setCurrentFromApi: (ws) => {
+      const workspace = {
         id: ws.id,
         name: ws.name,
         plan: ws.plan,
         logo: ws.logo,
         timezone: ws.timezone,
-      },
-    });
-  },
-  getCurrentName: () => {
-    const state = get();
-    return state.current?.name || defaultWorkspace.name;
-  },
-  getCurrentPlan: () => {
-    const state = get();
-    return state.current?.plan || null;
-  },
-  getCurrentId: () => {
-    const state = get();
-    return state.current?.id || null;
-  },
-}));
+      };
+      try {
+        localStorage.setItem("currentWorkspace", JSON.stringify(workspace));
+      } catch {}
+      set({ current: workspace });
+    },
+    getCurrentName: () => {
+      const state = get();
+      return state.current?.name || "";
+    },
+    getCurrentPlan: () => {
+      const state = get();
+      return state.current?.plan || null;
+    },
+    getCurrentId: () => {
+      const state = get();
+      return state.current?.id || null;
+    },
+  };
+});
 
 

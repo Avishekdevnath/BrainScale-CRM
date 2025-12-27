@@ -21,11 +21,10 @@ import { GroupCallListCreator } from "@/components/call-lists/GroupCallListCreat
 import { usePageTitle } from "@/hooks/usePageTitle";
 import Link from "next/link";
 import { useGroupInitializer } from "@/hooks/useGroupInitializer";
-
-// TODO: Replace with actual role check from auth/store
-const isAdmin = true;
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export default function GroupDetailPage() {
+  const isAdmin = useIsAdmin();
   const params = useParams();
   const router = useRouter();
   const groupId = params?.groupId as string;

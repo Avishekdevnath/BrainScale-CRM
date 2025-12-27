@@ -8,10 +8,11 @@ export interface KPICardProps extends React.HTMLAttributes<HTMLDivElement> {
     value: string;
     type: "positive" | "negative" | "neutral";
   };
+  breakdown?: string; // Optional breakdown text to display below the value
 }
 
 const KPICard = React.forwardRef<HTMLDivElement, KPICardProps>(
-  ({ className, label, value, trend, ...props }, ref) => {
+  ({ className, label, value, trend, breakdown, ...props }, ref) => {
     return (
       <div
         ref={ref}
@@ -27,7 +28,12 @@ const KPICard = React.forwardRef<HTMLDivElement, KPICardProps>(
         <div className="text-2xl font-bold text-[var(--groups1-text)] mb-1">
           {value}
         </div>
-        {trend && (
+        {breakdown && (
+          <div className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+            {breakdown}
+          </div>
+        )}
+        {trend && !breakdown && (
           <div
             className={cn(
               "text-xs font-medium",

@@ -61,37 +61,37 @@ export function CallListStatsCard({
 
   return (
     <Card variant="groups1" className={cn("", className)} {...props}>
-      <CardContent variant="groups1" className="py-2">
+      <CardContent variant="groups1" className="py-1.5">
         <div className="flex items-center justify-between gap-4">
           {/* Stats in horizontal layout */}
-          <div className="flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Total:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.total}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.total}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Queued:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.byState.QUEUED}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.byState.QUEUED}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Done:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.byState.DONE}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.byState.DONE}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Assigned:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.assigned}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.assigned}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Calling:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.byState.CALLING}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.byState.CALLING}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Skipped:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.byState.SKIPPED}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.byState.SKIPPED}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-xs text-[var(--groups1-text-secondary)]">Unassigned:</span>
-              <span className="text-sm font-semibold text-[var(--groups1-text)]">{stats.unassigned}</span>
+              <span className="text-xs font-semibold text-[var(--groups1-text)]">{stats.unassigned}</span>
             </div>
           </div>
           

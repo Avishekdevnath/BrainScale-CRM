@@ -24,6 +24,8 @@ import type { Student, StudentEnrollment, StudentsListParams } from "@/types/stu
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Search, Upload, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 
 type EnrollmentRow = {
   id: string;
@@ -49,6 +51,7 @@ const formatDate = (value?: string) => {
 
 export default function EnrollmentsPage() {
   usePageTitle("Enrollments");
+  const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
   const [groupId, setGroupId] = useState("");
@@ -230,7 +233,7 @@ export default function EnrollmentsPage() {
             </p>
             <Button
               onClick={() => mutate()}
-              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="mt-4 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
             >
               Retry
             </Button>
@@ -251,6 +254,7 @@ export default function EnrollmentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 justify-end">
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
           <Button
             onClick={() => setIsImportModalOpen(true)}
             className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
@@ -287,8 +291,7 @@ export default function EnrollmentsPage() {
       </div>
 
       {/* Search & Filters */}
-      <Card variant="groups1">
-        <CardContent variant="groups1" className="py-4">
+      <CollapsibleFilters open={showFilters} contentClassName="py-4">
           <div className="space-y-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
@@ -422,20 +425,6 @@ export default function EnrollmentsPage() {
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-                  Batch
-                </label>
-                <BatchFilter
-                  value={batchId}
-                  onChange={(value) => {
-                    setBatchId(value);
-                    setPage(1);
-                  }}
-                  placeholder="All Batches"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
                   Status
                 </label>
                 <select
@@ -460,8 +449,7 @@ export default function EnrollmentsPage() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </CollapsibleFilters>
 
       {/* Enrollments Table */}
       <Card variant="groups1">
@@ -586,7 +574,7 @@ export default function EnrollmentsPage() {
                       size="sm"
                       onClick={() => handlePageChange(page - 1)}
                       disabled={page <= 1}
-                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       Previous
@@ -595,7 +583,7 @@ export default function EnrollmentsPage() {
                       size="sm"
                       onClick={() => handlePageChange(page + 1)}
                       disabled={page >= data.pagination.totalPages}
-                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
                     >
                       Next
                       <ChevronRight className="w-4 h-4" />

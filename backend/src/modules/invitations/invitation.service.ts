@@ -20,6 +20,29 @@ export const sendInvitation = async (
   inviterUserId: string,
   data: SendInvitationInput
 ) => {
+  // Verify workspace exists and check member limit for FREE plan
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    include: {
+      members: true,
+    },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Check member limit for FREE plan
+  if (workspace.plan === 'FREE') {
+    const currentMemberCount = workspace.members.length;
+    if (currentMemberCount >= 5) {
+      throw new AppError(
+        403,
+        'Free plan allows a maximum of 5 members. Please upgrade to add more members.'
+      );
+    }
+  }
+
   // Check if user is already a member
   const existingUser = await prisma.user.findUnique({
     where: { email: data.email },
@@ -187,6 +210,34 @@ export const getInvitationByToken = async (token: string) => {
  */
 export const acceptInvitation = async (token: string, userId: string) => {
   const invitation = await getInvitationByToken(token);
+
+  // Check member limit for FREE plan (in case limit was reached between sending and accepting)
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: invitation.workspaceId },
+    include: {
+      members: true,
+    },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Check member limit for FREE plan
+  if (workspace.plan === 'FREE') {
+    const currentMemberCount = workspace.members.length;
+    if (currentMemberCount >= 5) {
+      // Mark invitation as expired/cancelled since limit was reached
+      await prisma.invitation.update({
+        where: { id: invitation.id },
+        data: { status: 'CANCELLED' },
+      });
+      throw new AppError(
+        403,
+        'This workspace has reached the maximum member limit for the free plan. Please contact the workspace administrator.'
+      );
+    }
+  }
 
   // Check if user is already a member
   const existingMember = await prisma.workspaceMember.findUnique({

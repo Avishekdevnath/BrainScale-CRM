@@ -119,6 +119,26 @@ async function updateMatchedStudent(
 }
 
 /**
+ * Normalize tags to always be string[] (flatten nested arrays)
+ */
+function normalizeTags(tags: string | string[] | string[][] | undefined | null): string[] {
+  if (!tags) return [];
+  
+  // If it's a string, split by comma and trim
+  if (typeof tags === 'string') {
+    return tags.split(',').map(t => t.trim()).filter(Boolean);
+  }
+  
+  // If it's an array, flatten it (handles both string[] and string[][])
+  if (Array.isArray(tags)) {
+    // Flatten nested arrays and filter out empty strings
+    return tags.flat().filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0);
+  }
+  
+  return [];
+}
+
+/**
  * Helper function to match or create a student
  * Returns the student and whether it was created or matched
  */
@@ -479,7 +499,7 @@ export const createCallList = async (
           phone: studentData.phone && studentData.phone.trim() ? studentData.phone.trim() : undefined,
           secondaryPhone: studentData.secondaryPhone && studentData.secondaryPhone.trim() ? studentData.secondaryPhone.trim() : undefined,
           discordId: studentData.discordId && studentData.discordId.trim() ? studentData.discordId.trim() : undefined,
-          tags: studentData.tags && Array.isArray(studentData.tags) ? studentData.tags : (studentData.tags ? [studentData.tags] : []),
+          tags: normalizeTags(studentData.tags),
         };
 
         const result = await matchOrCreateStudent(

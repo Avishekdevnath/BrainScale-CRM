@@ -9,7 +9,7 @@
     "dev:vercel": "vercel dev",
     "build": "tsc && npm run build:swagger",
     "build:swagger": "tsx scripts/generate-swagger.ts",
-    "vercel-build": "npm run build",
+    "vercel-build": "prisma generate && npm run build",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit",
     "test": "vitest run",

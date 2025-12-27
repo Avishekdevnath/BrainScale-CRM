@@ -254,6 +254,14 @@ export const updateCallLog = async (
       id: logId,
       workspaceId, // Direct workspace filtering for tenant isolation
     },
+    include: {
+      callList: {
+        select: {
+          meta: true,
+          name: true,
+        },
+      },
+    },
   });
 
   if (!callLog) {

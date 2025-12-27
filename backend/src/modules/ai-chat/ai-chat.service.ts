@@ -482,7 +482,7 @@ export const sendMessage = async (
       },
       ...history
         .reverse()
-        .map(msg => ({
+        .map((msg: any) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
         })),
@@ -704,7 +704,7 @@ export const exportChatHistory = async (
 
   // Generate CSV
   const headers = ['Timestamp', 'Role', 'Message', 'Message ID'];
-  const rows = messages.map((msg) => ({
+  const rows = messages.map((msg: any) => ({
     Timestamp: msg.createdAt.toISOString(),
     Role: msg.role,
     Message: escapeCSVValue(msg.content),
@@ -713,7 +713,7 @@ export const exportChatHistory = async (
 
   const csvRows = [
     headers.join(','),
-    ...rows.map((row) =>
+    ...rows.map((row: any) =>
       headers.map((header) => row[header as keyof typeof row] || '').join(',')
     ),
   ];
@@ -808,7 +808,7 @@ export const exportAIData = async (
   // Generate CSV
   const csvRows = [
     headers.join(','),
-    ...rows.map((row) =>
+    ...rows.map((row: any) =>
       headers.map((header) => row[header as keyof typeof row] || '').join(',')
     ),
   ];

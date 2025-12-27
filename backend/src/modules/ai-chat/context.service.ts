@@ -202,6 +202,15 @@ export const getRecentActivity = async (
             name: true,
           },
         },
+        assignee: {
+          include: {
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.followup.findMany({

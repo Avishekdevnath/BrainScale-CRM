@@ -6,3 +6,7 @@ node_modules
 
 # Hide guides folders
 /guides/
+
+# Test/utility scripts that may contain sensitive data
+find-email-direct.js
+test-mongodb.js

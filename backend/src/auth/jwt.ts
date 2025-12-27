@@ -7,6 +7,7 @@ export interface JWTPayload {
   role: string; // 'ADMIN' | 'MEMBER' or custom role
   permissions?: Array<{ resource: string; action: string }>; // Permissions from custom role
 }
+//test comment
 
 export interface RefreshTokenPayload {
   sub: string;

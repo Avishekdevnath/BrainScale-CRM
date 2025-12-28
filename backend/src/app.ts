@@ -114,9 +114,13 @@ if (env.NODE_ENV === 'production' && env.IS_VERCEL) {
 app.use((req, res, next) => {
   logger.info({
     method: req.method,
+    originalUrl: req.originalUrl,
     url: req.url,
+    baseUrl: req.baseUrl,
+    path: req.path,
     ip: req.ip,
-  });
+    isVercel: process.env.VERCEL === '1',
+  }, 'Express received request');
   next();
 });
 

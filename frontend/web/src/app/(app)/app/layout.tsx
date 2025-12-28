@@ -14,15 +14,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <Suspense fallback={
-      <div className="h-screen flex bg-[var(--groups1-background)] overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-y-auto">
+    <div className="h-screen flex bg-[var(--groups1-background)] overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 overflow-y-auto">
             <div className="p-6">
-              {children}
-            </div>
-          </main>
-        </div>
+            {children}
+          </div>
+        </main>
       </div>
+    </div>
     }>
       <LayoutContent>{children}</LayoutContent>
     </Suspense>

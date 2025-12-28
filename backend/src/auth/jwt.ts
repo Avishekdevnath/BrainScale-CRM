@@ -14,19 +14,33 @@ export interface RefreshTokenPayload {
 }
 
 export const signAccessToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: parseInt(env.JWT_EXPIRES_IN, 10),
-  });
+  if (!env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is not configured. Please set JWT_SECRET environment variable.');
+  }
+  try {
+    return jwt.sign(payload, env.JWT_SECRET, {
+      expiresIn: parseInt(env.JWT_EXPIRES_IN, 10),
+    });
+  } catch (error) {
+    throw new Error(`Failed to sign access token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 export const signRefreshToken = (userId: string): string => {
-  return jwt.sign(
-    { sub: userId } as RefreshTokenPayload,
-    env.REFRESH_SECRET,
-    {
-      expiresIn: parseInt(env.REFRESH_EXPIRES_IN, 10),
-    }
-  );
+  if (!env.REFRESH_SECRET) {
+    throw new Error('REFRESH_SECRET is not configured. Please set REFRESH_SECRET environment variable.');
+  }
+  try {
+    return jwt.sign(
+      { sub: userId } as RefreshTokenPayload,
+      env.REFRESH_SECRET,
+      {
+        expiresIn: parseInt(env.REFRESH_EXPIRES_IN, 10),
+      }
+    );
+  } catch (error) {
+    throw new Error(`Failed to sign refresh token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 export const verifyAccessToken = (token: string): JWTPayload => {

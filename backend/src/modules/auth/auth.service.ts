@@ -667,6 +667,11 @@ export const login = async (data: LoginInput) => {
         role: defaultWorkspace?.role || 'MEMBER',
       });
 
+      // Ensure workspace relation exists
+      if (!defaultWorkspace?.workspace) {
+        throw new AppError(500, 'Workspace data is missing. Please contact support.');
+      }
+
       return {
         user: {
           id: user.id,
@@ -675,11 +680,11 @@ export const login = async (data: LoginInput) => {
         },
         accessToken: provisionalAccessToken,
         refreshToken,
-        workspace: defaultWorkspace ? {
+        workspace: {
           id: defaultWorkspace.workspace.id,
           name: defaultWorkspace.workspace.name,
           role: defaultWorkspace.role,
-        } : null,
+        },
         requiresSetup: true,
         requiresPasswordChange: true,
         message: 'Please complete your account setup by changing your password and accepting the agreement.',
@@ -707,6 +712,11 @@ export const login = async (data: LoginInput) => {
         requiresPasswordChange: true,
         message: 'Password change required. Please change your password before continuing.',
       };
+    }
+
+    // Ensure workspace relation exists
+    if (!defaultWorkspace.workspace) {
+      throw new AppError(500, 'Workspace data is missing. Please contact support.');
     }
 
     const accessToken = signAccessToken({
@@ -766,6 +776,11 @@ export const login = async (data: LoginInput) => {
   });
 
   const refreshToken = signRefreshToken(user.id);
+
+  // Ensure workspace relation exists
+  if (!defaultWorkspace.workspace) {
+    throw new AppError(500, 'Workspace data is missing. Please contact support.');
+  }
 
   return {
     user: {

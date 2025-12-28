@@ -45,8 +45,18 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
+  // Log full error details including stack trace
   logger.error({
-    err,
+    err: {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      ...(err instanceof AppError && {
+        statusCode: err.statusCode,
+        isOperational: err.isOperational,
+        metadata: err.metadata,
+      }),
+    },
     req: {
       method: req.method,
       url: req.url,
@@ -107,11 +117,16 @@ export const errorHandler = (
     }
   }
 
-  // Default server error
+  // Default server error - provide more details in development
+  const isDevelopment = process.env.NODE_ENV === 'development';
   return res.status(500).json({
     error: {
       code: 'INTERNAL_SERVER_ERROR',
       message: 'An unexpected error occurred',
+      ...(isDevelopment && {
+        details: err.message,
+        stack: err.stack,
+      }),
     },
   });
 };

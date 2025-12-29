@@ -76,6 +76,52 @@ router.get(
 
 /**
  * @openapi
+ * /my-calls/all:
+ *   get:
+ *     summary: Get all calls in workspace
+ *     description: Returns all call list items in the workspace (not filtered by assignedTo)
+ *     tags: [My Calls]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: batchId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: groupId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: callListId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *           enum: [QUEUED, CALLING, DONE, SKIPPED]
+ *     responses:
+ *       200:
+ *         description: Paginated list of all calls
+ */
+router.get(
+  '/all',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  zodValidator(GetMyCallsSchema, 'query'),
+  myCallsController.getAllCalls
+);
+
+/**
+ * @openapi
  * /my-calls/history:
  *   get:
  *     summary: Get my call history

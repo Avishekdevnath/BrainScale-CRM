@@ -638,7 +638,7 @@ export function BulkPasteCallListDialog({
                   checked={createNewStudents}
                   onChange={(e) => setCreateNewStudents(e.target.checked)}
                   disabled={isImporting}
-                  className="rounded border-[var(--groups1-border)]"
+                  className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm text-[var(--groups1-text)]">
                   Create new students if not found
@@ -650,7 +650,7 @@ export function BulkPasteCallListDialog({
                   checked={skipDuplicates}
                   onChange={(e) => setSkipDuplicates(e.target.checked)}
                   disabled={isImporting}
-                  className="rounded border-[var(--groups1-border)]"
+                  className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm text-[var(--groups1-text)]">
                   Skip duplicates

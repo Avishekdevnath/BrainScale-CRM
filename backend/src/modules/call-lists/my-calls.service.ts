@@ -387,3 +387,151 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
   };
 };
 
+/**
+ * Get all calls in workspace (not filtered by assignedTo)
+ */
+export const getAllCalls = async (
+  workspaceId: string,
+  options: GetMyCallsInput
+) => {
+  // Build where clause: all calls in workspace (no assignedTo filter)
+  const where: any = {
+    callList: {
+      workspaceId,
+    },
+  };
+
+  // Apply filters
+  if (options.state) {
+    where.state = options.state;
+  }
+
+  if (options.callListId) {
+    where.callListId = options.callListId;
+  }
+
+  // Filter by follow-ups required
+  if (options.followUpRequired !== undefined) {
+    // Only show items that have a callLog (completed calls) with follow-up required
+    where.callLogId = { not: null }; // Ensure callLog exists
+    where.callLog = {
+      followUpRequired: options.followUpRequired,
+    };
+  }
+
+  // Filter by groupId via callList.groupId
+  if (options.groupId) {
+    where.callList = {
+      ...where.callList,
+      groupId: options.groupId,
+    };
+  }
+
+  // Filter by batchId via callList.group.batchId
+  if (options.batchId) {
+    where.callList = {
+      ...where.callList,
+      group: {
+        batchId: options.batchId,
+      },
+    };
+  }
+
+  // Pagination
+  const page = options.page || 1;
+  const size = Math.min(options.size || 20, 100);
+  const skip = (page - 1) * size;
+
+  // Get items with relations
+  const [items, total] = await Promise.all([
+    prisma.callListItem.findMany({
+      where,
+      include: {
+        callList: {
+          include: {
+            group: {
+              include: {
+                batch: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phones: {
+              select: {
+                phone: true,
+                isPrimary: true,
+              },
+            },
+          },
+        },
+        assignee: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        callLog: {
+          select: {
+            id: true,
+            status: true,
+            callDate: true,
+            callDuration: true,
+            assignedTo: true,
+            followUpRequired: true,
+            answers: true,
+            notes: true,
+            callerNote: true,
+            followUpDate: true,
+          },
+        },
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' },
+      ],
+      skip,
+      take: size,
+    }),
+    prisma.callListItem.count({ where }),
+  ]);
+
+  // Extract questions from call list meta
+  const itemsWithQuestions = items.map((item) => {
+    const questions = (item.callList.meta as any)?.questions || [];
+    const messages = item.callList.messages || [];
+    return {
+      ...item,
+      callList: {
+        ...item.callList,
+        questions,
+        messages,
+      },
+    };
+  });
+
+  return {
+    items: itemsWithQuestions,
+    pagination: {
+      page,
+      size,
+      total,
+      totalPages: Math.ceil(total / size),
+    },
+  };
+};
+

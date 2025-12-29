@@ -361,7 +361,7 @@ export default function BatchDetailPage() {
                               }
                             }}
                             onChange={handleSelectAll}
-                            className="rounded border-[var(--groups1-border)]"
+                            className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
                           />
                         </th>
                       )}
@@ -399,7 +399,7 @@ export default function BatchDetailPage() {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => handleToggleGroupSelection(group.id)}
-                                className="rounded border-[var(--groups1-border)]"
+                                className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
                               />
                             </td>
                           )}

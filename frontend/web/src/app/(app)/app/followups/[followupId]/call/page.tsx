@@ -527,7 +527,7 @@ export default function FollowupCallPage() {
                 }
               }}
               disabled={submitting}
-              className="rounded border-[var(--groups1-border)]"
+              className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <Label htmlFor="followUpRequired" className="text-sm font-medium text-[var(--groups1-text)] cursor-pointer">
               Requires another follow-up

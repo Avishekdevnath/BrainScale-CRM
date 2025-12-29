@@ -214,7 +214,7 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
                           updateQuestion(question.id, { required: e.target.checked })
                         }
                         disabled={disabled}
-                        className="rounded border-[var(--groups1-border)]"
+                        className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         id={`required-${question.id}`}
                       />
                       <Label

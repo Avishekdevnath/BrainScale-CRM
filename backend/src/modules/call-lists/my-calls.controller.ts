@@ -20,3 +20,11 @@ export const getMyCallsStats = asyncHandler(async (req: AuthRequest, res: Respon
   res.json(result);
 });
 
+export const getAllCalls = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await myCallsService.getAllCalls(
+    req.user!.workspaceId!,
+    req.validatedData!
+  );
+  res.json(result);
+});
+

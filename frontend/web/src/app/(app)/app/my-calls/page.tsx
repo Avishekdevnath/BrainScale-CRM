@@ -462,12 +462,12 @@ function MyCallsPageContent() {
                   <thead>
                     <tr className="border-b border-[var(--groups1-border)]">
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)] w-12">
-                        <input
-                          type="checkbox"
-                          checked={isAllSelected}
-                          onChange={handleSelectAll}
-                          className="rounded border-[var(--groups1-border)]"
-                        />
+                         <input
+                           type="checkbox"
+                           checked={isAllSelected}
+                           onChange={handleSelectAll}
+                           className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
+                         />
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)]">
                         Student
@@ -509,7 +509,7 @@ function MyCallsPageContent() {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleSelectItem(item.id)}
-                              className="rounded border-[var(--groups1-border)]"
+                              className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               disabled={isUnassigningThis}
                             />
                           </td>

@@ -170,7 +170,7 @@ export function StudentSelector({
                       checked={isSelected}
                       onChange={() => handleToggleStudent(student.id)}
                       disabled={disabled}
-                      className="rounded border-[var(--groups1-border)]"
+                      className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <div className="flex-1">
                       <div className="font-medium text-[var(--groups1-text)]">{student.name}</div>

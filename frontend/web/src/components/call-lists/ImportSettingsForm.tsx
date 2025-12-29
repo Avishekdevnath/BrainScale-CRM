@@ -92,7 +92,7 @@ export function ImportSettingsForm({
             type="checkbox"
             checked={settings.createNewStudents}
             onChange={() => handleToggle('createNewStudents')}
-            className="rounded border-[var(--groups1-border)]"
+            className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
           />
           <span className="text-sm text-[var(--groups1-text)]">
             Create new students if not found
@@ -103,7 +103,7 @@ export function ImportSettingsForm({
             type="checkbox"
             checked={settings.skipDuplicates}
             onChange={() => handleToggle('skipDuplicates')}
-            className="rounded border-[var(--groups1-border)]"
+            className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
           />
           <span className="text-sm text-[var(--groups1-text)]">
             Skip duplicate students

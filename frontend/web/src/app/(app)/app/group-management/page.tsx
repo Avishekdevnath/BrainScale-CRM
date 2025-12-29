@@ -495,7 +495,7 @@ export default function GroupsManagementPage() {
                           }
                         }}
                         onChange={handleSelectAll}
-                        className="rounded border-[var(--groups1-border)]"
+                        className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
                       />
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--groups1-text)]">
@@ -539,7 +539,7 @@ export default function GroupsManagementPage() {
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => handleToggleGroupSelection(group.id)}
-                            className="rounded border-[var(--groups1-border)]"
+                            className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
                           />
                         </td>
                         <td className="py-3 px-4">

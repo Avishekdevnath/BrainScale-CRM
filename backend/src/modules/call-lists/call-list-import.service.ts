@@ -61,8 +61,22 @@ export const previewCallListImport = async (
     }
   }
 
+  // Validate file buffer
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw new AppError(400, 'File is empty or could not be read');
+  }
+
   // Parse file
-  const parsed = await parseFile(fileBuffer, filename);
+  let parsed;
+  try {
+    parsed = await parseFile(fileBuffer, filename);
+  } catch (error: any) {
+    // Provide more context for parsing errors
+    if (error.message) {
+      throw new AppError(400, `Failed to parse file: ${error.message}`);
+    }
+    throw new AppError(400, 'Failed to parse file. Please ensure it is a valid CSV or XLSX file.');
+  }
 
   if (parsed.rows.length === 0) {
     throw new AppError(400, 'File is empty or has no valid data rows');
@@ -92,12 +106,6 @@ export const previewCallListImport = async (
   // Get batchId from call list meta
   const batchId = (callList.meta as any)?.batchId || callList.group?.batchId || null;
 
-  // Check matching statistics for preview rows
-  const previewRows = parsed.rows.slice(0, 10);
-  let willMatch = 0;
-  let willCreate = 0;
-  let willSkip = 0;
-
   // Get existing student IDs in call list
   const existingItems = await prisma.callListItem.findMany({
     where: { callListId: listId },
@@ -105,7 +113,18 @@ export const previewCallListImport = async (
   });
   const existingStudentIds = new Set(existingItems.map(item => item.studentId));
 
-  for (const row of previewRows) {
+  // Calculate matching statistics for ALL rows (not just preview)
+  // For performance, we'll process all rows up to 1000, then scale the results
+  // For files with <= 1000 rows, we process all rows for accurate statistics
+  let willMatch = 0;
+  let willCreate = 0;
+  let willSkip = 0;
+
+  // Process all rows for accurate statistics (up to 1000 for performance)
+  const maxRowsForStats = 1000;
+  const rowsToProcess = parsed.rows.slice(0, Math.min(maxRowsForStats, parsed.rows.length));
+  
+  for (const row of rowsToProcess) {
     const email = row[suggestions.email || '']?.toString().trim().toLowerCase();
     const phone = row[suggestions.phone || '']?.toString().trim();
     const name = row[suggestions.name || '']?.toString().trim();
@@ -164,7 +183,17 @@ export const previewCallListImport = async (
     }
   }
 
-  // Return preview data (first 10 rows for preview)
+  // Scale statistics if we only processed a sample (for files > 1000 rows)
+  if (rowsToProcess.length < parsed.rows.length) {
+    const scaleFactor = parsed.rows.length / rowsToProcess.length;
+    willMatch = Math.round(willMatch * scaleFactor);
+    willCreate = Math.round(willCreate * scaleFactor);
+    willSkip = Math.round(willSkip * scaleFactor);
+  }
+
+  // Return preview data (first 10 rows for preview display only)
+  const previewRows = parsed.rows.slice(0, 10);
+  
   return {
     headers,
     previewRows,

@@ -45,13 +45,13 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
   return [
     {
       name: 'getStudentInfo',
-      description: 'Get detailed information about a student by name. Use this when user asks about a specific student.',
+      description: 'Get detailed information about a student by name. Use this when user asks about a student or asks for "info". If the user asks for "info" without specifying a name and there is only one student, use an empty string or "student" as the studentName parameter - the function will automatically return the only student\'s information.',
       parameters: {
         type: 'object',
         properties: {
           studentName: {
             type: 'string',
-            description: 'The name of the student to look up',
+            description: 'The name of the student to look up. Use an empty string or "student" if the user asks for "info" without specifying a name - the function will handle it intelligently.',
           },
         },
         required: ['studentName'],
@@ -77,7 +77,7 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
     },
     {
       name: 'getCallLogs',
-      description: 'Get call logs with optional filters. Use this when user asks about calls, call history, or call logs.',
+      description: 'Get call logs with optional filters. Use this when user asks about calls, call history, call logs, "how many students we called today", "students called today", or any question about calls made today. The response includes both count (total calls) and uniqueStudentsCount (unique students called). For questions about "today", ALWAYS set today: true.',
       parameters: {
         type: 'object',
         properties: {
@@ -91,15 +91,19 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
           },
           dateFrom: {
             type: 'string',
-            description: 'Filter calls from this date (ISO format)',
+            description: 'Filter calls from this date (ISO format). Only use this for non-today dates. For today, use the today parameter instead.',
           },
           dateTo: {
             type: 'string',
-            description: 'Filter calls until this date (ISO format)',
+            description: 'Filter calls until this date (ISO format). Only use this for non-today dates. For today, use the today parameter instead.',
+          },
+          today: {
+            type: 'boolean',
+            description: 'MUST be set to true when user asks about calls made "today" or asks "how many students we called today". This automatically filters for today\'s date range.',
           },
           limit: {
             type: 'number',
-            description: 'Maximum number of results (default: 20)',
+            description: 'Maximum number of results (default: 20, but automatically increased to 1000 when filtering for today)',
           },
         },
       },

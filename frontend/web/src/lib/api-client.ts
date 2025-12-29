@@ -1589,6 +1589,21 @@ export class ApiClient {
     });
   }
 
+  getAllCalls(params?: GetMyCallsParams): Promise<MyCallsResponse> {
+    const queryString = buildQueryString({
+      page: params?.page,
+      size: params?.size,
+      batchId: params?.batchId,
+      groupId: params?.groupId,
+      callListId: params?.callListId,
+      state: params?.state,
+      followUpRequired: params?.followUpRequired,
+    });
+    return this.request<MyCallsResponse>(`/my-calls/all${queryString}`, {
+      method: "GET",
+    });
+  }
+
   getMyCallsStats(): Promise<MyCallsStats> {
     return this.request<MyCallsStats>("/my-calls/stats", {
       method: "GET",

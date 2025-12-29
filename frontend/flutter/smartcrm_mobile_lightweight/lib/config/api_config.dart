@@ -1,7 +1,7 @@
 class ApiConfig {
   // Backend base URL for Brainscale CRM
   static const String baseUrl =
-      'https://brainscale-crm-backend.onrender.com/api/v1';
+      'https://brain-scale-crm-backendd.vercel.app/api/v1';
 
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);

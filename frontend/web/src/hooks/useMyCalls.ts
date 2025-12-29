@@ -38,6 +38,22 @@ export function useMyCallsStats() {
   );
 }
 
+export function useAllCalls(params?: GetMyCallsParams) {
+  const key = params
+    ? `all-calls-${JSON.stringify(params)}`
+    : "all-calls";
+  
+  return useSWR<MyCallsResponse>(
+    key,
+    async () => apiClient.getAllCalls(params),
+    {
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 2000,
+    }
+  );
+}
+
 export function useMyCallHistory(params?: GetMyCallHistoryParams) {
   const key = params
     ? `my-calls-history-${JSON.stringify(params)}`

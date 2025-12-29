@@ -33,6 +33,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
+  const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
   const [pageSize, setPageSize] = React.useState<number>(25);
   const [isAssigningToMe, setIsAssigningToMe] = React.useState(false);
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
@@ -130,20 +131,30 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
     fetchCallLogs();
   }, [data?.items, activeFilter]);
 
-  // Get items for current page (filter for follow_up if needed)
+  // Get items for current page (filter for follow_up and assignment if needed)
   const currentPageItems = React.useMemo(() => {
     if (!data?.items) return [];
 
+    let filtered = data.items;
+
+    // Apply follow-up filter
     if (activeFilter === "follow_up") {
-      return data.items.filter((item) => {
+      filtered = filtered.filter((item) => {
         if (!item.callLogId) return false;
         const callLog = callLogsMap.get(item.callLogId);
         return callLog?.followUpRequired === true;
       });
     }
 
-    return data.items;
-  }, [data?.items, activeFilter, callLogsMap]);
+    // Apply assignment filter
+    if (assignmentFilter === "assigned") {
+      filtered = filtered.filter((item) => item.assignedTo !== null);
+    } else if (assignmentFilter === "unassigned") {
+      filtered = filtered.filter((item) => item.assignedTo === null);
+    }
+
+    return filtered;
+  }, [data?.items, activeFilter, assignmentFilter, callLogsMap]);
 
   // Get all items for follow-up filter (needed for pagination count)
   const [allFollowUpItems, setAllFollowUpItems] = React.useState<CallListItem[]>([]);
@@ -187,19 +198,40 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   // Calculate pagination for follow-up filter
   const paginatedItems = React.useMemo(() => {
     if (activeFilter === "follow_up") {
+      // Apply assignment filter to follow-up items
+      let filtered = allFollowUpItems;
+      if (assignmentFilter === "assigned") {
+        filtered = filtered.filter((item) => item.assignedTo !== null);
+      } else if (assignmentFilter === "unassigned") {
+        filtered = filtered.filter((item) => item.assignedTo === null);
+      }
       const start = (filters.page! - 1) * pageSize;
       const end = start + pageSize;
-      return allFollowUpItems.slice(start, end);
+      return filtered.slice(start, end);
     }
     return currentPageItems;
-  }, [activeFilter, currentPageItems, allFollowUpItems, filters.page, pageSize]);
+  }, [activeFilter, currentPageItems, allFollowUpItems, assignmentFilter, filters.page, pageSize]);
 
   const totalItems = React.useMemo(() => {
     if (activeFilter === "follow_up") {
-      return allFollowUpItems.length;
+      // Apply assignment filter to follow-up items
+      let filtered = allFollowUpItems;
+      if (assignmentFilter === "assigned") {
+        filtered = filtered.filter((item) => item.assignedTo !== null);
+      } else if (assignmentFilter === "unassigned") {
+        filtered = filtered.filter((item) => item.assignedTo === null);
+      }
+      return filtered.length;
     }
-    return data?.pagination?.total || 0;
-  }, [activeFilter, allFollowUpItems.length, data?.pagination?.total]);
+    // For other filters, we need to apply assignment filter to the total
+    // Since assignment filter is client-side, we'll use currentPageItems length as approximation
+    // or we could fetch all items, but that's expensive. For now, use pagination total
+    // and let the client-side filtering handle it
+    const baseTotal = data?.pagination?.total || 0;
+    // Note: This is an approximation. For accurate counts with assignment filter,
+    // we'd need to fetch all items or add server-side filtering
+    return baseTotal;
+  }, [activeFilter, allFollowUpItems, assignmentFilter, data?.pagination?.total]);
 
   const totalPages = Math.ceil(totalItems / pageSize);
 
@@ -481,7 +513,44 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                 Follow Up
               </button>
             </div>
+          </div>
 
+          {/* Assignment Filter Buttons */}
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--groups1-border)]">
+            <span className="text-sm font-medium text-[var(--groups1-text-secondary)] mr-2">Filter:</span>
+            <button
+              onClick={() => setAssignmentFilter("all")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                assignmentFilter === "all"
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setAssignmentFilter("assigned")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                assignmentFilter === "assigned"
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              }`}
+            >
+              Assigned
+            </button>
+            <button
+              onClick={() => setAssignmentFilter("unassigned")}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                assignmentFilter === "unassigned"
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              }`}
+            >
+              Unassigned
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
             {/* Assign to Me Button */}
             {(() => {
               const selectedArray = Array.from(selectedItemIds);

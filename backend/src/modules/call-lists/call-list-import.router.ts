@@ -93,7 +93,32 @@ router.post(
   tenantGuard,
   requirePermission('call_lists', 'update'),
   /* uploadLimiter, */
-  upload.single('file'),
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        // Handle multer errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: {
+              code: 'FILE_TOO_LARGE',
+              message: 'File size exceeds the maximum limit of 10MB.',
+            },
+          });
+        }
+        if (err.message && err.message.includes('Invalid file type')) {
+          return res.status(400).json({
+            error: {
+              code: 'INVALID_FILE_TYPE',
+              message: err.message,
+            },
+          });
+        }
+        // Pass other multer errors to error handler
+        return next(err);
+      }
+      next();
+    });
+  },
   callListImportController.previewCallListImport
 );
 

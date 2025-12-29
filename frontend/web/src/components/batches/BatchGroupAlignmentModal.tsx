@@ -154,7 +154,7 @@ export function BatchGroupAlignmentModal({
                 if (input) input.indeterminate = isIndeterminate;
               }}
               onChange={handleSelectAll}
-              className="rounded border-[var(--groups1-border)]"
+              className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
             />
             <Label className="text-sm text-[var(--groups1-text)]">
               Select All ({filteredGroups.length} groups)
@@ -200,7 +200,7 @@ export function BatchGroupAlignmentModal({
                           checked={isSelected}
                           onChange={() => handleToggleGroup(group.id)}
                           onClick={(e) => e.stopPropagation()}
-                          className="rounded border-[var(--groups1-border)]"
+                          className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer"
                         />
                         <div className="flex-1">
                           <div className="font-medium text-[var(--groups1-text)]">{group.name}</div>

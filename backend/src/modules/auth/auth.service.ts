@@ -618,6 +618,7 @@ export const signup = async (data: SignupInput) => {
 };
 
 export const login = async (data: LoginInput) => {
+  // Email is already normalized by the schema (lowercase + trim)
   // Find user
   const user = await prisma.user.findUnique({
     where: { email: data.email },
@@ -631,6 +632,7 @@ export const login = async (data: LoginInput) => {
   });
 
   if (!user) {
+    logger.warn({ email: data.email }, 'Login attempt: User not found');
     throw new AppError(401, 'Invalid email or password');
   }
 
@@ -638,6 +640,7 @@ export const login = async (data: LoginInput) => {
   const isValidPassword = await comparePassword(data.password, user.passwordHash);
 
   if (!isValidPassword) {
+    logger.warn({ email: data.email, userId: user.id }, 'Login attempt: Invalid password');
     throw new AppError(401, 'Invalid email or password');
   }
 

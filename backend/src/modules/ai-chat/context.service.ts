@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import * as dashboardService from '../dashboard/dashboard.service';
+import { getStartOfDay, getEndOfDay } from '../../utils/date-helpers';
 
 /**
  * Get student information by name
@@ -9,6 +10,82 @@ export const getStudentInfo = async (
   studentName: string,
   workspaceId: string
 ): Promise<any> => {
+  // If studentName is generic/empty, check if there's only one student
+  const genericNames = ['student', 'students', 'info', 'information', 'details', 'detail', ''];
+  const isGenericRequest = !studentName || genericNames.some(generic => 
+    studentName.trim().toLowerCase() === generic
+  );
+
+  if (isGenericRequest) {
+    // Get total student count
+    const totalStudents = await prisma.student.count({
+      where: {
+        workspaceId,
+        isDeleted: false,
+      },
+    });
+
+    // If there's exactly one student, return that student's info
+    if (totalStudents === 1) {
+      const student = await prisma.student.findFirst({
+        where: {
+          workspaceId,
+          isDeleted: false,
+        },
+        include: {
+          phones: true,
+          enrollments: {
+            include: {
+              group: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          callLogs: {
+            take: 5,
+            orderBy: { callDate: 'desc' },
+            select: {
+              id: true,
+              callDate: true,
+              status: true,
+              summaryNote: true,
+            },
+          },
+        },
+      });
+
+      if (student) {
+        return {
+          found: true,
+          student: {
+            id: student.id,
+            name: student.name,
+            email: student.email,
+            phones: student.phones.map(p => p.phone),
+            tags: student.tags,
+            enrollments: student.enrollments.map(e => ({
+              group: e.group.name,
+            })),
+            recentCalls: student.callLogs.length,
+            lastCallDate: student.callLogs[0]?.callDate || null,
+          },
+        };
+      }
+    } else if (totalStudents === 0) {
+      return { found: false, message: 'No students found in this workspace' };
+    } else {
+      // Multiple students - need a specific name
+      return { 
+        found: false, 
+        message: `There are ${totalStudents} students in this workspace. Please specify which student you'd like information about by providing their name.` 
+      };
+    }
+  }
+
+  // Search for student by name
   const student = await prisma.student.findFirst({
     where: {
       workspaceId,
@@ -105,66 +182,138 @@ export const getCallLogs = async (
     dateFrom?: string;
     dateTo?: string;
     limit?: number;
+    today?: boolean; // Special flag for "today" filtering
   },
   workspaceId: string
 ): Promise<any> => {
-  const where: any = { workspaceId };
+  try {
+    const where: any = { workspaceId };
 
-  if (filters.studentId) {
-    where.studentId = filters.studentId;
-  }
+    if (filters.studentId) {
+      where.studentId = filters.studentId;
+    }
 
-  if (filters.status) {
-    where.status = filters.status;
-  }
+    if (filters.status) {
+      where.status = filters.status;
+    }
 
-  if (filters.dateFrom || filters.dateTo) {
-    where.callDate = {};
+    // Handle "today" filtering - check for explicit flag
+    const isTodayFilter = filters.today === true;
+
+    if (isTodayFilter) {
+      where.callDate = {
+        gte: getStartOfDay(),
+        lte: getEndOfDay(),
+      };
+    } else if (filters.dateFrom || filters.dateTo) {
+      where.callDate = {};
     if (filters.dateFrom) {
-      where.callDate.gte = new Date(filters.dateFrom);
+      // Handle ISO date strings
+      const fromDate = typeof filters.dateFrom === 'string' 
+        ? new Date(filters.dateFrom)
+        : filters.dateFrom;
+      where.callDate.gte = fromDate;
     }
     if (filters.dateTo) {
-      where.callDate.lte = new Date(filters.dateTo);
+      // Handle ISO date strings
+      const toDate = typeof filters.dateTo === 'string'
+        ? new Date(filters.dateTo)
+        : filters.dateTo;
+      where.callDate.lte = toDate;
     }
-  }
+    }
 
-  const limit = filters.limit || 20;
+    // When filtering for today, use a higher limit to get all calls (or no limit)
+    // For other queries, use the provided limit or default
+    const limit = isTodayFilter ? (filters.limit || 1000) : (filters.limit || 20);
 
-  const callLogs = await prisma.callLog.findMany({
-    where,
-    take: limit,
-    orderBy: { callDate: 'desc' },
-    include: {
-      student: {
-        select: {
-          id: true,
-          name: true,
+    // For accurate unique student count, especially when filtering for today,
+    // do a separate query to get all studentIds (without limit)
+    let uniqueStudentsCount = 0;
+    if (isTodayFilter || filters.dateFrom || filters.dateTo) {
+      try {
+        // Get all call logs with just studentId for unique count (no limit)
+        const allCallLogsForCount = await prisma.callLog.findMany({
+          where: {
+            ...where,
+            studentId: { not: null },
+          },
+          select: {
+            studentId: true,
+          },
+        });
+        const uniqueStudentIds = new Set(
+          allCallLogsForCount
+            .map(log => log.studentId)
+            .filter((id): id is string => id !== null && id !== undefined)
+        );
+        uniqueStudentsCount = uniqueStudentIds.size;
+      } catch (countError) {
+        // If counting fails, we'll calculate from the returned results below
+        // This is a fallback to ensure the function still works
+      }
+    }
+
+    const callLogs = await prisma.callLog.findMany({
+      where,
+      take: limit,
+      orderBy: { callDate: 'desc' },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+          },
         },
-      },
-      assignee: {
-        include: {
-          user: {
-            select: {
-              name: true,
+        assignee: {
+          include: {
+            user: {
+              select: {
+                name: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    });
 
-  return {
-    count: callLogs.length,
-    callLogs: callLogs.map(log => ({
-      id: log.id,
-      studentName: log.student?.name,
-      status: log.status,
-      callDate: log.callDate,
-      callerName: log.assignee?.user?.name,
-      summaryNote: log.summaryNote,
-      sentiment: log.sentiment,
-    })),
-  };
+    // If we didn't calculate unique students above, calculate from returned results
+    if (uniqueStudentsCount === 0 && (!isTodayFilter && !filters.dateFrom && !filters.dateTo)) {
+      const uniqueStudentIds = new Set(
+        callLogs
+          .filter(log => log.studentId)
+          .map(log => log.studentId)
+      );
+      uniqueStudentsCount = uniqueStudentIds.size;
+    } else if (uniqueStudentsCount === 0 && (isTodayFilter || filters.dateFrom || filters.dateTo)) {
+      // Fallback: calculate from returned results if the count query failed
+      const uniqueStudentIds = new Set(
+        callLogs
+          .filter(log => log.studentId)
+          .map(log => log.studentId)
+      );
+      uniqueStudentsCount = uniqueStudentIds.size;
+    }
+
+    return {
+      count: callLogs.length,
+      uniqueStudentsCount,
+      callLogs: callLogs.map(log => ({
+        id: log.id,
+        studentId: log.studentId,
+        studentName: log.student?.name,
+        status: log.status,
+        callDate: log.callDate,
+        callerName: log.assignee?.user?.name,
+        summaryNote: log.summaryNote,
+        sentiment: log.sentiment,
+      })),
+    };
+  } catch (error) {
+    // Log the error for debugging
+    console.error('Error in getCallLogs:', error);
+    throw error;
+  }
 };
 
 /**

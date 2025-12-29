@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth-guard';
-import { asyncHandler } from '../../middleware/error-handler';
+import { asyncHandler, AppError } from '../../middleware/error-handler';
 import * as callListImportService from './call-list-import.service';
 
 // Store parsed data temporarily in memory
@@ -17,16 +17,17 @@ export const previewCallListImport = asyncHandler(async (req: AuthRequest, res: 
   const file = req.file;
   
   if (!file) {
-    throw new Error('No file uploaded');
+    throw new AppError(400, 'No file uploaded');
   }
 
-  const result = await callListImportService.previewCallListImport(
-    listId,
-    req.user!.workspaceId!,
-    req.user!.sub,
-    file.buffer,
-    file.originalname
-  );
+  try {
+    const result = await callListImportService.previewCallListImport(
+      listId,
+      req.user!.workspaceId!,
+      req.user!.sub,
+      file.buffer,
+      file.originalname
+    );
 
   // Store parsed data in cache for commit
   const cacheKey = `${req.user!.workspaceId!}:${listId}:${Date.now()}`;
@@ -42,13 +43,25 @@ export const previewCallListImport = asyncHandler(async (req: AuthRequest, res: 
     }
   }
 
-  // Remove parsedData from response (don't send all rows to client)
-  const { parsedData, ...responseData } = result;
+    // Remove parsedData from response (don't send all rows to client)
+    const { parsedData, ...responseData } = result;
 
-  res.json({
-    ...responseData,
-    importId: cacheKey, // Return cache key as importId for commit
-  });
+    res.json({
+      ...responseData,
+      importId: cacheKey, // Return cache key as importId for commit
+    });
+  } catch (error: any) {
+    // Re-throw AppError as-is, wrap other errors
+    if (error instanceof AppError) {
+      throw error;
+    }
+    // Provide more context for file parsing errors
+    if (error.message && (error.message.includes('CSV') || error.message.includes('Excel') || error.message.includes('parse'))) {
+      throw new AppError(400, `File parsing error: ${error.message}`);
+    }
+    // Re-throw with more context
+    throw new AppError(500, error.message || 'Failed to process import file');
+  }
 });
 
 export const commitCallListImport = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -58,7 +71,7 @@ export const commitCallListImport = asyncHandler(async (req: AuthRequest, res: R
   // Get parsed data from cache
   const cached = importCache.get(importId);
   if (!cached || cached.expiresAt < Date.now()) {
-    throw new Error('Import data expired. Please re-upload the file.');
+    throw new AppError(400, 'Import data expired. Please re-upload the file.');
   }
 
   const result = await callListImportService.commitCallListImport(

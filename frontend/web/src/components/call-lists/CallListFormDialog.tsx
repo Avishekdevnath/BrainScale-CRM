@@ -106,23 +106,17 @@ export function CallListFormDialog({
       return false;
     }
 
+    // Group is required (only for create mode)
+    if (!isEditMode && !form.groupId) {
+      toast.error("Please select a group");
+      return false;
+    }
+
     // Validate batch-group relationship (if both selected)
     if (form.groupId && form.batchId && groups) {
       const selectedGroup = groups.find(g => g.id === form.groupId);
       if (selectedGroup && selectedGroup.batchId !== form.batchId) {
         toast.error("Selected group does not belong to the specified batch");
-        return false;
-      }
-    }
-
-    // Either groupId OR studentIds OR studentsData must be provided (only for create mode)
-    if (!isEditMode) {
-      const hasGroup = !!form.groupId;
-      const hasStudents = form.studentIds && form.studentIds.length > 0;
-      const hasStudentsData = form.studentsData && form.studentsData.length > 0;
-      
-      if (!hasGroup && !hasStudents && !hasStudentsData) {
-        toast.error("Either select a group or add students to the call list");
         return false;
       }
     }
@@ -319,7 +313,7 @@ export function CallListFormDialog({
           name: form.name.trim(),
           source: form.source,
           description: form.description.trim() || undefined,
-          groupId: form.groupId || undefined,
+          groupId: form.groupId,
           batchId: form.batchId || undefined,
           studentIds: form.studentIds.length > 0 && form.studentsData.length === 0 ? form.studentIds : undefined,
           studentsData: form.studentsData.length > 0 ? form.studentsData : undefined,
@@ -447,7 +441,7 @@ export function CallListFormDialog({
               htmlFor="call-list-group"
               className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
             >
-              Group <span className="text-gray-400 text-xs">(Optional - leave empty for workspace-level)</span>
+              Group <span className="text-red-500">*</span>
             </Label>
             <select
               id="call-list-group"
@@ -467,8 +461,9 @@ export function CallListFormDialog({
               className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
               disabled={saving || groupsLoading || isEditMode}
               aria-label="Select group"
+              required
             >
-              <option value="">No Group (Workspace-level)</option>
+              <option value="">Select a group</option>
               {groups?.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name}

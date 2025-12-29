@@ -72,8 +72,11 @@ export function WorkspaceCallListCreator({
       return;
     }
 
-    // Either targetGroupId must be provided OR we need to have filters that will yield students
-    // For now, we'll allow workspace-level call lists (no targetGroupId) if filters are provided
+    if (!targetGroupId) {
+      toast.error("Please select a group");
+      return;
+    }
+
     const hasFilters = !!(filters.batchId || filters.groupId || filters.status || filters.q);
 
     setCreating(true);
@@ -101,7 +104,7 @@ export function WorkspaceCallListCreator({
       const callList = await apiClient.createCallList({
         name: listName.trim(),
         source: "FILTER" as CallListSource,
-        groupId: targetGroupId || undefined, // Optional - can be null for workspace-level
+        groupId: targetGroupId,
         studentIds: allStudentIds.length > 0 ? allStudentIds : undefined,
         meta: {
           filters: {
@@ -241,7 +244,7 @@ export function WorkspaceCallListCreator({
 
             <div>
               <Label className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1">
-                Target Group <span className="text-gray-400 text-xs">(Optional - leave empty for workspace-level)</span>
+                Target Group <span className="text-red-500">*</span>
               </Label>
               <select
                 value={targetGroupId}
@@ -249,17 +252,15 @@ export function WorkspaceCallListCreator({
                 className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
                 disabled={creating}
                 aria-label="Select target group"
+                required
               >
-                <option value="">No Group (Workspace-level)</option>
+                <option value="">Select a group</option>
                 {groups?.map((group) => (
                   <option key={group.id} value={group.id}>
                     {group.name}
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
-                The group this call list will belong to (optional)
-              </p>
             </div>
 
             <div>
@@ -287,7 +288,7 @@ export function WorkspaceCallListCreator({
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={creating || !listName.trim()}
+              disabled={creating || !listName.trim() || !targetGroupId}
               className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
             >
               {creating ? (

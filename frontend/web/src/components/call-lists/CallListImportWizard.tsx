@@ -141,7 +141,17 @@ export function CallListImportWizard({
       toast.success("Import completed successfully!");
     } catch (error: any) {
       console.error("Commit import error:", error);
-      const errorMessage = error?.message || error?.error?.message || "Failed to import students";
+      let errorMessage = error?.message || error?.error?.message || "Failed to import students";
+      
+      // Provide helpful guidance for cache expiration errors
+      if (errorMessage.includes("expired") || errorMessage.includes("not found")) {
+        errorMessage = "Import data expired or not found. This can happen in serverless environments. Please re-upload the file and complete the import quickly.";
+        // Reset to step 1 to allow re-upload
+        setCurrentStep(1);
+        setFile(null);
+        setPreviewData(null);
+      }
+      
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {

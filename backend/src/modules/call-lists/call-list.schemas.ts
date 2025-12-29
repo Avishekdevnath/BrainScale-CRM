@@ -40,7 +40,7 @@ export const StudentDataSchema = z.object({
 
 export const CreateCallListSchema = z
   .object({
-    groupId: z.string().optional(),
+    groupId: z.string().min(1, 'Group is required'),
     batchId: z.string().optional(),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   source: z.enum(['IMPORT', 'FILTER', 'MANUAL']),
@@ -54,13 +54,6 @@ export const CreateCallListSchema = z
     skipDuplicates: z.boolean().default(true),
   meta: z.record(z.string(), z.any()).optional(), // Custom fields configuration (JSON)
   })
-  .refine(
-    (data) => data.groupId || data.batchId || (data.studentIds && data.studentIds.length > 0) || (data.studentsData && data.studentsData.length > 0),
-    {
-      message: 'Either groupId, batchId, studentIds, or studentsData must be provided',
-      path: ['groupId'],
-    }
-  )
   .refine(
     (data) => !(data.studentIds && data.studentIds.length > 0 && data.studentsData && data.studentsData.length > 0),
     {

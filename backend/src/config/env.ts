@@ -74,6 +74,12 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim()),
   
+  // Rate Limiting
+  // Set RATE_LIMIT_ENABLED=false to disable all rate limiting
+  // Default: true (enabled) for backward compatibility
+  // When disabled, all rate limiters become no-op middlewares
+  RATE_LIMIT_ENABLED: process.env.RATE_LIMIT_ENABLED !== 'false',
+  
   // Timezone
   TZ: process.env.TZ || 'Asia/Dhaka',
   

@@ -88,9 +88,15 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting (apply to all API routes)
-// Global API rate limiter: 100 requests per 15 minutes per IP
-app.use('/api/v1', apiLimiter);
+// Rate limiting is now opt-in per route
+// To enable global rate limiting for all API routes, uncomment the line below:
+// app.use('/api/v1', apiLimiter);
+// 
+// Note: Rate limiting can be controlled via RATE_LIMIT_ENABLED environment variable.
+// - Set RATE_LIMIT_ENABLED=false to disable all rate limiting globally
+// - When disabled, all rate limiters become no-op middlewares (pass through)
+// - Individual routes can still use rate limiters (e.g., authLimiter in auth routes)
+// - OPTIONS requests (CORS preflight) are always skipped to prevent CORS issues
 
 // HTTPS enforcement only in production deployments (Vercel, etc.), not for local development
 // Skip HTTPS enforcement if running locally (not in Vercel) or if localhost

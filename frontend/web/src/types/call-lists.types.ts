@@ -145,7 +145,7 @@ export interface CreateCallListPayload {
   name: string; // Required, min 2 chars
   source: CallListSource; // Required
   description?: string; // Optional
-  groupId?: string | null; // Optional - for group-specific lists
+  groupId: string; // Required - for group-specific lists
   batchId?: string; // Optional - Batch ID for filtering students by batch
   studentIds?: string[]; // Optional - for workspace-level lists
   studentsData?: StudentData[]; // Optional - student data for auto-creation

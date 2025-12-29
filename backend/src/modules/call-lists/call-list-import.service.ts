@@ -293,133 +293,200 @@ export const commitCallListImport = async (
     return typeof value === 'string' ? value.trim() : (value?.toString().trim() || null);
   };
 
+  // Phase 1: Collect all row data for batch processing
+  interface RowData {
+    row: Record<string, any>;
+    rowNum: number;
+    name: string;
+    email?: string;
+    phone?: string;
+  }
+
+  const rowData: RowData[] = [];
+  const allEmails: string[] = [];
+  const allPhones: string[] = [];
+  const allNames: string[] = [];
+
   for (let idx = 0; idx < parsedData.rows.length; idx++) {
     const row = parsedData.rows[idx] as Record<string, any>;
     const rowNum = idx + 2;
 
-    try {
-      const name = extractField(row, data.columnMapping.name);
-      const email = extractField(row, data.columnMapping.email);
-      const phone = extractField(row, data.columnMapping.phone);
+    const name = extractField(row, data.columnMapping.name);
+    const email = extractField(row, data.columnMapping.email);
+    const phone = extractField(row, data.columnMapping.phone);
 
-      if (!name || name.length === 0) {
-        stats.errors++;
-        errors.push(`Row ${rowNum}: Name is required`);
-        continue;
+    if (!name || name.length === 0) {
+      stats.errors++;
+      errors.push(`Row ${rowNum}: Name is required`);
+      continue;
+    }
+
+    const emailLower = email?.toLowerCase();
+    rowData.push({
+      row,
+      rowNum,
+      name,
+      email: emailLower || undefined,
+      phone: phone || undefined,
+    });
+
+    if (emailLower) allEmails.push(emailLower);
+    if (phone) allPhones.push(phone);
+    if (data.matchBy === 'name') allNames.push(name);
+  }
+
+  // Phase 2: Batch match students
+  const emailMap = new Map<string, any>();
+  const phoneMap = new Map<string, any>();
+  const nameMap = new Map<string, any>();
+
+  // Batch match by email
+  if (allEmails.length > 0 && (data.matchBy === 'email_or_phone' || data.matchBy === 'email')) {
+    const matchedByEmail = await prisma.student.findMany({
+      where: {
+        workspaceId,
+        email: { in: allEmails },
+        isDeleted: false,
+      },
+    });
+    matchedByEmail.forEach(student => {
+      if (student.email) {
+        emailMap.set(student.email.toLowerCase(), student);
       }
+    });
+  }
 
-      // Match existing student
-      let student = null;
+  // Batch match by phone
+  if (allPhones.length > 0 && (data.matchBy === 'email_or_phone' || data.matchBy === 'phone')) {
+    const matchedByPhone = await prisma.studentPhone.findMany({
+      where: {
+        workspaceId,
+        phone: { in: allPhones },
+        student: {
+          workspaceId,
+          isDeleted: false,
+        },
+      },
+      include: {
+        student: true,
+      },
+    });
+    matchedByPhone.forEach(sp => {
+      phoneMap.set(sp.phone, sp.student);
+    });
+  }
+
+  // Batch match by name (if needed)
+  // Note: Prisma's `in` operator doesn't support case-insensitive mode,
+  // so we fetch all potential matches and filter in memory
+  if (allNames.length > 0 && data.matchBy === 'name') {
+    const uniqueNames = [...new Set(allNames)];
+    // Fetch students with names that might match (case-insensitive)
+    // We'll do a broader query and filter in memory for case-insensitive matching
+    const allStudents = await prisma.student.findMany({
+      where: {
+        workspaceId,
+        isDeleted: false,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+    // Build case-insensitive map
+    const nameLowerSet = new Set(uniqueNames.map(n => n.toLowerCase()));
+    allStudents.forEach(student => {
+      if (nameLowerSet.has(student.name.toLowerCase())) {
+        nameMap.set(student.name.toLowerCase(), student);
+      }
+    });
+  }
+
+  // Phase 3: Process rows with pre-matched data
+  interface StudentToCreate {
+    name: string;
+    email: string | null;
+    phone?: string;
+    rowNum: number;
+    index: number;
+  }
+
+  interface RelationshipOperation {
+    studentId: string;
+    rowNum: number;
+  }
+
+  const studentsToCreate: StudentToCreate[] = [];
+  const groupStatusesToUpsert: RelationshipOperation[] = [];
+  const enrollmentsToCheck: RelationshipOperation[] = [];
+  const batchesToUpsert: RelationshipOperation[] = [];
+  const callListItemsToUpsert: RelationshipOperation[] = [];
+  const phonesToCreate: Array<{ studentId: string; phone: string; rowNum: number }> = [];
+  const studentRowMap = new Map<number, any>(); // Map row index to student
+  const tempStudentIdMap = new Map<number, string>(); // Map row index to temp/real student ID
+
+  for (let idx = 0; idx < rowData.length; idx++) {
+    const { row, rowNum, name, email, phone } = rowData[idx];
+
+    try {
+      let student: any = null;
       let isMatched = false;
 
       // Match by email_or_phone strategy
       if (data.matchBy === 'email_or_phone' || data.matchBy === 'email') {
-        if (email) {
-          student = await prisma.student.findFirst({
-            where: {
-              workspaceId,
-              email: email.toLowerCase(),
-              isDeleted: false,
-            },
-          });
-          if (student) isMatched = true;
+        if (email && emailMap.has(email)) {
+          student = emailMap.get(email);
+          isMatched = true;
         }
       }
 
       if (!student && (data.matchBy === 'email_or_phone' || data.matchBy === 'phone')) {
-        if (phone) {
-          const studentPhone = await prisma.studentPhone.findFirst({
-            where: {
-              workspaceId,
-              phone,
-              student: {
-                workspaceId,
-                isDeleted: false,
-              },
-            },
-            include: {
-              student: true,
-            },
-          });
-          if (studentPhone) {
-            student = studentPhone.student;
-            isMatched = true;
-          }
+        if (phone && phoneMap.has(phone)) {
+          student = phoneMap.get(phone);
+          isMatched = true;
         }
       }
 
       if (!student && data.matchBy === 'name') {
-        // Fuzzy match by name (exact match for now, can be enhanced)
-        student = await prisma.student.findFirst({
-          where: {
-            workspaceId,
-            name: {
-              equals: name,
-              mode: 'insensitive',
-            },
-            isDeleted: false,
-          },
-        });
-        if (student) isMatched = true;
+        if (nameMap.has(name.toLowerCase())) {
+          student = nameMap.get(name.toLowerCase());
+          isMatched = true;
+        }
+      }
+
+      // Check for duplicates if skipDuplicates is true
+      if (!student && data.createNewStudents && data.skipDuplicates) {
+        if (email && emailMap.has(email)) {
+          stats.duplicates++;
+          continue;
+        }
+        if (phone && phoneMap.has(phone)) {
+          stats.duplicates++;
+          continue;
+        }
       }
 
       // Create student if not found and createNewStudents is true
       if (!student && data.createNewStudents) {
-        // Check for duplicates if skipDuplicates is true
-        if (data.skipDuplicates) {
-          if (email) {
-            const exists = await prisma.student.findFirst({
-              where: { workspaceId, email: email.toLowerCase(), isDeleted: false },
-            });
-            if (exists) {
-              stats.duplicates++;
-              continue;
-            }
-          }
-
-          if (phone) {
-            const exists = await prisma.studentPhone.findFirst({
-              where: { workspaceId, phone, student: { workspaceId, isDeleted: false } },
-            });
-            if (exists) {
-              stats.duplicates++;
-              continue;
-            }
-          }
-        }
-
-        student = await prisma.student.create({
-          data: {
-            workspaceId,
-            name,
-            email: email?.toLowerCase() || null,
-          },
+        studentsToCreate.push({
+          name,
+          email: email || null,
+          phone: phone || undefined,
+          rowNum,
+          index: idx,
         });
+        // Use temporary ID for tracking
+        const tempId = `temp-${idx}`;
+        tempStudentIdMap.set(idx, tempId);
+        student = { id: tempId, name, email: email || null };
         stats.created++;
-
-        // Create phone if provided
-        if (phone) {
-          await prisma.studentPhone.create({
-            data: {
-              studentId: student.id,
-              workspaceId,
-              phone,
-              isPrimary: true,
-            },
-          });
-        }
       } else if (!student) {
         stats.errors++;
         errors.push(`Row ${rowNum}: Student not found and createNewStudents is false`);
         continue;
       } else {
         stats.matched++;
-      }
-
-      if (!student) {
-        stats.errors++;
-        errors.push(`Row ${rowNum}: Could not create or match student`);
-        continue;
+        tempStudentIdMap.set(idx, student.id);
       }
 
       // Check if student already in call list
@@ -428,95 +495,223 @@ export const commitCallListImport = async (
         continue;
       }
 
-      // Assign student to group if call list has groupId
+      studentRowMap.set(idx, student);
+
+      // Collect operations for batch processing
       if (groupId) {
-        // Create/update StudentGroupStatus
-        await prisma.studentGroupStatus.upsert({
-          where: {
-            studentId_groupId: {
-              studentId: student.id,
-              groupId: groupId,
-            },
-          },
-          create: {
-            studentId: student.id,
-            groupId: groupId,
-            status: 'NEW',
-          },
-          update: {},
-        });
-
-        // Create Enrollment if needed
-        const existingEnrollment = await prisma.enrollment.findFirst({
-          where: {
-            studentId: student.id,
-            groupId: groupId,
-            courseId: null,
-            moduleId: null,
-          },
-        });
-
-        if (existingEnrollment) {
-          await prisma.enrollment.update({
-            where: { id: existingEnrollment.id },
-            data: {
-              isActive: true,
-            },
-          });
-        } else {
-          await prisma.enrollment.create({
-            data: {
-              studentId: student.id,
-              groupId: groupId,
-              courseId: null,
-              moduleId: null,
-              isActive: true,
-            },
-          });
-        }
+        groupStatusesToUpsert.push({ studentId: student.id, rowNum });
+        enrollmentsToCheck.push({ studentId: student.id, rowNum });
       }
 
-      // Assign student to batch if call list has batchId
       if (batchId) {
-        await prisma.studentBatch.upsert({
-          where: {
-            studentId_batchId: {
-              studentId: student.id,
-              batchId: batchId,
-            },
-          },
-          create: {
-            studentId: student.id,
-            batchId: batchId,
-          },
-          update: {},
-        });
+        batchesToUpsert.push({ studentId: student.id, rowNum });
       }
 
-      // Add student to call list
-      await prisma.callListItem.upsert({
-        where: {
-          callListId_studentId: {
-            callListId: listId,
-            studentId: student.id,
-          },
-        },
-        create: {
-          workspaceId: workspaceId, // For tenant isolation
-          callListId: listId,
-          studentId: student.id,
-          state: 'QUEUED',
-          priority: 0,
-        },
-        update: {}, // Don't update if exists
-      });
+      callListItemsToUpsert.push({ studentId: student.id, rowNum });
 
-      stats.added++;
-      existingStudentIds.add(student.id); // Track in memory to avoid duplicates in same import
+      // Track phone creation for new students
+      if (!isMatched && phone && data.createNewStudents) {
+        phonesToCreate.push({ studentId: student.id, phone, rowNum });
+      }
     } catch (error: any) {
       stats.errors++;
       errors.push(`Row ${rowNum}: ${error.message || 'Unknown error'}`);
     }
+  }
+
+  // Phase 4: Batch create students
+  if (studentsToCreate.length > 0) {
+    let createdStudents: any[] = [];
+    try {
+      createdStudents = await prisma.$transaction(
+        studentsToCreate.map(studentData =>
+          prisma.student.create({
+            data: {
+              workspaceId,
+              name: studentData.name,
+              email: studentData.email,
+            },
+          })
+        )
+      );
+    } catch (error: any) {
+      // If batch create fails, log errors for each student that failed
+      studentsToCreate.forEach(studentData => {
+        stats.errors++;
+        errors.push(`Row ${studentData.rowNum}: Failed to create student - ${error.message || 'Unknown error'}`);
+      });
+      // Continue with other operations even if some students failed to create
+    }
+
+    // Update temp IDs with real IDs
+    createdStudents.forEach((created, createIdx) => {
+      const studentData = studentsToCreate[createIdx];
+      const rowIdx = studentData.index;
+      const realId = created.id;
+
+      // Update temp ID in maps
+      tempStudentIdMap.set(rowIdx, realId);
+      const student = studentRowMap.get(rowIdx);
+      if (student) {
+        student.id = realId;
+        studentRowMap.set(rowIdx, student);
+      }
+
+      // Update all operation arrays with real IDs
+      groupStatusesToUpsert.forEach(op => {
+        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
+      });
+      enrollmentsToCheck.forEach(op => {
+        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
+      });
+      batchesToUpsert.forEach(op => {
+        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
+      });
+      callListItemsToUpsert.forEach(op => {
+        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
+      });
+      phonesToCreate.forEach(phone => {
+        if (phone.studentId === `temp-${rowIdx}`) phone.studentId = realId;
+      });
+    });
+  }
+
+  // Phase 5: Batch upsert operations in parallel
+  const upsertPromises: Promise<any>[] = [];
+
+  // Batch upsert group statuses
+  if (groupStatusesToUpsert.length > 0) {
+    upsertPromises.push(
+      ...groupStatusesToUpsert.map(op =>
+        prisma.studentGroupStatus.upsert({
+          where: {
+            studentId_groupId: {
+              studentId: op.studentId,
+              groupId: groupId!,
+            },
+          },
+          create: {
+            studentId: op.studentId,
+            groupId: groupId!,
+            status: 'NEW',
+          },
+          update: {},
+        })
+      )
+    );
+  }
+
+  // Batch handle enrollments
+  if (enrollmentsToCheck.length > 0) {
+    // First, check which enrollments exist
+    const existingEnrollments = await prisma.enrollment.findMany({
+      where: {
+        studentId: { in: enrollmentsToCheck.map(e => e.studentId) },
+        groupId: groupId!,
+        courseId: null,
+        moduleId: null,
+      },
+    });
+    const existingEnrollmentMap = new Map(
+      existingEnrollments.map(e => [e.studentId, e])
+    );
+
+    enrollmentsToCheck.forEach(op => {
+      const existing = existingEnrollmentMap.get(op.studentId);
+      if (existing) {
+        upsertPromises.push(
+          prisma.enrollment.update({
+            where: { id: existing.id },
+            data: { isActive: true },
+          })
+        );
+      } else {
+        upsertPromises.push(
+          prisma.enrollment.create({
+            data: {
+              studentId: op.studentId,
+              groupId: groupId!,
+              courseId: null,
+              moduleId: null,
+              isActive: true,
+            },
+          })
+        );
+      }
+    });
+  }
+
+  // Batch upsert batches
+  if (batchesToUpsert.length > 0) {
+    upsertPromises.push(
+      ...batchesToUpsert.map(op =>
+        prisma.studentBatch.upsert({
+          where: {
+            studentId_batchId: {
+              studentId: op.studentId,
+              batchId: batchId!,
+            },
+          },
+          create: {
+            studentId: op.studentId,
+            batchId: batchId!,
+          },
+          update: {},
+        })
+      )
+    );
+  }
+
+  // Batch upsert call list items
+  if (callListItemsToUpsert.length > 0) {
+    upsertPromises.push(
+      ...callListItemsToUpsert.map(op =>
+        prisma.callListItem.upsert({
+          where: {
+            callListId_studentId: {
+              callListId: listId,
+              studentId: op.studentId,
+            },
+          },
+          create: {
+            workspaceId,
+            callListId: listId,
+            studentId: op.studentId,
+            state: 'QUEUED',
+            priority: 0,
+          },
+          update: {},
+        })
+      )
+    );
+  }
+
+  // Batch create phones for new students
+  if (phonesToCreate.length > 0) {
+    upsertPromises.push(
+      ...phonesToCreate.map(phone =>
+        prisma.studentPhone.create({
+          data: {
+            studentId: phone.studentId,
+            workspaceId,
+            phone: phone.phone,
+            isPrimary: true,
+          },
+        })
+      )
+    );
+  }
+
+  // Execute all upsert operations in parallel
+  try {
+    await Promise.all(upsertPromises);
+    stats.added = callListItemsToUpsert.length;
+  } catch (error: any) {
+    // If batch upserts fail, log the error but don't fail the entire import
+    // Individual row errors are already tracked in the processing loop
+    errors.push(`Batch operation error: ${error.message || 'Unknown error'}`);
+    // Still count successfully added items (they may have been created before the error)
+    stats.added = callListItemsToUpsert.length;
   }
 
   return {

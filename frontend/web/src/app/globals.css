@@ -144,7 +144,7 @@
     --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
     --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
     --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
-    --groups1-border: rgba(var(--color-gray-400-rgb), 0.4);
+    --groups1-border: rgba(var(--color-gray-400-rgb), 0.5);
     --groups1-error: var(--color-red-400);
     --groups1-success: var(--color-teal-300);
     --groups1-warning: var(--color-orange-400);
@@ -153,6 +153,12 @@
     --groups1-btn-primary-text: var(--color-white);
     --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
     --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
+    
+    /* Button-specific dark mode tokens */
+    --groups1-btn-outline-border: rgba(var(--color-gray-400-rgb), 0.5);
+    --groups1-btn-outline-hover-bg: rgba(var(--color-gray-400-rgb), 0.2);
+    --groups1-btn-ghost-hover-bg: rgba(var(--color-gray-400-rgb), 0.15);
+    --groups1-btn-disabled-opacity: 0.5;
 
     /* RGB versions for dark mode - Groups1 */
     --groups1-success-rgb: var(--color-teal-300-rgb);
@@ -190,8 +196,8 @@
   --groups1-primary-active: var(--color-teal-800);
   --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
   --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
-  --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
-    --groups1-border: rgba(var(--color-gray-400-rgb), 0.4);
+    --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
+    --groups1-border: rgba(var(--color-gray-400-rgb), 0.5);
   --groups1-error: var(--color-red-400);
   --groups1-success: var(--color-teal-300);
   --groups1-warning: var(--color-orange-400);
@@ -201,8 +207,11 @@
     --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
     --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
     
-    /* Dark mode disabled state opacity - more visible */
-    --groups1-disabled-opacity: 0.7;
+    /* Button-specific dark mode tokens */
+    --groups1-btn-outline-border: rgba(var(--color-gray-400-rgb), 0.5);
+    --groups1-btn-outline-hover-bg: rgba(var(--color-gray-400-rgb), 0.2);
+    --groups1-btn-ghost-hover-bg: rgba(var(--color-gray-400-rgb), 0.15);
+    --groups1-btn-disabled-opacity: 0.5;
 
   /* RGB versions for dark mode */
   --groups1-success-rgb: var(--color-teal-300-rgb);

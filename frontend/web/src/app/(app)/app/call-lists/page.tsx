@@ -17,7 +17,7 @@ import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { CallListDetailsModal } from "@/components/call-lists/CallListDetailsModal";
 import { BulkPasteCallListDialog } from "@/components/call-lists/BulkPasteCallListDialog";
 import { mutate } from "swr";
-import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
@@ -41,23 +41,58 @@ function CallListsPageContent() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [isReopenDialogOpen, setIsReopenDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [editingCallList, setEditingCallList] = useState<CallList | null>(null);
   const [deletingCallList, setDeletingCallList] = useState<CallList | null>(null);
   const [completingCallList, setCompletingCallList] = useState<CallList | null>(null);
   const [reopeningCallList, setReopeningCallList] = useState<CallList | null>(null);
+  const [archivingCallList, setArchivingCallList] = useState<CallList | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const [viewingCallListId, setViewingCallListId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
   usePageTitle("Call Lists");
 
+  // Fetch counts for all tabs
+  const { data: activeData } = useCallLists({
+    batchId: batchId || undefined,
+    groupId: groupId || undefined,
+    status: 'ACTIVE',
+  });
+  const { data: completedData } = useCallLists({
+    batchId: batchId || undefined,
+    groupId: groupId || undefined,
+    status: 'COMPLETED',
+  });
+  const { data: archivedData } = useCallLists({
+    batchId: batchId || undefined,
+    groupId: groupId || undefined,
+    status: 'ARCHIVED',
+  });
+
+  // Get counts for each tab
+  const activeCount = activeData?.callLists?.length || 0;
+  const completedCount = completedData?.callLists?.length || 0;
+  const archivedCount = archivedData?.callLists?.length || 0;
+
+  // Use the active tab's data for the main table
   const { data: callListsData, error, isLoading, mutate: mutateCallLists } = useCallLists({
     batchId: batchId || undefined,
     groupId: groupId || undefined,
     status: activeTab === 'completed' ? 'COMPLETED' : activeTab === 'archived' ? 'ARCHIVED' : 'ACTIVE',
   });
+
+  // Helper to mutate all call list queries
+  const mutateAllCallLists = async () => {
+    await mutate(
+      (key) => typeof key === "string" && key.startsWith("call-lists"),
+      undefined,
+      { revalidate: true }
+    );
+  };
 
   const { data: groups } = useGroups();
 
@@ -107,7 +142,7 @@ function CallListsPageContent() {
     try {
       await apiClient.deleteCallList(deletingCallList.id);
       toast.success("Call list deleted successfully");
-      await mutateCallLists();
+      await mutateAllCallLists();
       setIsDeleteDialogOpen(false);
       setDeletingCallList(null);
     } catch (error: any) {
@@ -129,15 +164,7 @@ function CallListsPageContent() {
     setEditingCallList(null);
     
     // Invalidate all call list caches to ensure fresh data
-    // This will revalidate all SWR keys that start with "call-lists"
-    await mutate(
-      (key) => typeof key === "string" && key.startsWith("call-lists"),
-      undefined,
-      { revalidate: true }
-    );
-    
-    // Also explicitly mutate the current query to ensure immediate update
-    await mutateCallLists();
+    await mutateAllCallLists();
     
     // Clear filters after a short delay to ensure data is loaded first
     // This ensures the new call list is visible regardless of previous filters
@@ -152,13 +179,7 @@ function CallListsPageContent() {
     setIsBulkPasteDialogOpen(false);
     
     // Invalidate all call list caches to ensure fresh data
-    await mutate(
-      (key) => typeof key === "string" && key.startsWith("call-lists"),
-      undefined,
-      { revalidate: true }
-    );
-    
-    await mutateCallLists();
+    await mutateAllCallLists();
   };
 
   const handleViewDetails = (callList: CallList) => {
@@ -177,7 +198,7 @@ function CallListsPageContent() {
     try {
       await apiClient.markCallListComplete(completingCallList.id);
       toast.success("Call list marked as complete");
-      await mutateCallLists();
+      await mutateAllCallLists();
       setIsCompleteDialogOpen(false);
       setCompletingCallList(null);
     } catch (error: any) {
@@ -199,11 +220,42 @@ function CallListsPageContent() {
     setIsReopenDialogOpen(true);
   };
 
+  const handleArchive = (callList: CallList) => {
+    setArchivingCallList(callList);
+    setIsArchiveDialogOpen(true);
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!archivingCallList) return;
+
+    setIsArchiving(true);
+    try {
+      await apiClient.updateCallList(archivingCallList.id, { status: 'ARCHIVED' });
+      toast.success("Call list archived");
+      await mutateAllCallLists();
+      setIsArchiveDialogOpen(false);
+      setArchivingCallList(null);
+      // Switch to archived tab after archiving
+      setActiveTab('archived');
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to archive call list";
+      if (error?.status === 403) {
+        toast.error("Only admins can archive call lists");
+      } else if (error?.status === 404) {
+        toast.error("Call list not found");
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
   const handleUnarchive = async (callList: CallList) => {
     try {
       await apiClient.updateCallList(callList.id, { status: 'ACTIVE' });
       toast.success("Call list unarchived");
-      await mutateCallLists();
+      await mutateAllCallLists();
       setActiveTab('active');
     } catch (error: any) {
       const errorMessage = error?.message || "Failed to unarchive call list";
@@ -224,7 +276,7 @@ function CallListsPageContent() {
     try {
       await apiClient.markCallListActive(reopeningCallList.id);
       toast.success("Call list reopened");
-      await mutateCallLists();
+      await mutateAllCallLists();
       setIsReopenDialogOpen(false);
       setReopeningCallList(null);
       // Switch to active tab after reopening
@@ -247,8 +299,8 @@ function CallListsPageContent() {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Lists</h1>
-        <Card variant="groups1">
-          <CardContent variant="groups1" className="py-8 text-center">
+        <Card variant="groups1" suppressHydrationWarning>
+          <CardContent variant="groups1" className="py-8 text-center" suppressHydrationWarning>
             <p className="text-red-600 dark:text-red-400">
               {error instanceof Error ? error.message : "Failed to load call lists"}
             </p>
@@ -265,15 +317,15 @@ function CallListsPageContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-6" suppressHydrationWarning>
+      <div className="flex items-center justify-between" suppressHydrationWarning>
+        <div suppressHydrationWarning>
           <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Call Lists</h1>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
             Create and manage call lists for student outreach
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" suppressHydrationWarning>
           <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
           <Button
             onClick={() => setIsBulkPasteDialogOpen(true)}
@@ -339,7 +391,7 @@ function CallListsPageContent() {
       </CollapsibleFilters>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-[var(--groups1-border)] pb-2">
+      <div className="flex gap-2 overflow-x-auto border-b border-[var(--groups1-border)] pb-2" suppressHydrationWarning>
         <button
           type="button"
           onClick={() => setActiveTab('active')}
@@ -350,7 +402,7 @@ function CallListsPageContent() {
               : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
           )}
         >
-          Active {callListsData && activeTab === 'active' ? `(${callLists.length})` : ''}
+          Active ({activeCount})
         </button>
         <button
           type="button"
@@ -362,7 +414,7 @@ function CallListsPageContent() {
               : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
           )}
         >
-          Completed {callListsData && activeTab === 'completed' ? `(${callLists.length})` : ''}
+          Completed ({completedCount})
         </button>
         <button
           type="button"
@@ -374,27 +426,27 @@ function CallListsPageContent() {
               : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
           )}
         >
-          Archived {callListsData && activeTab === 'archived' ? `(${callLists.length})` : ''}
+          Archived ({archivedCount})
         </button>
       </div>
 
       {/* Call Lists Table */}
-      <Card variant="groups1">
-        <CardHeader variant="groups1">
+      <Card variant="groups1" suppressHydrationWarning>
+        <CardHeader variant="groups1" suppressHydrationWarning>
           <CardTitle>
             {isLoading 
               ? `${activeTab === 'active' ? 'Active' : activeTab === 'completed' ? 'Completed' : 'Archived'} Call Lists` 
               : `${activeTab === 'active' ? 'Active' : activeTab === 'completed' ? 'Completed' : 'Archived'} Call Lists (${filteredCallLists.length})`}
           </CardTitle>
         </CardHeader>
-        <CardContent variant="groups1" className="pb-6">
+        <CardContent variant="groups1" className="pb-6" suppressHydrationWarning>
           {isLoading ? (
-            <div className="py-8 text-center">
+            <div className="py-8 text-center" suppressHydrationWarning>
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-[var(--groups1-text-secondary)]" />
               <p className="mt-2 text-sm text-[var(--groups1-text-secondary)]">Loading call lists...</p>
             </div>
           ) : filteredCallLists.length === 0 ? (
-            <div className="py-8 text-center">
+            <div className="py-8 text-center" suppressHydrationWarning>
               <p className="text-sm text-[var(--groups1-text-secondary)]">No call lists found.</p>
               <Button onClick={handleCreate} variant="link" className="mt-2">
                 Create the first call list
@@ -482,26 +534,48 @@ function CallListsPageContent() {
                           {isAdmin && (
                             <>
                               {activeTab === 'active' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleMarkComplete(callList)}
-                                  className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
-                                >
-                                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                                  Mark Complete
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleMarkComplete(callList)}
+                                    className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
+                                  >
+                                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                                    Mark Complete
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleArchive(callList)}
+                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950"
+                                  >
+                                    <Archive className="w-4 h-4 mr-1.5" />
+                                    Archive
+                                  </Button>
+                                </>
                               )}
                               {activeTab === 'completed' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleReopen(callList)}
-                                  className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950"
-                                >
-                                  <RotateCcw className="w-4 h-4 mr-1.5" />
-                                  Reopen
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleReopen(callList)}
+                                    className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950"
+                                  >
+                                    <RotateCcw className="w-4 h-4 mr-1.5" />
+                                    Reopen
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleArchive(callList)}
+                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950"
+                                  >
+                                    <Archive className="w-4 h-4 mr-1.5" />
+                                    Archive
+                                  </Button>
+                                </>
                               )}
                               {activeTab === 'archived' && (
                                 <Button
@@ -638,6 +712,35 @@ function CallListsPageContent() {
             >
               {isReopening ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Reopen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Archive Call List</DialogTitle>
+            <DialogClose onClose={() => setIsArchiveDialogOpen(false)} />
+          </DialogHeader>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Are you sure you want to archive "{archivingCallList?.name}"? It will be moved to archived call lists and can be unarchived later.
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsArchiveDialogOpen(false)}
+              disabled={isArchiving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmArchive}
+              disabled={isArchiving}
+              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            >
+              {isArchiving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Archive
             </Button>
           </div>
         </DialogContent>

@@ -6,10 +6,11 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "groups1";
 }
 
-export function Card({ className, variant = "default", ...props }: CardProps) {
+export function Card({ className, variant = "default", suppressHydrationWarning, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
+      suppressHydrationWarning={suppressHydrationWarning}
       className={cn(
         variant === "groups1"
           ? "bg-[var(--groups1-surface)] text-[var(--groups1-text)] border-[var(--groups1-card-border)] rounded-xl shadow-sm"
@@ -27,10 +28,11 @@ export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "groups1";
 }
 
-export function CardHeader({ className, variant = "default", ...props }: CardHeaderProps) {
+export function CardHeader({ className, variant = "default", suppressHydrationWarning, ...props }: CardHeaderProps) {
   return (
     <div
       data-slot="card-header"
+      suppressHydrationWarning={suppressHydrationWarning}
       className={cn(
         "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 has-[data-slot=card-action]:grid-cols-[1fr_auto]",
         variant === "groups1"
@@ -58,10 +60,11 @@ export interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "groups1";
 }
 
-export function CardContent({ className, variant = "default", ...props }: CardContentProps) {
+export function CardContent({ className, variant = "default", suppressHydrationWarning, ...props }: CardContentProps) {
   return (
     <div
       data-slot="card-content"
+      suppressHydrationWarning={suppressHydrationWarning}
       className={cn(
         variant === "groups1" ? "px-4 py-4" : "px-6",
         className

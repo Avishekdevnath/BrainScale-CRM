@@ -6,15 +6,20 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CallExecutionModal } from "./CallExecutionModal";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
+import { CallListFilters } from "./CallListFilters";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { useCallListItems } from "@/hooks/useCallLists";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
 import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, ChevronLeft, ChevronRight, Trash2, MoreVertical } from "lucide-react";
 import { mutate as globalMutate } from "swr";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import type { CallListItem, CallListItemState, CallListItemsListParams } from "@/types/call-lists.types";
 
 export interface CallListItemsTableProps {
@@ -37,6 +42,8 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   const [pageSize, setPageSize] = React.useState<number>(25);
   const [isAssigningToMe, setIsAssigningToMe] = React.useState(false);
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [hoveredRowId, setHoveredRowId] = React.useState<string | null>(null);
 
   // Get current user's member ID to check if they're assigned
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
@@ -469,120 +476,26 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
           </div>
         </CardHeader>
         <CardContent variant="groups1" className="pb-3 pt-2">
-          {/* Filter Toggle Buttons */}
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-[var(--groups1-border)]">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setActiveFilter("all")}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === "all"
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                    : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setActiveFilter("success")}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === "success"
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                    : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                }`}
-              >
-                Success
-              </button>
-              <button
-                onClick={() => setActiveFilter("skipped")}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === "skipped"
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                    : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                }`}
-              >
-                Skipped
-              </button>
-              <button
-                onClick={() => setActiveFilter("follow_up")}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  activeFilter === "follow_up"
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                    : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                }`}
-              >
-                Follow Up
-              </button>
-            </div>
+          {/* Filters */}
+          <div className="flex items-center justify-between mb-3">
+            <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
           </div>
-
-          {/* Assignment Filter Buttons */}
-          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-[var(--groups1-border)]">
-            <span className="text-sm font-medium text-[var(--groups1-text-secondary)] mr-2">Filter:</span>
-            <button
-              onClick={() => setAssignmentFilter("all")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                assignmentFilter === "all"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setAssignmentFilter("assigned")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                assignmentFilter === "assigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
-            >
-              Assigned
-            </button>
-            <button
-              onClick={() => setAssignmentFilter("unassigned")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                assignmentFilter === "unassigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
-            >
-              Unassigned
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between mb-2">
-            {/* Assign to Me Button */}
-            {(() => {
-              const selectedArray = Array.from(selectedItemIds);
-              const unassignedSelectedCount = paginatedItems.filter(
-                (item) => selectedArray.includes(item.id) && !item.assignedTo
-              ).length;
-              
-              if (selectedItemIds.size === 0) return null;
-              
-              return (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAssignToMe}
-                  disabled={isAssigningToMe || unassignedSelectedCount === 0}
-                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] active:bg-[var(--groups1-primary-active)] border border-[var(--color-slate-900)] dark:border-[var(--color-gray-200)] disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:shadow-sm transition-all duration-200 ease-in-out font-medium px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100 disabled:hover:shadow-md"
-                  title={
-                    unassignedSelectedCount === 0
-                      ? "Selected items are already assigned. Please select unassigned items."
-                      : ""
-                  }
-                >
-                  {isAssigningToMe ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <UserPlus className="w-4 h-4 mr-2 stroke-[2.5]" />
-                  )}
-                  Assign to Me ({unassignedSelectedCount > 0 ? unassignedSelectedCount : selectedItemIds.size})
-                </Button>
-              );
-            })()}
-          </div>
+          <CollapsibleFilters open={showFilters}>
+            <CallListFilters
+              activeFilter={activeFilter}
+              assignmentFilter={assignmentFilter}
+              onFilterChange={(filter) => {
+                setActiveFilter(filter);
+              }}
+              onAssignmentFilterChange={(filter) => {
+                setAssignmentFilter(filter);
+              }}
+              onClearFilters={() => {
+                setActiveFilter("all");
+                setAssignmentFilter("all");
+              }}
+            />
+          </CollapsibleFilters>
 
           {isLoading ? (
             <div className="py-8 text-center">
@@ -658,6 +571,8 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             ? "opacity-60 bg-[var(--groups1-background)]"
                             : "hover:bg-[var(--groups1-secondary)]"
                         }`}
+                        onMouseEnter={() => setHoveredRowId(item.id)}
+                        onMouseLeave={() => setHoveredRowId(null)}
                       >
                         <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           <input
@@ -737,61 +652,84 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {!item.assignedTo && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleAssignItem(item.id, null)}
-                                disabled={isUpdating || deletingItemId === item.id}
-                                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                                title="Assign to me"
-                              >
-                                {updatingItemId === item.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <UserPlus className="w-4 h-4" />
-                                )}
-                              </Button>
-                            )}
-                            {item.state !== "DONE" && item.assignedTo && currentMember?.id === item.assignedTo && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleStartCall(item)}
-                                disabled={isUpdating || deletingItemId === item.id}
-                                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] border-0"
-                              >
-                                <Phone className="w-4 h-4 mr-1" />
-                                Call
-                              </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleViewDetails(item)}
-                              disabled={isUpdating || deletingItemId === item.id}
-                              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {isAdmin && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDeleteItem(item.id, item.student?.name)}
-                                disabled={isUpdating || deletingItemId === item.id}
-                                className="bg-red-500 text-white hover:bg-red-600 border-0"
-                                title="Remove student from call list"
-                              >
-                                {deletingItemId === item.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            )}
+                        <td 
+                          className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-right w-20"
+                        >
+                          <div className={cn(
+                            "flex items-center justify-end gap-2 transition-opacity duration-200",
+                            (hoveredRowId === item.id || isSelected) ? "opacity-100" : "opacity-0"
+                          )}>
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={cn(
+                                    "h-7 w-7 p-0",
+                                    hoveredRowId !== item.id && !isSelected && "pointer-events-none"
+                                  )}
+                                  disabled={isUpdating || deletingItemId === item.id}
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                  sideOffset={4}
+                                  className="min-w-[180px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg z-50"
+                                >
+                                  {!item.assignedTo && (
+                                    <DropdownMenu.Item
+                                      className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                      onSelect={(event) => {
+                                        event.preventDefault();
+                                        handleAssignItem(item.id, null);
+                                      }}
+                                    >
+                                      <UserPlus className="h-4 w-4" />
+                                      Assign to Me
+                                    </DropdownMenu.Item>
+                                  )}
+                                  {item.state !== "DONE" && item.assignedTo && currentMember?.id === item.assignedTo && (
+                                    <DropdownMenu.Item
+                                      className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                      onSelect={(event) => {
+                                        event.preventDefault();
+                                        handleStartCall(item);
+                                      }}
+                                    >
+                                      <Phone className="h-4 w-4" />
+                                      Start Call
+                                    </DropdownMenu.Item>
+                                  )}
+                                  <DropdownMenu.Item
+                                    className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      handleViewDetails(item);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    View Details
+                                  </DropdownMenu.Item>
+                                  {isAdmin && (
+                                    <>
+                                      <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                                      <DropdownMenu.Item
+                                        className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-red-600 dark:text-red-300 outline-none hover:bg-red-50 dark:hover:bg-red-900/30 focus:bg-red-50 dark:focus:bg-red-900/30"
+                                        onSelect={(event) => {
+                                          event.preventDefault();
+                                          handleDeleteItem(item.id, item.student?.name);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Remove from List
+                                      </DropdownMenu.Item>
+                                    </>
+                                  )}
+                                </DropdownMenu.Content>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
                           </div>
                         </td>
                       </tr>

@@ -1416,6 +1416,7 @@ export class ApiClient {
       name: payload.name,
       description: payload.description,
       messages: payload.messages,
+      status: payload.status,
     };
 
     if (Object.keys(meta).length > 0 || payload.meta) {

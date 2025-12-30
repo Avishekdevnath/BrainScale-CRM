@@ -3,20 +3,22 @@
 import { useState, useMemo, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { useCallList, useCallListItems } from "@/hooks/useCallLists";
-import { CallListStatsCard } from "@/components/call-lists/CallListStatsCard";
+import { CollapsibleStatsCard } from "@/components/call-lists/CollapsibleStatsCard";
 import { CallListItemsTable } from "@/components/call-lists/CallListItemsTable";
-import { CallListQuickActions } from "@/components/call-lists/CallListQuickActions";
+import { CallListBulkActionsToolbar } from "@/components/call-lists/CallListBulkActionsToolbar";
+import { CallListActionsMenu } from "@/components/call-lists/CallListActionsMenu";
+import { CollapsibleCallListDetails } from "@/components/call-lists/CollapsibleCallListDetails";
+import { CollapsibleFilterCriteria } from "@/components/call-lists/CollapsibleFilterCriteria";
 import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { AddStudentsDialog } from "@/components/call-lists/AddStudentsDialog";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useBatch } from "@/hooks/useBatches";
 import { apiClient } from "@/lib/api-client";
-import { extractQuestions } from "@/lib/call-list-utils";
-import { Loader2, ArrowLeft, Pencil, Trash2, UserPlus, MessageSquare, HelpCircle, Clock, FileText } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
@@ -32,7 +34,6 @@ function CallListDetailPageContent() {
   const [isAddStudentsDialogOpen, setIsAddStudentsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const { data: callList, error, isLoading, mutate: mutateCallList } = useCallList(listId);
   const { data: itemsData, mutate: mutateItems } = useCallListItems(listId, { size: 1000 }); // Get all items for stats
@@ -162,132 +163,47 @@ function CallListDetailPageContent() {
           </div>
         </div>
         {isAdmin && (
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => router.push(`/app/followups?callListId=${listId}`)}
-              variant="outline"
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-            >
-              <Clock className="w-4 h-4 mr-2" />
-              View Follow-ups
-            </Button>
-            <Button
-              onClick={() => setIsAddStudentsDialogOpen(true)}
-              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Students
-            </Button>
-            <Button
-              onClick={handleEdit}
-              variant="outline"
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
-          </div>
+          <CallListActionsMenu
+            onEdit={handleEdit}
+            onAddStudents={() => setIsAddStudentsDialogOpen(true)}
+            onViewFollowups={() => router.push(`/app/followups?callListId=${listId}`)}
+            onViewDetails={() => {
+              // Details are now inline, scroll to them
+              const detailsElement = document.getElementById("call-list-details");
+              if (detailsElement) {
+                detailsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Expand all sections
+                const buttons = detailsElement.querySelectorAll("button");
+                buttons.forEach((btn) => btn.click());
+              }
+            }}
+            onDelete={handleDelete}
+            isAdmin={isAdmin}
+          />
         )}
       </div>
 
-      {/* Stats Card */}
-      <CallListStatsCard items={items} isLoading={false} />
+      {/* Collapsible Stats Card */}
+      <CollapsibleStatsCard items={items} isLoading={false} />
 
-      {/* Call List Details Button */}
-      {(() => {
-        const questions = extractQuestions(callList);
-        const hasDescription = !!callList.description;
-        const hasMessages = callList.messages && callList.messages.length > 0;
-        const hasQuestions = questions.length > 0;
-        
-        if (!hasDescription && !hasMessages && !hasQuestions) return null;
-        
-        return (
-          <Button
-            onClick={() => setIsDetailsModalOpen(true)}
-            variant="outline"
-            size="sm"
-            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] h-8"
-          >
-            <FileText className="w-3.5 h-3.5 mr-1.5" />
-            View Details
-          </Button>
-        );
-      })()}
+      {/* Collapsible Call List Details */}
+      <div id="call-list-details">
+        <CollapsibleCallListDetails callList={callList} />
+      </div>
 
-      {/* Filter Criteria Display (if FILTER source) */}
+      {/* Collapsible Filter Criteria (if FILTER source) */}
       {callList.source === "FILTER" && callList.meta?.filters && (
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle>Filter Criteria</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1" className="pb-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {callList.meta.filters.batchId && (
-                <div>
-                  <div className="text-xs text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                    Batch
-                  </div>
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">
-                    {callList.meta.filters.batchId}
-                  </div>
-                </div>
-              )}
-              {callList.meta.filters.groupId && (
-                <div>
-                  <div className="text-xs text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                    Group
-                  </div>
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">
-                    {callList.meta.filters.groupId}
-                  </div>
-                </div>
-              )}
-              {callList.meta.filters.status && (
-                <div>
-                  <div className="text-xs text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                    Status
-                  </div>
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">
-                    {callList.meta.filters.status}
-                  </div>
-                </div>
-              )}
-              {callList.meta.filters.q && (
-                <div>
-                  <div className="text-xs text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                    Search
-                  </div>
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">
-                    {callList.meta.filters.q}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <CollapsibleFilterCriteria filters={callList.meta.filters} />
       )}
 
-      {/* Quick Actions */}
-      {selectedItemIds.length > 0 && (
-        <Card variant="groups1">
-          <CardContent variant="groups1" className="py-4">
-            <CallListQuickActions
-              listId={listId}
-              selectedItemIds={selectedItemIds}
-              onItemsUpdated={handleItemsUpdated}
-              isAdmin={isAdmin}
-            />
-          </CardContent>
-        </Card>
-      )}
+
+      {/* Collapsible Bulk Actions Toolbar */}
+      <CallListBulkActionsToolbar
+        listId={listId}
+        selectedItemIds={selectedItemIds}
+        onItemsUpdated={handleItemsUpdated}
+        isAdmin={isAdmin}
+      />
 
       {/* Items Table */}
       <CallListItemsTable
@@ -311,93 +227,6 @@ function CallListDetailPageContent() {
         onSuccess={handleItemsUpdated}
       />
 
-      {/* Call List Details Modal */}
-      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogClose onClose={() => setIsDetailsModalOpen(false)} />
-          <DialogHeader>
-            <DialogTitle>Call List Details</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6 mt-4">
-            {/* Description */}
-            {callList.description && (
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-[var(--groups1-text)]">Description</h3>
-                <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
-                  <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap">
-                    {callList.description}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Messages to Convey */}
-            {callList.messages && callList.messages.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-[var(--groups1-text)] flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Messages to Convey
-                </h3>
-                <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
-                  <ul className="list-disc list-inside space-y-2 text-sm text-[var(--groups1-text)]">
-                    {callList.messages.map((message, index) => (
-                      <li key={index}>{message}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {/* Questions to Ask */}
-            {(() => {
-              const questions = extractQuestions(callList);
-              return questions.length > 0 ? (
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-[var(--groups1-text)] flex items-center gap-2">
-                    <HelpCircle className="w-5 h-5" />
-                    Questions to Ask
-                  </h3>
-                  <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
-                    <div className="space-y-4">
-                      {questions
-                        .sort((a, b) => a.order - b.order)
-                        .map((question) => (
-                          <div
-                            key={question.id}
-                            className="p-3 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-background)]"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <p className="text-sm font-medium text-[var(--groups1-text)]">
-                                {question.question}
-                                {question.required && (
-                                  <span className="text-red-500 ml-1">*</span>
-                                )}
-                              </p>
-                              <span className="text-xs px-2 py-1 rounded bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)]">
-                                {question.type.replace("_", " ")}
-                              </span>
-                            </div>
-                            {question.type === "multiple_choice" && question.options && (
-                              <div className="mt-2">
-                                <p className="text-xs text-[var(--groups1-text-secondary)] mb-1">Options:</p>
-                                <ul className="list-disc list-inside text-xs text-[var(--groups1-text)] space-y-1">
-                                  {question.options.map((option, idx) => (
-                                    <li key={idx}>{option}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null;
-            })()}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="max-w-xl">

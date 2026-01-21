@@ -41,13 +41,16 @@ export const getMyCalls = async (
   }
 
   // Filter by follow-ups required
+  // NOTE: We don't filter in Prisma query because we need to check the LATEST call log,
+  // not any historical call log. We'll filter after fetching.
   if (options.followUpRequired !== undefined) {
-    // Only show items that have a callLog (completed calls) with follow-up required
-    where.callLogId = { not: null }; // Ensure callLog exists
-    where.callLog = {
-      followUpRequired: options.followUpRequired,
-      assignedTo: member.id, // Only show follow-ups for calls made by the logged-in user
+    // Only fetch items that have at least one call log (completed calls)
+    where.callLogs = {
+      some: {
+        assignedTo: member.id, // Only show calls made by the logged-in user
+      },
     };
+    // We'll filter by followUpRequired after fetching, based on latest call log
   }
 
   // Filter by groupId via callList.groupId
@@ -125,7 +128,7 @@ export const getMyCalls = async (
             },
           },
         },
-        callLog: {
+        callLogs: {
           select: {
             id: true,
             status: true,
@@ -138,6 +141,10 @@ export const getMyCalls = async (
             callerNote: true,
             followUpDate: true,
           },
+          orderBy: {
+            callDate: 'desc',
+          },
+          take: 1, // Get only the latest call log for backward compatibility
         },
       },
       orderBy: [
@@ -150,10 +157,12 @@ export const getMyCalls = async (
     prisma.callListItem.count({ where }),
   ]);
 
-  // Extract questions from call list meta
+  // Extract questions from call list meta and add callLog for backward compatibility
   const itemsWithQuestions = items.map((item) => {
     const questions = (item.callList.meta as any)?.questions || [];
     const messages = item.callList.messages || [];
+    const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
+    
     return {
       ...item,
       callList: {
@@ -161,16 +170,41 @@ export const getMyCalls = async (
         questions,
         messages,
       },
+      // Add callLog field for backward compatibility (latest call log)
+      callLog: latestCallLog,
     };
   });
 
+  // Filter by follow-up status based on LATEST call log only
+  let filteredItems = itemsWithQuestions;
+  if (options.followUpRequired !== undefined) {
+    filteredItems = itemsWithQuestions.filter((item) => {
+      const latestCallLog = item.callLog;
+      if (!latestCallLog) return false; // No call log = no follow-up
+      
+      // Check if latest call log matches the follow-up requirement
+      if (options.followUpRequired) {
+        // Only show if latest call log requires follow-up AND was made by this user
+        return latestCallLog.followUpRequired === true && 
+               latestCallLog.assignedTo === member.id;
+      } else {
+        // Show if latest call log does NOT require follow-up
+        return latestCallLog.followUpRequired !== true;
+      }
+    });
+  }
+
+  // Recalculate pagination after filtering
+  const filteredTotal = filteredItems.length;
+  const paginatedItems = filteredItems.slice(skip, skip + size);
+
   return {
-    items: itemsWithQuestions,
+    items: paginatedItems,
     pagination: {
       page,
       size,
-      total,
-      totalPages: Math.ceil(total / size),
+      total: filteredTotal, // Use filtered total
+      totalPages: Math.ceil(filteredTotal / size),
     },
   };
 };
@@ -360,18 +394,44 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
     },
   });
 
-  // Count call list items with follow-ups required (only for calls made by this user)
-  const followUps = await prisma.callListItem.count({
+  // 1. Pending follow-ups (items where LATEST call log requires follow-up)
+  const itemsWithCallLogs = await prisma.callListItem.findMany({
     where: {
       assignedTo: member.id,
-      callLogId: { not: null }, // Ensure callLog exists (completed calls only)
       callList: {
         workspaceId,
       },
-      callLog: {
-        followUpRequired: true,
-        assignedTo: member.id, // Only count follow-ups for calls made by the logged-in user
+      callLogs: {
+        some: {
+          assignedTo: member.id,
+        },
       },
+    },
+    include: {
+      callLogs: {
+        orderBy: { callDate: 'desc' },
+        take: 1,
+        select: {
+          followUpRequired: true,
+          assignedTo: true,
+        },
+      },
+    },
+  });
+
+  const followUps = itemsWithCallLogs.filter((item) => {
+    const latestCallLog = item.callLogs[0];
+    return latestCallLog && 
+           latestCallLog.followUpRequired === true && 
+           latestCallLog.assignedTo === member.id;
+  }).length;
+
+  // 2. Total follow-up calls (ALL call logs with followUpRequired: true for analytics)
+  const totalFollowUpCalls = await prisma.callLog.count({
+    where: {
+      assignedTo: member.id,
+      workspaceId,
+      followUpRequired: true,
     },
   });
 
@@ -380,7 +440,8 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
     completed,
     pending,
     thisWeek,
-    followUps,
+    followUps, // Pending follow-ups (items where latest call log requires follow-up)
+    totalFollowUpCalls, // Total follow-up calls for analytics (all call logs with followUpRequired: true)
     byCallList: byCallListWithNames,
     byBatch,
     byGroup,
@@ -411,12 +472,14 @@ export const getAllCalls = async (
   }
 
   // Filter by follow-ups required
+  // NOTE: We don't filter in Prisma query because we need to check the LATEST call log,
+  // not any historical call log. We'll filter after fetching.
   if (options.followUpRequired !== undefined) {
-    // Only show items that have a callLog (completed calls) with follow-up required
-    where.callLogId = { not: null }; // Ensure callLog exists
-    where.callLog = {
-      followUpRequired: options.followUpRequired,
+    // Only fetch items that have at least one call log (completed calls)
+    where.callLogs = {
+      some: {}, // Just check that call logs exist
     };
+    // We'll filter by followUpRequired after fetching, based on latest call log
   }
 
   // Filter by groupId via callList.groupId
@@ -485,7 +548,7 @@ export const getAllCalls = async (
             },
           },
         },
-        callLog: {
+        callLogs: {
           select: {
             id: true,
             status: true,
@@ -498,6 +561,10 @@ export const getAllCalls = async (
             callerNote: true,
             followUpDate: true,
           },
+          orderBy: {
+            callDate: 'desc',
+          },
+          take: 1, // Get only the latest call log for backward compatibility
         },
       },
       orderBy: [
@@ -510,10 +577,12 @@ export const getAllCalls = async (
     prisma.callListItem.count({ where }),
   ]);
 
-  // Extract questions from call list meta
+  // Extract questions from call list meta and add callLog for backward compatibility
   const itemsWithQuestions = items.map((item) => {
     const questions = (item.callList.meta as any)?.questions || [];
     const messages = item.callList.messages || [];
+    const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
+    
     return {
       ...item,
       callList: {
@@ -521,16 +590,40 @@ export const getAllCalls = async (
         questions,
         messages,
       },
+      // Add callLog field for backward compatibility (latest call log)
+      callLog: latestCallLog,
     };
   });
 
+  // Filter by follow-up status based on LATEST call log only
+  let filteredItems = itemsWithQuestions;
+  if (options.followUpRequired !== undefined) {
+    filteredItems = itemsWithQuestions.filter((item) => {
+      const latestCallLog = item.callLog;
+      if (!latestCallLog) return false; // No call log = no follow-up
+      
+      // Check if latest call log matches the follow-up requirement
+      if (options.followUpRequired) {
+        // Only show if latest call log requires follow-up
+        return latestCallLog.followUpRequired === true;
+      } else {
+        // Show if latest call log does NOT require follow-up
+        return latestCallLog.followUpRequired !== true;
+      }
+    });
+  }
+
+  // Recalculate pagination after filtering
+  const filteredTotal = filteredItems.length;
+  const paginatedItems = filteredItems.slice(skip, skip + size);
+
   return {
-    items: itemsWithQuestions,
+    items: paginatedItems,
     pagination: {
       page,
       size,
-      total,
-      totalPages: Math.ceil(total / size),
+      total: filteredTotal, // Use filtered total
+      totalPages: Math.ceil(filteredTotal / size),
     },
   };
 };

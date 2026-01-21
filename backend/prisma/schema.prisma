@@ -385,7 +385,7 @@ model CallListItem {
   callList  CallList      @relation(fields: [callListId], references: [id], onDelete: Cascade)
   student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignee  WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
-  callLog   CallLog?
+  callLogs  CallLog[] @relation("CallLogs") // All call logs for this item
 
   @@unique([callListId, studentId])
   @@index([workspaceId, state]) // For efficient workspace filtering
@@ -395,7 +395,7 @@ model CallListItem {
 model CallLog {
   id               String    @id @default(cuid()) @map("_id")
   workspaceId      String    // For tenant isolation and efficient querying
-  callListItemId   String    @unique // Links to CallListItem
+  callListItemId   String    // Links to CallListItem (allows multiple logs per item)
   callListId       String // Quick access to call list
   studentId        String // Quick access to student
   assignedTo       String // WorkspaceMember who made the call
@@ -417,7 +417,7 @@ model CallLog {
 
   // Relations
   workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  callListItem CallListItem  @relation(fields: [callListItemId], references: [id], onDelete: Cascade)
+  callListItem CallListItem  @relation("CallLogs", fields: [callListItemId], references: [id], onDelete: Cascade)
   callList     CallList      @relation(fields: [callListId], references: [id], onDelete: Cascade)
   student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignee     WorkspaceMember @relation(fields: [assignedTo], references: [id])
@@ -427,6 +427,7 @@ model CallLog {
   @@index([workspaceId, assignedTo, callDate]) // For My Calls queries
   @@index([workspaceId, studentId, callDate]) // For student call history
   @@index([workspaceId, callListId, callDate]) // For call list history
+  @@index([callListItemId, callDate]) // For efficient querying by item and date
   @@index([workspaceId, status]) // For status-based queries
 }
 

@@ -550,7 +550,8 @@ function MyCallsPageContent() {
                               >
                                 {getStateLabel(item.state)}
                               </StatusBadge>
-                              {item.callLog?.followUpRequired && (
+                              {/* Only show follow-up badge if latest call log explicitly requires follow-up */}
+                              {item.callLog?.followUpRequired === true && (
                                 <StatusBadge
                                   variant="info"
                                   className="bg-teal-100 text-teal-800 border-teal-300"
@@ -569,7 +570,7 @@ function MyCallsPageContent() {
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               {/* Hide unassign button for follow-ups */}
-                              {!showFollowUps && !item.callLog?.followUpRequired && (
+                              {!showFollowUps && item.callLog?.followUpRequired !== true && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -586,7 +587,7 @@ function MyCallsPageContent() {
                                 </Button>
                               )}
                               {/* Show "Call" button for follow-ups */}
-                              {item.callLog?.followUpRequired && (
+                              {item.callLog?.followUpRequired === true && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -710,7 +711,7 @@ function MyCallsPageContent() {
         onOpenChange={setIsExecutionModalOpen}
         callListItem={selectedItem}
         previousCallLog={
-          selectedItem?.callLog?.followUpRequired && selectedItem?.callLog
+          selectedItem?.callLog?.followUpRequired === true && selectedItem?.callLog
             ? selectedItem.callLog
             : null
         }

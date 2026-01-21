@@ -1112,12 +1112,14 @@ export const listCallListItems = async (
 
   // Filter by call log status and/or follow-up required
   if (options.callLogStatus || options.followUpRequired !== undefined) {
-    where.callLog = {};
+    where.callLogs = {
+      some: {},
+    };
     if (options.callLogStatus) {
-      where.callLog.status = options.callLogStatus;
+      where.callLogs.some.status = options.callLogStatus;
     }
     if (options.followUpRequired !== undefined) {
-      where.callLog.followUpRequired = options.followUpRequired;
+      where.callLogs.some.followUpRequired = options.followUpRequired;
     }
   }
 

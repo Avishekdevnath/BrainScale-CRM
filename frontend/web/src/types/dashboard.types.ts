@@ -29,6 +29,7 @@ export interface DashboardKPIsResponse {
     pending: number;
     overdue: number;
     total: number;
+    totalFollowUpCalls?: number; // Optional: all follow-up calls for analytics
   };
   metrics: {
     conversionRate: number;

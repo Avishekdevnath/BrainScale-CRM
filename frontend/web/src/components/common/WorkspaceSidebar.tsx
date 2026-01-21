@@ -78,6 +78,7 @@ const navSections: NavSection[] = [
     icon: Phone,
     items: [
       { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
+      { href: "/app/calls-manager", label: "Calls Manager", icon: Phone },
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
@@ -143,7 +144,10 @@ export function WorkspaceSidebar() {
     if (href === "/app") {
       return pathname === "/app" || pathname === "/app/";
     }
-    // Handle special case: /app/calls vs /app/my-calls vs /app/call-lists
+    // Handle special case: /app/calls-manager vs /app/calls vs /app/my-calls vs /app/call-lists
+    if (href === "/app/calls-manager") {
+      return pathname === "/app/calls-manager" || pathname?.startsWith("/app/calls-manager/");
+    }
     if (href === "/app/calls") {
       return pathname === "/app/calls" || pathname?.startsWith("/app/calls/");
     }

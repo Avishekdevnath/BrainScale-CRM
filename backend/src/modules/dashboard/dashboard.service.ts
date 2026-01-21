@@ -167,6 +167,7 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
     callLogsThisWeek,
     callsThisMonth,
     callLogsThisMonth,
+    totalFollowUpCallLogs,
   ] = await Promise.all([
     // Total students (active)
     prisma.student.count({
@@ -181,9 +182,9 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
     prisma.callLog.count({
       where: totalCallLogsWhere,
     }),
-    // Total followups
+    // Total followups - Show all accessible follow-ups (like /api/v1/followups endpoint)
     prisma.followup.count({
-      where: followupWhere,
+      where: { workspaceId }, // Only filter by workspace, not by group
     }),
     // Total groups (active)
     prisma.group.count({
@@ -200,18 +201,19 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         callStatus: { in: ['CONNECTED', 'IN_PROGRESS'] },
       },
     }),
-    // Pending followups (use filtered where clause)
+    // Pending followups - Show all accessible follow-ups (like /api/v1/followups endpoint)
+    // Don't filter by groupId to match the behavior of the follow-ups API
     prisma.followup.count({
       where: {
-        ...followupWhere,
+        workspaceId, // Only filter by workspace, not by group
         status: 'PENDING',
         dueAt: { gte: new Date() },
       },
     }),
-    // Overdue followups (use filtered where clause)
+    // Overdue followups - Show all accessible follow-ups (like /api/v1/followups endpoint)
     prisma.followup.count({
       where: {
-        ...followupWhere,
+        workspaceId, // Only filter by workspace, not by group
         status: 'PENDING',
         dueAt: { lt: new Date() },
       },
@@ -273,6 +275,13 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         callDate: { gte: getStartOfMonth() },
       },
     }),
+    // Total follow-up calls (ALL call logs with followUpRequired: true for analytics)
+    prisma.callLog.count({
+      where: {
+        workspaceId,
+        followUpRequired: true,
+      },
+    }),
   ]);
 
   // Combine old Call and new CallLog counts
@@ -327,6 +336,7 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
       pending: pendingFollowups,
       overdue: overdueFollowups,
       total: totalFollowups,
+      totalFollowUpCalls: totalFollowUpCallLogs, // All follow-up calls for analytics
     },
     metrics: {
       conversionRate: Math.round(conversionRate * 100) / 100,
@@ -703,6 +713,8 @@ export const getRecentActivity = async (workspaceId: string, limit: number = 20)
 
 /**
  * Get call lists for dashboard
+ * Matches the behavior of /api/v1/call-lists endpoint - shows ALL call lists in workspace
+ * Similar to follow-ups, don't filter by groupId to show all accessible call lists
  */
 export const getCallLists = async (
   workspaceId: string,
@@ -711,25 +723,11 @@ export const getCallLists = async (
 ) => {
   const where: any = { workspaceId };
   
-  // Filter by groupId if provided (for group dashboard)
-  if (filters?.groupId) {
-    where.OR = [
-      { groupId: filters.groupId },
-      { groupId: null }, // Include workspace-level call lists
-    ];
-  }
-  
-  // Filter by batchId if provided
+  // Show ALL call lists in workspace (like /api/v1/call-lists endpoint when no groupId filter)
+  // Don't filter by groupId to match the call-lists page behavior
+  // Only filter by batchId if provided (via group's batchId)
   if (filters?.batchId) {
-    if (where.OR) {
-      where.AND = [
-        { OR: where.OR },
-        { group: { batchId: filters.batchId } },
-      ];
-      delete where.OR;
-    } else {
-      where.group = { batchId: filters.batchId };
-    }
+    where.group = { batchId: filters.batchId };
   }
   
   const callLists = await prisma.callList.findMany({

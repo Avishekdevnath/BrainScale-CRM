@@ -30,16 +30,22 @@ export function formatRelativeTime(date: Date | string): string {
  * Transform backend KPI response to frontend KPICard data format
  */
 export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
+  // Safely extract values with defaults to prevent undefined errors
+  const totalStudents = apiKPIs?.overview?.totalStudents ?? 0;
+  const totalCalls = apiKPIs?.overview?.totalCalls ?? 0;
+  const pendingFollowups = apiKPIs?.followups?.pending ?? 0;
+  const conversionRate = apiKPIs?.metrics?.conversionRate ?? 0;
+  
   // Calculate trends (mock for now, can be enhanced with previous period comparison)
-  const totalStudentsTrend = apiKPIs.overview.totalStudents > 0 ? "+12.5%" : "0%";
-  const callsTrend = apiKPIs.activity.callsThisMonth > 0 ? "+8.2%" : "0%";
-  const followupsTrend = apiKPIs.followups.pending > 0 ? "-3.1%" : "0%";
-  const conversionTrend = apiKPIs.metrics.conversionRate > 0 ? "+2.4%" : "0%";
+  const totalStudentsTrend = totalStudents > 0 ? "+12.5%" : "0%";
+  const callsTrend = (apiKPIs?.activity?.callsThisMonth ?? 0) > 0 ? "+8.2%" : "0%";
+  const followupsTrend = pendingFollowups > 0 ? "-3.1%" : "0%";
+  const conversionTrend = conversionRate > 0 ? "+2.4%" : "0%";
 
   return [
     {
       label: "Total Students",
-      value: apiKPIs.overview.totalStudents.toLocaleString(),
+      value: totalStudents.toLocaleString(),
       trend: {
         value: totalStudentsTrend,
         type: "positive" as const,
@@ -47,7 +53,7 @@ export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
     },
     {
       label: "Total Calls",
-      value: apiKPIs.overview.totalCalls.toLocaleString(),
+      value: totalCalls.toLocaleString(),
       trend: {
         value: callsTrend,
         type: "positive" as const,
@@ -55,15 +61,15 @@ export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
     },
     {
       label: "Pending Follow-ups",
-      value: apiKPIs.followups.pending.toLocaleString(),
+      value: pendingFollowups.toLocaleString(),
       trend: {
         value: followupsTrend,
-        type: apiKPIs.followups.pending > 0 ? "negative" : "neutral",
+        type: pendingFollowups > 0 ? "negative" : "neutral",
       },
     },
     {
       label: "Conversion Rate",
-      value: `${apiKPIs.metrics.conversionRate.toFixed(1)}%`,
+      value: `${conversionRate.toFixed(1)}%`,
       trend: {
         value: conversionTrend,
         type: "positive" as const,

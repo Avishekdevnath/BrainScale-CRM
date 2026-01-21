@@ -326,7 +326,8 @@ export interface MyCallsStats {
   completed: number; // Items with state DONE
   pending: number; // Items with state QUEUED or CALLING
   thisWeek: number; // Call logs created this week
-  followUps: number; // Call list items with follow-ups required
+  followUps: number; // Pending follow-ups (items where latest call log requires follow-up)
+  totalFollowUpCalls: number; // Total follow-up calls for analytics (all call logs with followUpRequired: true)
   byCallList: Array<{
     callListId: string;
     callListName: string;

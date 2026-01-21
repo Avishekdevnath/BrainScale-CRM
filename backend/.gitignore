@@ -10,3 +10,7 @@ node_modules
 # Test/utility scripts that may contain sensitive data
 find-email-direct.js
 test-mongodb.js
+
+.env.example
+.env.new
+.env.mongodb

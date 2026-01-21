@@ -123,7 +123,7 @@ export const createCallLog = async (
       notes: data.notes,
       callerNote: data.callerNote,
       followUpDate,
-      followUpRequired: data.followUpRequired || false,
+      followUpRequired: data.followUpRequired === true, // Explicitly set to false if not true
     },
     include: {
       callListItem: true,
@@ -168,12 +168,13 @@ export const createCallLog = async (
     },
   });
 
-  // Update call list item: set state to DONE, set callLogId
+  // Update call list item: set state to DONE, set callLogId to latest call log
+  // Note: callLogId always points to the most recent call log for backward compatibility
   await prisma.callListItem.update({
     where: { id: data.callListItemId },
     data: {
       state: 'DONE',
-      callLogId: callLog.id,
+      callLogId: callLog.id, // Always update to latest call log
     },
   });
 
@@ -310,7 +311,7 @@ export const updateCallLog = async (
       notes: data.notes !== undefined ? data.notes : undefined,
       callerNote: data.callerNote !== undefined ? data.callerNote : undefined,
       followUpDate: followUpDate !== undefined ? followUpDate : undefined,
-      followUpRequired: data.followUpRequired,
+      followUpRequired: data.followUpRequired === true, // Explicitly set to false if not true
     },
     include: {
       callListItem: true,
@@ -681,6 +682,7 @@ export const createFollowupCallLog = async (
 
   // Get or find/create CallListItem for the call list and student
   // Note: Follow-ups don't require assignment, so assignedTo is null
+  // Note: We allow multiple call logs per item, so no need to check for existing call logs
   let callListItem = await prisma.callListItem.findFirst({
     where: {
       callListId: followup.callListId!,
@@ -699,6 +701,11 @@ export const createFollowupCallLog = async (
         state: 'QUEUED',
       },
     });
+  }
+
+  // Type guard: ensure callListItem is not null
+  if (!callListItem) {
+    throw new AppError(500, 'Failed to create or retrieve call list item');
   }
 
   // Get questions from call list meta
@@ -766,7 +773,7 @@ export const createFollowupCallLog = async (
       notes: data.notes,
       callerNote: data.callerNote,
       followUpDate,
-      followUpRequired: data.followUpRequired || false,
+      followUpRequired: data.followUpRequired === true, // Explicitly set to false if not true
     },
     include: {
       callListItem: true,
@@ -817,12 +824,13 @@ export const createFollowupCallLog = async (
     data: { status: 'DONE' },
   });
 
-  // Update call list item
+  // Update call list item: set state to DONE, set callLogId to latest call log
+  // Note: callLogId always points to the most recent call log for backward compatibility
   await prisma.callListItem.update({
     where: { id: callListItem.id },
     data: {
       state: 'DONE',
-      callLogId: callLog.id,
+      callLogId: callLog.id, // Always update to latest call log
     },
   });
 

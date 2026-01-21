@@ -101,9 +101,9 @@ export function FollowupCallModal({
   const validateForm = (): boolean => {
     if (!callList) return true; // Skip validation if no call list
     
-    const validation = validateCallLog({
-      status,
-      answers: Object.keys(answers).map((questionId) => {
+    // Prepare answers array for validation
+    const answersArray: Answer[] = Object.keys(answers)
+      .map((questionId) => {
         const question = questions.find((q) => q.id === questionId);
         if (!question) return null;
         return {
@@ -112,17 +112,19 @@ export function FollowupCallModal({
           answer: answers[questionId],
           answerType: question.type,
         };
-      }).filter((a): a is Answer => a !== null),
-      notes,
-      callerNote,
-      followUpRequired,
-      followUpDate,
-      followUpNote,
-      callDuration,
-    }, questions);
+      })
+      .filter((a): a is Answer => a !== null);
+    
+    // validateCallLog expects answers array as first parameter, questions as second
+    const validation = validateCallLog(answersArray, questions);
 
     if (!validation.valid) {
-      setErrors(validation.errors);
+      // Convert array of error messages to object format for setErrors
+      const errorObj: Record<string, string> = {};
+      validation.errors.forEach((error, index) => {
+        errorObj[`validation_${index}`] = error;
+      });
+      setErrors(errorObj);
       toast.error("Please fix the errors before submitting");
       return false;
     }

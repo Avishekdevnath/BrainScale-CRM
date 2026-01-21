@@ -67,7 +67,8 @@ const router = Router();
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Optional - Student IDs to add directly. If provided, students are automatically added to the call list (students must exist)
+ *                 description: |
+ *                   Optional - Student IDs to add directly. If provided, students are automatically added to the call list (students must exist)
  *               studentsData:
  *                 type: array
  *                 items:
@@ -83,26 +84,31 @@ const router = Router();
  *                       format: email
  *                     phone:
  *                       type: string
- *                 description: Optional - Student data for auto-creation. Students are matched by email/phone first, then created if not found
+ *                 description: |
+ *                   Optional - Student data for auto-creation. Students are matched by email/phone first, then created if not found
  *               matchBy:
  *                 type: string
  *                 enum: [email, phone, email_or_phone, name]
  *                 default: email_or_phone
- *                 description: Optional - Matching strategy for studentsData (default: email_or_phone)
+ *                 description: |
+ *                   Optional - Matching strategy for studentsData (default: email_or_phone)
  *               skipDuplicates:
  *                 type: boolean
  *                 default: true
- *                 description: Optional - Skip duplicate students when using studentsData (default: true)
+ *                 description: |
+ *                   Optional - Skip duplicate students when using studentsData (default: true)
  *               groupIds:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Optional - Filter students by these group IDs when studentIds is provided
+ *                 description: |
+ *                   Optional - Filter students by these group IDs when studentIds is provided
  *               messages:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Optional - Array of messages to convey during calls
+ *                 description: |
+ *                   Optional - Array of messages to convey during calls
  *               questions:
  *                 type: array
  *                 items:
@@ -123,7 +129,8 @@ const router = Router();
  *                       type: boolean
  *                     order:
  *                       type: number
- *                 description: Optional - Array of questions to ask during calls
+ *                 description: |
+ *                   Optional - Array of questions to ask during calls
  *               meta:
  *                 type: object
  *                 description: Custom fields configuration (JSON)

@@ -33,6 +33,7 @@ import type {
   UpdateCallListItemPayload,
   AssignCallListItemsPayload,
   UnassignCallListItemsPayload,
+  RemoveCallListItemsPayload,
   CallLog,
   CreateCallLogRequest,
   UpdateCallLogRequest,
@@ -46,6 +47,9 @@ import type {
   ImportPreviewResponse,
   CommitImportRequest,
   CommitImportResponse,
+  StartImportCommitResponse,
+  ProcessImportCommitRequest,
+  ProcessImportCommitResponse,
   BulkEmailPasteRequest,
   BulkEmailPasteResponse,
 } from "@/types/call-lists.types";
@@ -1452,6 +1456,8 @@ export class ApiClient {
       size: params?.size,
       state: params?.state,
       assignedTo: params?.assignedTo,
+      callLogStatus: params?.callLogStatus,
+      followUpRequired: params?.followUpRequired,
     });
     return this.request<CallListItemsListResponse>(
       `/call-lists/${listId}/items${queryString}`,
@@ -1482,6 +1488,26 @@ export class ApiClient {
       `/call-lists/${callListId}/import/commit`,
       {
         method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  startCallListImportCommit(callListId: string, data: CommitImportRequest): Promise<StartImportCommitResponse> {
+    return this.request<StartImportCommitResponse>(
+      `/call-lists/${callListId}/import/commit/start`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  processCallListImportCommit(callListId: string, data: ProcessImportCommitRequest): Promise<ProcessImportCommitResponse> {
+    return this.request<ProcessImportCommitResponse>(
+      `/call-lists/${callListId}/import/commit/process`,
+      {
+        method: "POST",
         body: JSON.stringify(data),
       }
     );
@@ -1569,6 +1595,16 @@ export class ApiClient {
       `/call-lists/${listId}/items/unassign`,
       {
         method: "PATCH",
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  removeCallListItems(listId: string, payload: RemoveCallListItemsPayload) {
+    return this.request<{ message: string; removedCount: number }>(
+      `/call-lists/${listId}/items/remove`,
+      {
+        method: "POST",
         body: JSON.stringify(payload),
       }
     );
@@ -2005,5 +2041,3 @@ export class ApiClient {
 }
 
 export const apiClient = new ApiClient();
-
-

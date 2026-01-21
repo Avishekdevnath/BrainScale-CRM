@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { CallExecutionModal } from "./CallExecutionModal";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
 import { CallListFilters } from "./CallListFilters";
@@ -27,16 +28,25 @@ export interface CallListItemsTableProps {
   onItemsUpdated?: () => void;
   onSelectionChange?: (selectedIds: string[]) => void;
   isAdmin?: boolean;
+  clearSelectionKey?: number;
 }
 
 type FilterType = "all" | "success" | "skipped" | "follow_up";
 
-export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, isAdmin = false }: CallListItemsTableProps) {
+export function CallListItemsTable({
+  listId,
+  onItemsUpdated,
+  onSelectionChange,
+  isAdmin = false,
+  clearSelectionKey,
+}: CallListItemsTableProps) {
   const [selectedItemIds, setSelectedItemIds] = React.useState<Set<string>>(new Set());
   const [selectedItem, setSelectedItem] = React.useState<CallListItem | null>(null);
   const [selectedItemForDetails, setSelectedItemForDetails] = React.useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = React.useState(false);
+  const [removeTarget, setRemoveTarget] = React.useState<{ itemId: string; studentName?: string } | null>(null);
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
   const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
   const [pageSize, setPageSize] = React.useState<number>(25);
@@ -77,9 +87,15 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
     setSelectedItemIds(new Set());
   }, [filters.page, filters.size]);
 
+  // Clear selection when parent requests it
+  React.useEffect(() => {
+    setSelectedItemIds(new Set());
+  }, [clearSelectionKey]);
+
   // Remove assigned items from selection when data changes
   React.useEffect(() => {
     if (!data?.items) return;
+    if (isAdmin) return;
     
     setSelectedItemIds((prev) => {
       const next = new Set(prev);
@@ -102,7 +118,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
       
       return next;
     });
-  }, [data?.items]);
+  }, [data?.items, isAdmin]);
 
   // Fetch call logs for follow-up filter
   const [callLogsMap, setCallLogsMap] = React.useState<Map<string, any>>(new Map());
@@ -244,37 +260,36 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
 
   const handleSelectAll = React.useCallback(() => {
     if (!paginatedItems) return;
-    // Only select unassigned items
-    const unassignedItemIds = paginatedItems
-      .filter((item) => !item.assignedTo)
-      .map((item) => item.id);
+    const selectableItemIds = isAdmin
+      ? paginatedItems.map((item) => item.id)
+      : paginatedItems.filter((item) => !item.assignedTo).map((item) => item.id);
     
-    if (unassignedItemIds.length === 0) {
-      toast.info("No unassigned items on this page");
+    if (selectableItemIds.length === 0) {
+      toast.info(isAdmin ? "No items on this page" : "No unassigned items on this page");
       return;
     }
 
-    const allUnassignedSelected = unassignedItemIds.every((id) => selectedItemIds.has(id));
+    const allSelected = selectableItemIds.every((id) => selectedItemIds.has(id));
     
-    if (allUnassignedSelected) {
-      // Deselect all unassigned items on current page
+    if (allSelected) {
+      // Deselect all selectable items on current page
       setSelectedItemIds((prev) => {
         const next = new Set(prev);
-        unassignedItemIds.forEach((id) => next.delete(id));
+        selectableItemIds.forEach((id) => next.delete(id));
         return next;
       });
     } else {
-      // Select all unassigned items on current page
+      // Select all selectable items on current page
       setSelectedItemIds((prev) => {
         const next = new Set(prev);
-        unassignedItemIds.forEach((id) => next.add(id));
+        selectableItemIds.forEach((id) => next.add(id));
         return next;
       });
     }
-  }, [paginatedItems, selectedItemIds]);
+  }, [paginatedItems, selectedItemIds, isAdmin]);
 
   const handleSelectItem = React.useCallback((itemId: string, isAssigned: boolean) => {
-    if (isAssigned) {
+    if (isAssigned && !isAdmin) {
       toast.info("This item is already assigned. Please unassign it first.");
       return;
     }
@@ -287,7 +302,7 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
       }
       return next;
     });
-  }, []);
+  }, [isAdmin]);
 
   const handleAssignItem = React.useCallback(
     async (itemId: string, memberId: string | null) => {
@@ -407,32 +422,37 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
   };
 
   const handleDeleteItem = React.useCallback(
-    async (itemId: string, studentName?: string) => {
-      if (!confirm(`Are you sure you want to remove ${studentName || "this student"} from the call list? This action cannot be undone.`)) {
-        return;
-      }
-
-      setDeletingItemId(itemId);
-      try {
-        await apiClient.deleteCallListItem(itemId);
-        toast.success("Student removed from call list");
-        await mutate();
-        onItemsUpdated?.();
-        // Remove from selection if selected
-        setSelectedItemIds((prev) => {
-          const next = new Set(prev);
-          next.delete(itemId);
-          return next;
-        });
-      } catch (error: any) {
-        console.error("Failed to delete item:", error);
-        toast.error(error?.message || "Failed to remove student from call list");
-      } finally {
-        setDeletingItemId(null);
-      }
+    (itemId: string, studentName?: string) => {
+      setRemoveTarget({ itemId, studentName });
+      setIsRemoveDialogOpen(true);
     },
-    [mutate, onItemsUpdated]
+    []
   );
+
+  const handleConfirmRemove = React.useCallback(async () => {
+    if (!removeTarget) return;
+
+    setDeletingItemId(removeTarget.itemId);
+    try {
+      await apiClient.deleteCallListItem(removeTarget.itemId);
+      toast.success("Student removed from call list");
+      setIsRemoveDialogOpen(false);
+      setRemoveTarget(null);
+      await mutate();
+      onItemsUpdated?.();
+      // Remove from selection if selected
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(removeTarget.itemId);
+        return next;
+      });
+    } catch (error: any) {
+      console.error("Failed to delete item:", error);
+      toast.error(error?.message || "Failed to remove student from call list");
+    } finally {
+      setDeletingItemId(null);
+    }
+  }, [mutate, onItemsUpdated, removeTarget]);
 
   const getCallLogData = (item: CallListItem) => {
     if (!item.callLogId) return null;
@@ -441,10 +461,10 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
 
   const isAllSelectedOnCurrentPage = React.useMemo(() => {
     if (!paginatedItems || paginatedItems.length === 0) return false;
-    const unassignedItems = paginatedItems.filter((item) => !item.assignedTo);
-    if (unassignedItems.length === 0) return false;
-    return unassignedItems.every((item) => selectedItemIds.has(item.id));
-  }, [paginatedItems, selectedItemIds]);
+    const selectableItems = isAdmin ? paginatedItems : paginatedItems.filter((item) => !item.assignedTo);
+    if (selectableItems.length === 0) return false;
+    return selectableItems.every((item) => selectedItemIds.has(item.id));
+  }, [paginatedItems, selectedItemIds, isAdmin]);
 
   return (
     <>
@@ -580,8 +600,8 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
                             checked={isSelected}
                             onChange={() => handleSelectItem(item.id, isAssigned)}
                             className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-primary)] focus:ring-offset-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={isUpdating || isAssigned}
-                            title={isAssigned ? "This item is already assigned" : ""}
+                            disabled={isUpdating || (isAssigned && !isAdmin)}
+                            title={isAssigned && !isAdmin ? "This item is already assigned" : ""}
                           />
                         </td>
                         <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-sm text-[var(--groups1-text-secondary)]">
@@ -791,7 +811,41 @@ export function CallListItemsTable({ listId, onItemsUpdated, onSelectionChange, 
         listId={listId}
         onUpdated={handleDetailsUpdated}
       />
+
+      <Dialog
+        open={isRemoveDialogOpen}
+        onOpenChange={(open) => {
+          setIsRemoveDialogOpen(open);
+          if (!open) setRemoveTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Remove Student</DialogTitle>
+            <DialogClose onClose={() => setIsRemoveDialogOpen(false)} />
+          </DialogHeader>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Are you sure you want to remove {removeTarget?.studentName || "this student"} from the call list? This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsRemoveDialogOpen(false)}
+              disabled={!!deletingItemId}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmRemove}
+              disabled={!!deletingItemId || !removeTarget}
+            >
+              {!!deletingItemId ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
-

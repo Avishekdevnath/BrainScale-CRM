@@ -34,6 +34,7 @@ function CallListDetailPageContent() {
   const [isAddStudentsDialogOpen, setIsAddStudentsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [clearSelectionKey, setClearSelectionKey] = useState(0);
 
   const { data: callList, error, isLoading, mutate: mutateCallList } = useCallList(listId);
   const { data: itemsData, mutate: mutateItems } = useCallListItems(listId, { size: 1000 }); // Get all items for stats
@@ -202,6 +203,10 @@ function CallListDetailPageContent() {
         listId={listId}
         selectedItemIds={selectedItemIds}
         onItemsUpdated={handleItemsUpdated}
+        onClearSelection={() => {
+          setSelectedItemIds([]);
+          setClearSelectionKey((prev) => prev + 1);
+        }}
         isAdmin={isAdmin}
       />
 
@@ -211,6 +216,7 @@ function CallListDetailPageContent() {
         onItemsUpdated={handleItemsUpdated}
         onSelectionChange={setSelectedItemIds}
         isAdmin={isAdmin}
+        clearSelectionKey={clearSelectionKey}
       />
 
       <CallListFormDialog

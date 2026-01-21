@@ -12,6 +12,12 @@ export const CommitCallListImportSchema = z.object({
   skipDuplicates: z.boolean().default(true),
 });
 
+export const ProcessCallListImportSchema = z.object({
+  importId: z.string().min(1, 'Import ID is required'),
+  chunkSize: z.number().int().min(1).max(250).optional(),
+});
+
 export type PreviewCallListImportInput = z.infer<typeof PreviewCallListImportSchema>;
 export type CommitCallListImportInput = z.infer<typeof CommitCallListImportSchema>;
+export type ProcessCallListImportInput = z.infer<typeof ProcessCallListImportSchema>;
 

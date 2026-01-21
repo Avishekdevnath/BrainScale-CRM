@@ -189,6 +189,8 @@ export interface CallListItemsListParams {
   size?: number;
   state?: CallListItemState;
   assignedTo?: string;
+  callLogStatus?: CallLogStatus;
+  followUpRequired?: boolean;
 }
 
 export interface CallListItemsListResponse {
@@ -217,6 +219,10 @@ export interface AssignCallListItemsPayload {
 }
 
 export interface UnassignCallListItemsPayload {
+  itemIds: string[]; // Required, min 1 item
+}
+
+export interface RemoveCallListItemsPayload {
   itemIds: string[]; // Required, min 1 item
 }
 
@@ -420,6 +426,45 @@ export interface CommitImportResponse {
     errors: number;
   };
   errors: string[];
+}
+
+export type ImportProgressPhase =
+  | "PREVIEW"
+  | "READY"
+  | "MATCHING"
+  | "CREATING_STUDENTS"
+  | "WRITING_RELATIONS"
+  | "COMPLETED"
+  | "FAILED";
+
+export interface ImportProgress {
+  phase: ImportProgressPhase;
+  totalRows: number;
+  processedRows: number;
+  matched: number;
+  created: number;
+  added: number;
+  duplicates: number;
+  errors: number;
+  updatedAt: string;
+}
+
+export interface StartImportCommitResponse {
+  importId: string;
+  status: string;
+  progress: ImportProgress;
+}
+
+export interface ProcessImportCommitRequest {
+  importId: string;
+  chunkSize?: number;
+}
+
+export interface ProcessImportCommitResponse {
+  importId: string;
+  status: string;
+  progress: ImportProgress;
+  result?: CommitImportResponse;
 }
 
 // Bulk Email Paste Types

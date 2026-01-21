@@ -116,3 +116,74 @@ export const commitCallListImport = asyncHandler(async (req: AuthRequest, res: R
   res.json(result);
 });
 
+export const startCallListImportCommit = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const { importId } = req.body;
+
+  if (!importId) {
+    throw new AppError(400, 'Import ID is required. Please re-upload the file.');
+  }
+
+  const result = await callListImportService.startCallListImportCommit(
+    listId,
+    req.user!.workspaceId!,
+    req.user!.sub,
+    importId,
+    req.validatedData!
+  );
+
+  res.json(result);
+});
+
+export const processCallListImportCommit = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const { importId } = req.body;
+
+  if (!importId) {
+    throw new AppError(400, 'Import ID is required. Please re-upload the file.');
+  }
+
+  const chunkSize = (req.validatedData as any)?.chunkSize;
+
+  const result = await callListImportService.processCallListImportCommitChunk(
+    listId,
+    req.user!.workspaceId!,
+    req.user!.sub,
+    importId,
+    chunkSize
+  );
+
+  res.json(result);
+});
+
+export const getCallListImportStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId, importId } = req.params as any;
+
+  const importRecord = await prisma.import.findFirst({
+    where: {
+      id: importId,
+      workspaceId: req.user!.workspaceId!,
+    },
+  });
+
+  if (!importRecord) {
+    throw new AppError(404, 'Import not found');
+  }
+
+  const meta = importRecord.meta as any;
+  if (meta?.callListId && meta.callListId !== listId) {
+    throw new AppError(403, 'Import does not belong to this call list');
+  }
+
+  if (meta?.userId && meta.userId !== req.user!.sub) {
+    throw new AppError(403, 'Import does not belong to this user');
+  }
+
+  res.json({
+    importId: importRecord.id,
+    status: importRecord.status,
+    progress: meta?.progress ?? null,
+    stats: meta?.stats ?? null,
+    message: meta?.resultMessage ?? null,
+  });
+});

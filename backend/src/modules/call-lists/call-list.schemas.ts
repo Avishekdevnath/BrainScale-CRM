@@ -111,6 +111,10 @@ export const UnassignCallListItemsSchema = z.object({
   itemIds: z.array(z.string()).min(1, 'At least one item ID is required'),
 });
 
+export const RemoveCallListItemsSchema = z.object({
+  itemIds: z.array(z.string()).min(1, 'At least one item ID is required'),
+});
+
 export const UpdateCallListItemSchema = z.object({
   state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']).optional(),
   priority: z.number().int().min(0).max(100).optional(),
@@ -118,16 +122,32 @@ export const UpdateCallListItemSchema = z.object({
 });
 
 export const ListCallListItemsSchema = z.object({
-  page: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 1)),
-  size: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 20)),
+  page: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') return parseInt(val, 10);
+    return undefined;
+  }, z.number().int().min(1).default(1)),
+  size: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') return parseInt(val, 10);
+    return undefined;
+  }, z.number().int().min(1).default(20)),
   state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']).optional(),
   assignedTo: z.string().optional(),
   callLogStatus: z.enum(['completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other']).optional(),
-  followUpRequired: z.string().optional().transform((val) => {
-    if (val === 'true' || val === '1') return true;
-    if (val === 'false' || val === '0') return false;
+  followUpRequired: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'number') return val === 1 ? true : val === 0 ? false : undefined;
+    if (typeof val === 'string') {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+    }
     return undefined;
-  }),
+  }, z.boolean().optional()),
 });
 
 export const GetAvailableStudentsSchema = z.object({
@@ -207,6 +227,7 @@ export type UpdateCallListInput = z.infer<typeof UpdateCallListSchema>;
 export type AddCallListItemsInput = z.infer<typeof AddCallListItemsSchema>;
 export type AssignCallListItemsInput = z.infer<typeof AssignCallListItemsSchema>;
 export type UnassignCallListItemsInput = z.infer<typeof UnassignCallListItemsSchema>;
+export type RemoveCallListItemsInput = z.infer<typeof RemoveCallListItemsSchema>;
 export type UpdateCallListItemInput = z.infer<typeof UpdateCallListItemSchema>;
 export type ListCallListItemsInput = z.infer<typeof ListCallListItemsSchema>;
 export type GetAvailableStudentsInput = z.infer<typeof GetAvailableStudentsSchema>;
@@ -214,4 +235,3 @@ export type GetMyCallsInput = z.infer<typeof GetMyCallsSchema>;
 export type BulkPasteCallListInput = z.infer<typeof BulkPasteCallListSchema>;
 export type CreateCallListFromFollowupsInput = z.infer<typeof CreateCallListFromFollowupsSchema>;
 export type ListCallListsInput = z.infer<typeof ListCallListsSchema>;
-

@@ -1097,9 +1097,10 @@ export const listCallListItems = async (
     throw new AppError(404, 'Call list not found');
   }
 
-  // Build where clause
+  // Build where clause (include workspaceId for tenant isolation)
   const where: any = {
     callListId: listId,
+    workspaceId,
   };
 
   if (options.state) {
@@ -1110,80 +1111,109 @@ export const listCallListItems = async (
     where.assignedTo = options.assignedTo;
   }
 
-  // Filter by call log status and/or follow-up required
+  // Optional call-log-based filtering (applies to the latest call log referenced by callListItem.callLogId)
   if (options.callLogStatus || options.followUpRequired !== undefined) {
-    where.callLogs = {
-      some: {},
-    };
-    if (options.callLogStatus) {
-      where.callLogs.some.status = options.callLogStatus;
+    const callLogs = await prisma.callLog.findMany({
+      where: {
+        workspaceId,
+        callListId: listId,
+        ...(options.callLogStatus ? { status: options.callLogStatus } : {}),
+        ...(options.followUpRequired !== undefined ? { followUpRequired: options.followUpRequired } : {}),
+      },
+      select: { id: true },
+    });
+
+    const callLogIds = callLogs.map((l) => l.id);
+    if (callLogIds.length === 0) {
+      return {
+        items: [],
+        pagination: {
+          page: options.page || 1,
+          size: Math.min(options.size || 20, 1000),
+          total: 0,
+          totalPages: 0,
+        },
+      };
     }
-    if (options.followUpRequired !== undefined) {
-      where.callLogs.some.followUpRequired = options.followUpRequired;
-    }
+
+    where.callLogId = { in: callLogIds };
   }
 
-  // Calculate pagination
+  // Pagination (DB-level)
   const page = options.page || 1;
-  const size = Math.min(options.size || 20, 100);
+  const size = Math.min(options.size || 20, 1000);
   const skip = (page - 1) * size;
+  const total = await prisma.callListItem.count({ where });
 
-  // Get items with pagination
-  const [items, total] = await Promise.all([
-    prisma.callListItem.findMany({
-      where,
-      include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phones: {
-              select: {
-                phone: true,
-                isPrimary: true,
-              },
+  const items = await prisma.callListItem.findMany({
+    where,
+    include: {
+      student: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phones: {
+            select: {
+              phone: true,
+              isPrimary: true,
             },
           },
         },
-        assignee: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
+      },
+      assignee: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
           },
         },
-        callLog: {
-          select: {
-            id: true,
-            status: true,
-            summaryNote: true,
-            followUpDate: true,
-            followUpRequired: true,
-            callerNote: true,
-            notes: true,
-            callDate: true,
-            callDuration: true,
-            assignedTo: true,
-          },
-        },
-      } as any,
-      orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'asc' },
-      ],
-      skip,
-      take: size,
-    }),
-    prisma.callListItem.count({ where }),
-  ]);
+      },
+    } as any,
+    orderBy: [
+      { priority: 'desc' },
+      { createdAt: 'asc' },
+    ],
+    skip,
+    take: size,
+  });
+
+  // Get call logs for the paginated items
+  const itemsWithCallLogId = items.filter(item => item.callLogId);
+  const callLogIds = itemsWithCallLogId.map(item => item.callLogId!);
+  const callLogs = await prisma.callLog.findMany({
+    where: { id: { in: callLogIds } },
+    select: {
+      id: true,
+      status: true,
+      summaryNote: true,
+      followUpDate: true,
+      followUpRequired: true,
+      callerNote: true,
+      notes: true,
+      callDate: true,
+      callDuration: true,
+      assignedTo: true,
+    },
+  });
+
+  // Create a map of callLogId to callLog
+  const callLogMap = new Map<string, any>();
+  callLogs.forEach(callLog => {
+    callLogMap.set(callLog.id, callLog);
+  });
+
+  // Add callLog property to each item for backward compatibility
+  const itemsWithCallLog = items.map(item => ({
+    ...item,
+    callLog: item.callLogId ? callLogMap.get(item.callLogId) || null : null,
+  }));
 
   return {
-    items,
+    items: itemsWithCallLog,
     pagination: {
       page,
       size,
@@ -1699,6 +1729,53 @@ export const unassignCallListItems = async (
 };
 
 /**
+ * Remove call list items (bulk delete)
+ */
+export const removeCallListItems = async (
+  listId: string,
+  workspaceId: string,
+  itemIds: string[]
+) => {
+  // Verify call list exists
+  const callList = await prisma.callList.findFirst({
+    where: {
+      id: listId,
+      workspaceId,
+    },
+  });
+
+  if (!callList) {
+    throw new AppError(404, 'Call list not found');
+  }
+
+  // Verify all items belong to this call list
+  const items = await prisma.callListItem.findMany({
+    where: {
+      id: { in: itemIds },
+      callListId: listId,
+      workspaceId,
+    },
+    select: { id: true },
+  });
+
+  if (items.length !== itemIds.length) {
+    throw new AppError(400, 'One or more items not found in this call list');
+  }
+
+  const result = await prisma.callListItem.deleteMany({
+    where: {
+      id: { in: itemIds },
+      callListId: listId,
+      workspaceId,
+    },
+  });
+
+  return {
+    deleted: result.count,
+  };
+};
+
+/**
  * Delete a call list item (remove student from call list)
  */
 export const deleteCallListItem = async (itemId: string, workspaceId: string) => {
@@ -2151,4 +2228,3 @@ export const createCallListFromFollowups = async (
     message: `Call list created with ${items.length} items from follow-ups`,
   };
 };
-

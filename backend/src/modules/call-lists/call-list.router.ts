@@ -10,11 +10,13 @@ import {
   AddCallListItemsSchema,
   AssignCallListItemsSchema,
   UnassignCallListItemsSchema,
+  RemoveCallListItemsSchema,
   UpdateCallListItemSchema,
   GetAvailableStudentsSchema,
   BulkPasteCallListSchema,
   CreateCallListFromFollowupsSchema,
   ListCallListsSchema,
+  ListCallListItemsSchema,
 } from './call-list.schemas';
 
 const router = Router();
@@ -505,6 +507,44 @@ router.patch(
 
 /**
  * @openapi
+ * /call-lists/{listId}/items/remove:
+ *   post:
+ *     summary: Remove call list items (bulk delete)
+ *     tags: [Call Lists]
+ *     parameters:
+ *       - in: path
+ *         name: listId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemIds
+ *             properties:
+ *               itemIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Items removed
+ */
+router.post(
+  '/:listId/items/remove',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(RemoveCallListItemsSchema),
+  callListController.removeCallListItems
+);
+
+/**
+ * @openapi
  * /call-lists/{listId}:
  *   delete:
  *     summary: Delete a call list
@@ -773,6 +813,7 @@ router.get(
   authGuard,
   tenantGuard,
   requirePermission('call_lists', 'read'),
+  zodValidator(ListCallListItemsSchema, 'query'),
   callListController.listCallListItems
 );
 

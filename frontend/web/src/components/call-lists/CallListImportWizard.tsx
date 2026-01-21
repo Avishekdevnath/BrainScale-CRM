@@ -11,7 +11,12 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Loader2, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { ImportPreviewResponse, CommitImportResponse } from "@/types/call-lists.types";
+import type {
+  ImportPreviewResponse,
+  CommitImportResponse,
+  ImportProgress,
+  ProcessImportCommitResponse,
+} from "@/types/call-lists.types";
 
 export interface CallListImportWizardProps {
   callListId: string;
@@ -45,6 +50,8 @@ export function CallListImportWizard({
   const [results, setResults] = useState<CommitImportResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [commitProgress, setCommitProgress] = useState<ImportProgress | null>(null);
+  const [commitStatus, setCommitStatus] = useState<string | null>(null);
 
   // Reset state when dialog opens/closes
   useEffect(() => {
@@ -61,6 +68,8 @@ export function CallListImportWizard({
       });
       setResults(null);
       setError(null);
+      setCommitProgress(null);
+      setCommitStatus(null);
     }
   }, [isOpen]);
 
@@ -122,9 +131,13 @@ export function CallListImportWizard({
 
     setLoading(true);
     setError(null);
+    setCommitProgress(null);
+    setCommitStatus(null);
+
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
-      const response = await apiClient.commitCallListImport(callListId, {
+      const startResponse = await apiClient.startCallListImportCommit(callListId, {
         importId: previewData.importId,
         columnMapping: {
           name: columnMapping.name,
@@ -136,9 +149,30 @@ export function CallListImportWizard({
         skipDuplicates: importSettings.skipDuplicates,
       });
 
-      setResults(response);
-      setCurrentStep(5);
-      toast.success("Import completed successfully!");
+      setCommitProgress(startResponse.progress);
+      setCommitStatus(startResponse.status);
+
+      let processResponse: ProcessImportCommitResponse | null = null;
+      for (;;) {
+        processResponse = await apiClient.processCallListImportCommit(callListId, {
+          importId: startResponse.importId,
+          chunkSize: 50,
+        });
+
+        setCommitProgress(processResponse.progress);
+        setCommitStatus(processResponse.status);
+
+        if (processResponse.status === "COMPLETED") {
+          if (processResponse.result) {
+            setResults(processResponse.result);
+          }
+          setCurrentStep(5);
+          toast.success("Import completed successfully!");
+          break;
+        }
+
+        await sleep(250);
+      }
     } catch (error: any) {
       console.error("Commit import error:", error);
       let errorMessage = error?.message || error?.error?.message || "Failed to import students";
@@ -330,6 +364,40 @@ export function CallListImportWizard({
                     {previewData.matchingStats.willMatch} matched, {previewData.matchingStats.willCreate} created, {previewData.matchingStats.willSkip} skipped
                   </span>
                 </div>
+
+                {loading && commitProgress && (
+                  <div className="pt-2 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-[var(--groups1-text)]">Import progress</span>
+                      <span className="text-[var(--groups1-text-secondary)]">
+                        {Math.min(
+                          100,
+                          Math.round((commitProgress.processedRows / Math.max(1, commitProgress.totalRows)) * 100)
+                        )}
+                        %
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-[var(--groups1-border)] overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--groups1-primary)] transition-all"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((commitProgress.processedRows / Math.max(1, commitProgress.totalRows)) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-[var(--groups1-text-secondary)]">
+                      <span>
+                        {commitProgress.phase.replaceAll("_", " ")}{commitStatus ? ` (${commitStatus})` : ""}
+                      </span>
+                      <span>
+                        {commitProgress.processedRows}/{commitProgress.totalRows}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

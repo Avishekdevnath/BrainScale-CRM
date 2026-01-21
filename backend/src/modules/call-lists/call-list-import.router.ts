@@ -8,6 +8,7 @@ import { requirePermission } from '../../middleware/permission-guard';
 // import { uploadLimiter } from '../../middleware/rate-limit';
 import { upload } from '../../utils/upload';
 import { CommitCallListImportSchema } from './call-list-import.schemas';
+import { ProcessCallListImportSchema } from './call-list-import.schemas';
 
 const router = Router({ mergeParams: true }); // mergeParams to access :listId from parent router
 
@@ -223,6 +224,32 @@ router.post(
   requirePermission('call_lists', 'update'),
   zodValidator(CommitCallListImportSchema),
   callListImportController.commitCallListImport
+);
+
+router.post(
+  '/commit/start',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(CommitCallListImportSchema),
+  callListImportController.startCallListImportCommit
+);
+
+router.post(
+  '/commit/process',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(ProcessCallListImportSchema),
+  callListImportController.processCallListImportCommit
+);
+
+router.get(
+  '/status/:importId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListImportController.getCallListImportStatus
 );
 
 export default router;

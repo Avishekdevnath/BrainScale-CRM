@@ -78,7 +78,7 @@ export const listCallListItems = asyncHandler(async (req: AuthRequest, res: Resp
   const result = await callListService.listCallListItems(
     listId,
     req.user!.workspaceId!,
-    req.query as any
+    req.validatedData as any
   );
   res.json(result);
 });
@@ -101,6 +101,16 @@ export const unassignCallListItems = asyncHandler(async (req: AuthRequest, res: 
     (req.validatedData as any).itemIds
   );
   res.json(result);
+});
+
+export const removeCallListItems = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const result = await callListService.removeCallListItems(
+    listId,
+    req.user!.workspaceId!,
+    (req.validatedData as any).itemIds
+  );
+  res.json({ message: 'Items removed from call list', removedCount: result.deleted });
 });
 
 export const createFromBulkPaste = asyncHandler(async (req: AuthRequest, res: Response) => {

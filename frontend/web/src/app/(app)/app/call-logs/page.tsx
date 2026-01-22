@@ -14,12 +14,13 @@ import { useCallLists } from "@/hooks/useCallLists";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CallLogDetailsModal } from "@/components/call-lists/CallLogDetailsModal";
 import { formatCallDuration, getStatusLabel, getStatusColor } from "@/lib/call-list-utils";
-import { Loader2, Search, X, ChevronLeft, ChevronRight, Eye, MoreVertical, Pencil } from "lucide-react";
+import { Loader2, Search, X, ChevronLeft, ChevronRight, Eye, MoreVertical, Pencil, RefreshCw } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { EditCallLogDialog } from "@/components/call-lists/EditCallLogDialog";
 import { mutate } from "swr";
+import { cn } from "@/lib/utils";
 import type { CallLogStatus, CallLog } from "@/types/call-lists.types";
 
 function CallLogsPageContent() {
@@ -127,7 +128,12 @@ function CallLogsPageContent() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+          <p className="text-sm text-[var(--groups1-text-secondary)] mt-1">
+            Review outcomes and notes from calls
+          </p>
+        </div>
         <Card variant="groups1">
           <CardContent variant="groups1" className="py-8 text-center">
             <p className="text-red-600 dark:text-red-400">
@@ -145,70 +151,122 @@ function CallLogsPageContent() {
     );
   }
 
+  const handleRefresh = async () => {
+    await mutateLogs();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Logs</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+              disabled={isLoading}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+          <p className="text-sm text-[var(--groups1-text-secondary)] mt-1">
+            Review outcomes and notes from calls
+          </p>
+        </div>
         <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
       {/* Filters */}
       <CollapsibleFilters open={showFilters} contentClassName="pt-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="md:col-span-4">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Search
+            </label>
+            <div className="relative max-w-2xl">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--groups1-text-secondary)]" />
               <Input
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Search by name, email, or call list..."
-                className="pl-10 bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                placeholder="Search by name, email, or call list"
+                className={cn("pl-9", "bg-[var(--groups1-surface)]")}
               />
             </div>
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Batch
+            </label>
             <BatchFilter
               value={batchId}
               onChange={(value) => {
                 setBatchId(value);
                 setPage(1);
               }}
-              placeholder="All Batches"
+              placeholder="All batches"
             />
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Group
+            </label>
             <select
               value={groupId || ""}
               onChange={(e) => {
                 setGroupId(e.target.value || null);
                 setPage(1);
               }}
-              className="min-w-[200px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+              className={cn(
+                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              )}
             >
-              <option value="">All Groups</option>
-              {groups?.map((group) => (
+              <option value="">All groups</option>
+              {(groups ?? []).map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name}
                 </option>
               ))}
             </select>
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Call List
+            </label>
             <select
               value={callListId || ""}
               onChange={(e) => {
                 setCallListId(e.target.value || null);
                 setPage(1);
               }}
-              className="min-w-[200px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+              className={cn(
+                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              )}
             >
-              <option value="">All Call Lists</option>
-              {callListsData?.callLists.map((list) => (
+              <option value="">All call lists</option>
+              {(callListsData?.callLists ?? []).map((list) => (
                 <option key={list.id} value={list.id}>
                   {list.name}
                 </option>
               ))}
             </select>
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Status
+            </label>
             <select
               value={status || ""}
               onChange={(e) => {
@@ -217,9 +275,13 @@ function CallLogsPageContent() {
                 setStatus(value && validStatuses.includes(value as CallLogStatus) ? (value as CallLogStatus) : null);
                 setPage(1);
               }}
-              className="min-w-[180px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+              className={cn(
+                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              )}
             >
-              <option value="">All Statuses</option>
+              <option value="">All statuses</option>
               <option value="completed">Completed</option>
               <option value="missed">Missed</option>
               <option value="busy">Busy</option>
@@ -227,7 +289,12 @@ function CallLogsPageContent() {
               <option value="voicemail">Voicemail</option>
               <option value="other">Other</option>
             </select>
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              From
+            </label>
             <Input
               type="date"
               value={dateFrom}
@@ -235,10 +302,14 @@ function CallLogsPageContent() {
                 setDateFrom(e.target.value);
                 setPage(1);
               }}
-              placeholder="From Date"
-              className="min-w-[150px] bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              className="bg-[var(--groups1-surface)]"
             />
+          </div>
 
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              To
+            </label>
             <Input
               type="date"
               value={dateTo}
@@ -246,28 +317,32 @@ function CallLogsPageContent() {
                 setDateTo(e.target.value);
                 setPage(1);
               }}
-              placeholder="To Date"
-              className="min-w-[150px] bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              className="bg-[var(--groups1-surface)]"
             />
+          </div>
 
+          <div className="flex items-end justify-end md:col-span-4">
             {hasActiveFilters && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
               >
                 <X className="w-4 h-4 mr-1" />
                 Clear Filters
               </Button>
             )}
           </div>
+        </div>
       </CollapsibleFilters>
 
       {/* Call Logs Table */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
-          <CardTitle>Call Logs</CardTitle>
+          <CardTitle>
+            {isLoading ? "Call Logs" : `Call Logs (${filteredLogs.length})`}
+          </CardTitle>
         </CardHeader>
         <CardContent variant="groups1">
           {isLoading ? (
@@ -275,7 +350,7 @@ function CallLogsPageContent() {
               <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)]" />
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-sm text-[var(--groups1-text-secondary)]">
               {hasActiveFilters
                 ? "No call logs found matching your filters"
                 : "No call logs found"}

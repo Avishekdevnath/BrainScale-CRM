@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CallsStatsCards } from "@/components/calls/CallsStatsCards";
 import { CallsFilterBar } from "@/components/calls/CallsFilterBar";
 import { CallsTable } from "@/components/calls/CallsTable";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -12,6 +11,8 @@ import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { mutate } from "swr";
 import { toast } from "sonner";
 import type { CallListItemState } from "@/types/call-lists.types";
+import { useMyCallsStats } from "@/hooks/useMyCalls";
+import { cn } from "@/lib/utils";
 
 const FILTER_STORAGE_KEY = "calls-page-filters";
 
@@ -23,6 +24,8 @@ interface SavedFilters {
 
 export default function CallsPage() {
   usePageTitle("All Calls");
+
+  const { data: myCallsStats } = useMyCallsStats();
   
   // Load saved filters from localStorage on mount
   const loadSavedFilters = (): SavedFilters => {
@@ -46,7 +49,6 @@ export default function CallsPage() {
   const [searchQuery, setSearchQuery] = useState<string>(savedFilters.searchQuery);
   const [selectedState, setSelectedState] = useState<CallListItemState | null>(savedFilters.state ?? null);
   const [showFollowUps, setShowFollowUps] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleCallListChange = (callListId: string | null) => {
     setSelectedCallListId(callListId);
@@ -102,7 +104,6 @@ export default function CallsPage() {
   };
 
   const handleRefresh = async () => {
-    setRefreshKey((k) => k + 1);
     // Refresh all related SWR caches
     await mutate("my-calls-stats");
     await mutate((key) => typeof key === "string" && (key.startsWith("my-calls") || key.startsWith("all-calls")));
@@ -133,16 +134,69 @@ export default function CallsPage() {
             View and manage all calls in your workspace
           </p>
         </div>
-        <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
       </div>
 
-      {/* Summary Cards */}
-      <CallsStatsCards 
-        selectedState={selectedState} 
-        onStateChange={handleStateChange}
-        showFollowUps={showFollowUps}
-        onFollowUpsChange={handleFollowUpsChange}
-      />
+      {/* Tabs + Filter Toggle */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => handleStateChange("QUEUED")}
+          className={cn(
+            "justify-start",
+            selectedState === "QUEUED" && !showFollowUps
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          )}
+        >
+          Pending
+          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+            {myCallsStats?.pending ?? 0}
+          </span>
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => handleStateChange("DONE")}
+          className={cn(
+            "justify-start",
+            selectedState === "DONE" && !showFollowUps
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          )}
+        >
+          Completed
+          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+            {myCallsStats?.completed ?? 0}
+          </span>
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => handleFollowUpsChange(!showFollowUps)}
+          className={cn(
+            "justify-start",
+            showFollowUps
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          )}
+        >
+          Follow-ups
+          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+            {myCallsStats?.followUps ?? 0}
+          </span>
+        </Button>
+        </div>
+        <div className="flex items-center justify-end">
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters((prev) => !prev)} />
+        </div>
+      </div>
 
       {/* Filter Bar */}
       <CollapsibleFilters open={showFilters} contentClassName="pt-6">

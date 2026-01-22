@@ -108,6 +108,13 @@ export const SetStudentBatchesSchema = z.object({
   batchIds: z.array(z.string()).min(0, 'Batch IDs array is required'),
 });
 
+export const BulkDeleteStudentsSchema = z.object({
+  studentIds: z
+    .array(z.string().min(1, 'Student ID must be a non-empty string'))
+    .min(1, 'At least one student ID is required')
+    .max(1000, 'Maximum 1000 students can be deleted at once'),
+});
+
 export type CreateStudentInput = z.infer<typeof CreateStudentSchema>;
 export type UpdateStudentInput = z.infer<typeof UpdateStudentSchema>;
 export type ListStudentsInput = z.infer<typeof ListStudentsSchema>;
@@ -115,4 +122,5 @@ export type AddPhoneInput = z.infer<typeof AddPhoneSchema>;
 export type BulkPasteStudentsInput = z.infer<typeof BulkPasteStudentsSchema>;
 export type AddStudentToBatchInput = z.infer<typeof AddStudentToBatchSchema>;
 export type SetStudentBatchesInput = z.infer<typeof SetStudentBatchesSchema>;
+export type BulkDeleteStudentsInput = z.infer<typeof BulkDeleteStudentsSchema>;
 

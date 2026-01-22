@@ -36,6 +36,30 @@ export const getMyCalls = async (
     where.state = options.state;
   }
 
+  if (options.q) {
+    const query = options.q.trim();
+    if (query.length > 0) {
+      const phoneDigits = query.replace(/\D/g, '');
+      where.student = {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+          ...(phoneDigits.length > 0
+            ? [
+                {
+                  phones: {
+                    some: {
+                      phone: { contains: phoneDigits },
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      };
+    }
+  }
+
   if (options.callListId) {
     where.callListId = options.callListId;
   }
@@ -465,6 +489,30 @@ export const getAllCalls = async (
   // Apply filters
   if (options.state) {
     where.state = options.state;
+  }
+
+  if (options.q) {
+    const query = options.q.trim();
+    if (query.length > 0) {
+      const phoneDigits = query.replace(/\D/g, '');
+      where.student = {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { email: { contains: query, mode: 'insensitive' } },
+          ...(phoneDigits.length > 0
+            ? [
+                {
+                  phones: {
+                    some: {
+                      phone: { contains: phoneDigits },
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      };
+    }
   }
 
   if (options.callListId) {

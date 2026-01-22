@@ -196,10 +196,20 @@ export interface UpdateStudentPayload {
   phones?: StudentPhoneInput[];
 }
 
+export interface BulkDeleteStudentsPayload {
+  studentIds: string[];
+}
+
+export interface BulkDeleteStudentsResponse {
+  message: string;
+  deletedCount: number;
+}
+
 // CSV Export Types
 export interface ExportCSVParams {
   groupId?: string;
   batchId?: string;
   columns?: string; // Comma-separated list of field paths
+  studentIds?: string; // Comma-separated list of student IDs
 }
 

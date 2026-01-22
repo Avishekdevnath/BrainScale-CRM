@@ -253,7 +253,9 @@ export function WorkspaceSidebar() {
                   {section.items.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.href);
-                    const showBadge = item.href === "/app/my-calls" && pendingCallsCount > 0;
+                    const showBadge =
+                      (item.href === "/app/calls-manager" || item.href === "/app/my-calls") &&
+                      pendingCallsCount > 0;
                     return (
                       <Link
                         key={item.href}

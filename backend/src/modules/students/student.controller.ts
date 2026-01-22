@@ -42,6 +42,14 @@ export const deleteStudent = asyncHandler(async (req: AuthRequest, res: Response
   res.json(result);
 });
 
+export const bulkDeleteStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await studentService.bulkDeleteStudents(
+    req.user!.workspaceId!,
+    req.validatedData!.studentIds
+  );
+  res.json(result);
+});
+
 export const addPhone = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { studentId } = req.params;
   const result = await studentService.addPhone(
@@ -77,6 +85,7 @@ export const exportStudentsCsv = asyncHandler(
   async (req: AuthRequest, res: Response) => {
     const groupId = req.query.groupId as string | undefined;
     const batchId = req.query.batchId as string | undefined;
+    const studentIdsParam = req.query.studentIds as string | undefined;
     const columnsParam = req.query.columns as string | undefined;
     
     // Parse columns from comma-separated string
@@ -84,12 +93,17 @@ export const exportStudentsCsv = asyncHandler(
       ? columnsParam.split(',').map((c) => c.trim()).filter(Boolean)
       : undefined;
 
+    const studentIds = studentIdsParam
+      ? studentIdsParam.split(',').map((id) => id.trim()).filter(Boolean)
+      : undefined;
+
     const csv = await studentService.exportStudentsCsv(
       req.user!.workspaceId!,
       req.user!.sub,
       groupId,
       batchId,
-      columns
+      columns,
+      studentIds
     );
 
     res.setHeader('Content-Type', 'text/csv');

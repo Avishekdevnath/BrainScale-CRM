@@ -53,6 +53,7 @@ import type {
   BulkEmailPasteRequest,
   BulkEmailPasteResponse,
 } from "@/types/call-lists.types";
+import type { BulkDeleteStudentsPayload, BulkDeleteStudentsResponse } from "@/types/students.types";
 import {
   Chat,
   ChatMessage,
@@ -1615,6 +1616,7 @@ export class ApiClient {
     const queryString = buildQueryString({
       page: params?.page,
       size: params?.size,
+      q: params?.q,
       batchId: params?.batchId,
       groupId: params?.groupId,
       callListId: params?.callListId,
@@ -1630,6 +1632,7 @@ export class ApiClient {
     const queryString = buildQueryString({
       page: params?.page,
       size: params?.size,
+      q: params?.q,
       batchId: params?.batchId,
       groupId: params?.groupId,
       callListId: params?.callListId,
@@ -1794,9 +1797,17 @@ export class ApiClient {
       groupId: params?.groupId,
       batchId: params?.batchId,
       columns: params?.columns,
+      studentIds: params?.studentIds,
     });
     return this.requestBlob(`/students/export/csv${queryString}`, {
       method: "GET",
+    });
+  }
+
+  bulkDeleteStudents(payload: BulkDeleteStudentsPayload) {
+    return this.request<BulkDeleteStudentsResponse>("/students/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   }
 

@@ -570,6 +570,26 @@ export const deleteStudent = async (studentId: string, workspaceId: string) => {
   return { message: 'Student deleted successfully' };
 };
 
+export const bulkDeleteStudents = async (workspaceId: string, studentIds: string[]) => {
+  const result = await prisma.student.updateMany({
+    where: {
+      workspaceId,
+      isDeleted: false,
+      id: {
+        in: studentIds,
+      },
+    },
+    data: {
+      isDeleted: true,
+    },
+  });
+
+  return {
+    message: 'Students deleted successfully',
+    deletedCount: result.count,
+  };
+};
+
 /**
  * Add phone to student
  */
@@ -1009,13 +1029,18 @@ export const exportStudentsCsv = async (
   userId: string,
   groupId?: string,
   batchId?: string,
-  columns?: string[]
+  columns?: string[],
+  studentIds?: string[]
 ) => {
   // Build where clause
   const where: any = {
     workspaceId,
     isDeleted: false,
   };
+
+  if (studentIds && studentIds.length > 0) {
+    where.id = { in: studentIds };
+  }
 
   // If groupId is provided, filter by enrollment
   if (groupId) {
@@ -1677,5 +1702,3 @@ export const getStudentStats = async (studentId: string, workspaceId: string) =>
     },
   };
 };
-
-

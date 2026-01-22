@@ -10,7 +10,8 @@ import { FollowupFilters } from "@/components/followups/FollowupFilters";
 import { FollowupsTable } from "@/components/followups/FollowupsTable";
 import { FollowupCallModal } from "@/components/followups/FollowupCallModal";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import { Loader2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { ListFollowupsParams } from "@/types/followups.types";
 
 function FollowupsPageContent() {
@@ -38,6 +39,10 @@ function FollowupsPageContent() {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
 
   const { data, isLoading, error, mutate } = useFollowups(filters);
+
+  const handleRefresh = async () => {
+    await mutate();
+  };
 
   // Update URL when filters change
   useEffect(() => {
@@ -86,7 +91,18 @@ function FollowupsPageContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Follow-ups</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+              disabled={isLoading}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
             Manage and track follow-up tasks
           </p>
@@ -95,13 +111,13 @@ function FollowupsPageContent() {
       </div>
 
       {/* Filters */}
-      {showFilters && (
+      <CollapsibleFilters open={showFilters} contentClassName="pt-6">
         <FollowupFilters
           filters={filters}
           onFiltersChange={handleFiltersChange}
           onClear={handleClearFilters}
         />
-      )}
+      </CollapsibleFilters>
 
       {/* Follow-ups Table */}
       <Card variant="groups1">

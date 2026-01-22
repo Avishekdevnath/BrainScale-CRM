@@ -11,6 +11,7 @@ import {
   BulkPasteStudentsSchema,
   AddStudentToBatchSchema,
   SetStudentBatchesSchema,
+  BulkDeleteStudentsSchema,
 } from './student.schemas';
 
 const router = Router();
@@ -113,6 +114,15 @@ router.get(
   tenantGuard,
   requirePermission('students', 'read'),
   studentController.listStudents
+);
+
+router.post(
+  '/bulk-delete',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'delete'),
+  zodValidator(BulkDeleteStudentsSchema),
+  studentController.bulkDeleteStudents
 );
 
 /**

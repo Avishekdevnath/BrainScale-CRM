@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { Search, Upload, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import { StudentsBulkActionsToolbar } from "@/components/students/StudentsBulkActionsToolbar";
 import { cn } from "@/lib/utils";
 import type { StudentsListParams } from "@/types/students.types";
 
@@ -63,6 +64,8 @@ function StudentsPageContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [pendingExportFormat, setPendingExportFormat] = useState<StudentExportFormat>("csv");
   const [isExportColumnSelectorOpen, setIsExportColumnSelectorOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<"all" | "selected">("all");
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   const { data: groups } = useGroups();
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useCourses();
@@ -138,7 +141,7 @@ function StudentsPageContent() {
   }, [debouncedSearchQuery, groupId, batchId, courseId, moduleId, status, page, router]);
 
   const handleExport = useCallback(
-    async (columns: string[], format: StudentExportFormat) => {
+    async (columns: string[], format: StudentExportFormat, studentIds?: string[]) => {
       if (!columns || columns.length === 0) {
         toast.error("Please select at least one column to export");
         return;
@@ -149,6 +152,7 @@ function StudentsPageContent() {
           groupId: groupId || undefined,
           batchId: batchId || undefined,
           columns: columns.join(","),
+          studentIds: studentIds && studentIds.length > 0 ? studentIds.join(",") : undefined,
         });
         const filenameBase = `students-export-${new Date().toISOString().split("T")[0]}`;
         await saveStudentExportFromCSV(format, blob, columns, filenameBase);
@@ -165,14 +169,29 @@ function StudentsPageContent() {
 
   const handleExportClick = useCallback((format: StudentExportFormat) => {
     setPendingExportFormat(format);
+    setExportScope("all");
     setIsExportColumnSelectorOpen(true);
   }, []);
 
+  const handleExportSelectedClick = useCallback(() => {
+    if (selectedStudentIds.size === 0) {
+      toast.info("Select students to export");
+      return;
+    }
+    setPendingExportFormat("csv");
+    setExportScope("selected");
+    setIsExportColumnSelectorOpen(true);
+  }, [selectedStudentIds]);
+
   const handleExportConfirm = useCallback(
     (columns: string[]) => {
+      if (exportScope === "selected") {
+        void handleExport(columns, pendingExportFormat, Array.from(selectedStudentIds));
+        return;
+      }
       void handleExport(columns, pendingExportFormat);
     },
-    [handleExport, pendingExportFormat]
+    [handleExport, pendingExportFormat, exportScope, selectedStudentIds]
   );
 
   const handleImportSuccess = useCallback(() => {
@@ -182,6 +201,40 @@ function StudentsPageContent() {
   const handleStudentChanged = useCallback(() => {
     mutate();
   }, [mutate]);
+
+  useEffect(() => {
+    setSelectedStudentIds(new Set());
+  }, [page, debouncedSearchQuery, groupId, batchId, courseId, moduleId, status]);
+
+  const pageStudentIds = useMemo(() => data?.students.map((student) => student.id) ?? [], [data?.students]);
+
+  const isAllSelectedOnPage = useMemo(() => {
+    if (pageStudentIds.length === 0) return false;
+    return pageStudentIds.every((id) => selectedStudentIds.has(id));
+  }, [pageStudentIds, selectedStudentIds]);
+
+  const handleToggleSelectAllOnPage = useCallback(() => {
+    if (pageStudentIds.length === 0) return;
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = pageStudentIds.every((id) => next.has(id));
+      if (allSelected) {
+        pageStudentIds.forEach((id) => next.delete(id));
+      } else {
+        pageStudentIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [pageStudentIds]);
+
+  const handleToggleSelectStudent = useCallback((studentId: string) => {
+    setSelectedStudentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  }, []);
 
   const handlePageChange = useCallback((newPage: number) => {
     setPage(newPage);
@@ -438,6 +491,13 @@ function StudentsPageContent() {
           </div>
       </CollapsibleFilters>
 
+      <StudentsBulkActionsToolbar
+        selectedStudentIds={Array.from(selectedStudentIds)}
+        onChanged={handleStudentChanged}
+        onClearSelection={() => setSelectedStudentIds(new Set())}
+        onRequestExportSelected={handleExportSelectedClick}
+      />
+
       {/* Students Table */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
@@ -467,6 +527,15 @@ function StudentsPageContent() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-[44px]">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all students on this page"
+                          className="h-4 w-4 cursor-pointer accent-[var(--groups1-primary)]"
+                          checked={isAllSelectedOnPage}
+                          onChange={handleToggleSelectAllOnPage}
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                         Name
                       </th>
@@ -512,8 +581,18 @@ function StudentsPageContent() {
                           ?.map((sb) => sb.batch?.name)
                           .filter((name): name is string => Boolean(name)) ?? [];
                       const primaryStatus = student.enrollments?.find((enrollment) => enrollment?.status)?.status ?? null;
+                      const isSelected = selectedStudentIds.has(student.id);
                       return (
                         <tr key={student.id}>
+                          <td className="px-4 py-3 border-b border-[var(--groups1-card-border-inner)] align-top">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${student.name}`}
+                              className="h-4 w-4 cursor-pointer accent-[var(--groups1-primary)]"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectStudent(student.id)}
+                            />
+                          </td>
                           <td className="px-4 py-3 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">
                             <Link
                               href={`/app/students/${student.id}`}

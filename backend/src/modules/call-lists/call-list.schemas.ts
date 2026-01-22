@@ -163,6 +163,7 @@ export const GetAvailableStudentsSchema = z.object({
 export const GetMyCallsSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   size: z.coerce.number().int().min(1).max(100).optional(),
+  q: z.string().optional(),
   batchId: z.string().optional(),
   groupId: z.string().optional(),
   callListId: z.string().optional(),

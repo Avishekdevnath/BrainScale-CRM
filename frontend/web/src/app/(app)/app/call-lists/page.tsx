@@ -17,7 +17,7 @@ import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { CallListDetailsModal } from "@/components/call-lists/CallListDetailsModal";
 import { BulkPasteCallListDialog } from "@/components/call-lists/BulkPasteCallListDialog";
 import { mutate } from "swr";
-import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive, RefreshCw } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
@@ -182,6 +182,10 @@ function CallListsPageContent() {
     await mutateAllCallLists();
   };
 
+  const handleRefresh = async () => {
+    await mutateAllCallLists();
+  };
+
   const handleViewDetails = (callList: CallList) => {
     setViewingCallListId(callList.id);
   };
@@ -320,7 +324,18 @@ function CallListsPageContent() {
     <div className="space-y-6" suppressHydrationWarning>
       <div className="flex items-center justify-between" suppressHydrationWarning>
         <div suppressHydrationWarning>
-          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Call Lists</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Call Lists</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+              disabled={isLoading}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
             Create and manage call lists for student outreach
           </p>
@@ -346,88 +361,99 @@ function CallListsPageContent() {
       </div>
 
       {/* Filters */}
-      <CollapsibleFilters open={showFilters} contentClassName="py-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
-                <Input
-                  type="text"
-                  placeholder="Search call lists by name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                Batch
-              </label>
-              <BatchFilter
-                value={batchId}
-                onChange={setBatchId}
-                placeholder="All Batches"
+      <CollapsibleFilters open={showFilters} contentClassName="py-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="md:col-span-4">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Search
+            </label>
+            <div className="relative max-w-2xl">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--groups1-text-secondary)]" />
+              <Input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search call lists by name"
+                className={cn("pl-9", "bg-[var(--groups1-surface)]")}
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
-                Group
-              </label>
-              <select
-                value={groupId || ""}
-                onChange={(e) => setGroupId(e.target.value || null)}
-                className="min-w-[200px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
-              >
-                <option value="">All Groups</option>
-                {groups?.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Batch
+            </label>
+            <BatchFilter value={batchId} onChange={setBatchId} placeholder="All batches" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
+              Group
+            </label>
+            <select
+              value={groupId || ""}
+              onChange={(e) => setGroupId(e.target.value || null)}
+              className={cn(
+                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              )}
+            >
+              <option value="">All groups</option>
+              {(groups ?? []).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </CollapsibleFilters>
 
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto border-b border-[var(--groups1-border)] pb-2" suppressHydrationWarning>
-        <button
+        <Button
           type="button"
-          onClick={() => setActiveTab('active')}
+          size="sm"
+          variant="outline"
+          onClick={() => setActiveTab("active")}
           className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            activeTab === 'active'
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-              : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+            "rounded-full",
+            activeTab === "active"
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
           )}
         >
           Active ({activeCount})
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          onClick={() => setActiveTab('completed')}
+          size="sm"
+          variant="outline"
+          onClick={() => setActiveTab("completed")}
           className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            activeTab === 'completed'
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-              : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+            "rounded-full",
+            activeTab === "completed"
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
           )}
         >
           Completed ({completedCount})
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          onClick={() => setActiveTab('archived')}
+          size="sm"
+          variant="outline"
+          onClick={() => setActiveTab("archived")}
           className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            activeTab === 'archived'
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-              : "bg-transparent text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+            "rounded-full",
+            activeTab === "archived"
+              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
           )}
         >
           Archived ({archivedCount})
-        </button>
+        </Button>
       </div>
 
       {/* Call Lists Table */}

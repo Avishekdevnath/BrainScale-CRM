@@ -310,6 +310,7 @@ export interface UpdateCallLogRequest {
 export interface GetMyCallsParams {
   page?: number; // Optional, default: 1, min: 1
   size?: number; // Optional, default: 20, min: 1, max: 100
+  q?: string; // Optional - search query (student name/email/phone)
   batchId?: string; // Optional
   groupId?: string; // Optional
   callListId?: string; // Optional

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
+import { AddStudentsToCallListDialog } from "@/components/students/AddStudentsToCallListDialog";
 import type { Student, StudentDetail, StudentPhoneInput, UpdateStudentPayload } from "@/types/students.types";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ interface FormState {
 export function StudentActionsMenu({ student, onChanged, contextGroupId }: StudentActionsMenuProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addToCallListOpen, setAddToCallListOpen] = useState(false);
   const [detail, setDetail] = useState<StudentDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -196,6 +198,16 @@ export function StudentActionsMenu({ student, onChanged, contextGroupId }: Stude
             >
               <Pencil className="h-4 w-4" />
               View / Edit
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+              onSelect={(event) => {
+                event.preventDefault();
+                setAddToCallListOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Add to Call List
             </DropdownMenu.Item>
             <DropdownMenu.Item
               className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-red-600 outline-none hover:bg-red-50"
@@ -409,6 +421,13 @@ export function StudentActionsMenu({ student, onChanged, contextGroupId }: Stude
           </div>
         </DialogContent>
       </Dialog>
+
+      <AddStudentsToCallListDialog
+        open={addToCallListOpen}
+        onOpenChange={setAddToCallListOpen}
+        studentIds={[student.id]}
+        onSuccess={() => onChanged?.()}
+      />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-xl">

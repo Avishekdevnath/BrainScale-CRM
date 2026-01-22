@@ -9,6 +9,7 @@ import { CallExecutionModal } from "@/components/call-lists/CallExecutionModal";
 import { useAllCalls } from "@/hooks/useMyCalls";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
 import { Loader2, Phone, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { CallListItem, CallListItemState, GetMyCallsParams } from "@/types/call-lists.types";
 
 export interface CallsTableProps {
@@ -23,7 +24,7 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
   const router = useRouter();
   const [selectedItem, setSelectedItem] = React.useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
-  const [pageSize, setPageSize] = React.useState<number>(25);
+  const [pageSize] = React.useState<number>(10);
   const [page, setPage] = React.useState<number>(1);
   const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
 
@@ -120,61 +121,53 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
             <CardTitle>
               {followUpRequired ? "Calls Requiring Follow-up" : state === "DONE" ? "Calls Completed" : state === "QUEUED" ? "Calls Pending" : "All Calls"} ({totalItems})
             </CardTitle>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-[var(--groups1-text-secondary)]">Per page:</label>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    const newSize = Number(e.target.value);
-                    setPageSize(newSize);
-                    setPage(1);
-                  }}
-                  className="px-2 py-1 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            </div>
           </div>
         </CardHeader>
         <CardContent variant="groups1" className="pb-6">
           {/* Assignment Filter Buttons */}
-          <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--groups1-border)]">
-            <span className="text-sm font-medium text-[var(--groups1-text-secondary)] mr-2">Filter:</span>
-            <button
+          <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-[var(--groups1-border)]">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mr-2">
+              Assignment
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setAssignmentFilter("all")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={cn(
                 assignmentFilter === "all"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              )}
             >
               All
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setAssignmentFilter("assigned")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={cn(
                 assignmentFilter === "assigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              )}
             >
               Assigned
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setAssignmentFilter("unassigned")}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              className={cn(
                 assignmentFilter === "unassigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                  : "bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              }`}
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              )}
             >
               Unassigned
-            </button>
+            </Button>
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
@@ -187,7 +180,7 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
               </p>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-sm text-[var(--groups1-text-secondary)]">
               {hasActiveFilters
                 ? "No calls found matching your filters"
                 : followUpRequired
@@ -242,7 +235,7 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
                             {student?.id ? (
                               <button
                                 onClick={() => router.push(`/app/students/${student.id}`)}
-                                className="text-blue-600 hover:underline hover:text-blue-800 font-medium cursor-pointer"
+                                className="text-[var(--groups1-primary)] hover:underline font-medium"
                               >
                                 {student.name || "Unknown"}
                               </button>
@@ -254,12 +247,12 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
                             {primaryPhone ? (
                               <a
                                 href={`tel:${primaryPhone.phone}`}
-                                className="text-blue-600 hover:underline"
+                                className="text-[var(--groups1-primary)] hover:underline"
                               >
                                 {primaryPhone.phone}
                               </a>
                             ) : (
-                              <span className="text-gray-400">N/A</span>
+                              <span className="text-[var(--groups1-text-secondary)]">N/A</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">

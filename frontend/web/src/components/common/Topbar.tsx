@@ -27,15 +27,26 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
   const urlGroupId = pathname?.match(/^\/app\/groups\/([^/]+)$/)?.[1];
   const hasGroups = groups && groups.length > 0;
   const isGroupsRoute = pathname?.startsWith("/app/groups");
-  const showGroupsButton = hasGroups || isGroupsRoute;
+  const showGroupsButton = hasGroups || isGroupsRoute || groupsLoading;
   const isChatRoute = pathname?.startsWith("/app/ai-chat");
   
   // Use real groups data or fallback to current group
   const availableGroups = groups || [];
+  const currentGroupIsValid = !!(currentGroup?.id && availableGroups.some((g) => g.id === currentGroup.id));
+  const safeCurrentGroupId = currentGroupIsValid ? currentGroup!.id : undefined;
   const initialGroupId = urlGroupId || currentGroup?.id || (availableGroups[0]?.id);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId || "");
 
   useEffect(() => {
+    // If a stored group doesn't exist in the current workspace's groups list, reset it.
+    if (!groupsLoading && availableGroups.length > 0 && currentGroup && !currentGroupIsValid && !urlGroupId) {
+      const firstActive = availableGroups.find((g) => g.isActive) || availableGroups[0];
+      if (firstActive) {
+        setCurrent({ id: firstActive.id, name: firstActive.name });
+        setSelectedGroupId(firstActive.id);
+      }
+    }
+
     // Update selected group from URL or store
     if (urlGroupId && availableGroups.length > 0) {
       const group = availableGroups.find((g) => g.id === urlGroupId);
@@ -54,7 +65,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
         router.push(`/app/groups/${defaultGroup.id}`);
       }
     }
-  }, [urlGroupId, currentGroup, setCurrent, showGroupSelector, availableGroups, router]);
+  }, [urlGroupId, currentGroup, currentGroupIsValid, groupsLoading, setCurrent, showGroupSelector, availableGroups, router]);
 
   const handleGroupChange = (groupId: string) => {
     const group = availableGroups.find((g) => g.id === groupId);
@@ -69,11 +80,14 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
   const isWorkspaceRoute = pathname === "/app" || pathname === "/app/" || (pathname?.startsWith("/app/") && !pathname?.startsWith("/app/groups") && !pathname?.startsWith("/app/ai-chat"));
   
   // Get the groups link - use current group if available, otherwise use first group or group-management
-  const groupsLink = currentGroup?.id 
-    ? `/app/groups/${currentGroup.id}` 
-    : (availableGroups.length > 0 
-      ? `/app/groups/${availableGroups[0].id}` 
-      : "/app/group-management");
+  const preferredGroupId =
+    urlGroupId ||
+    safeCurrentGroupId ||
+    currentGroup?.id ||
+    availableGroups.find((g) => g.isActive)?.id ||
+    availableGroups[0]?.id;
+
+  const groupsLink = preferredGroupId ? `/app/groups/${preferredGroupId}` : "/app/group-management";
 
   return (
     <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] flex items-center px-4 gap-4 flex-shrink-0">
@@ -94,7 +108,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
             <span className="hidden sm:inline">Workspace</span>
           </Button>
         </Link>
-        {showGroupsButton && !groupsLoading && (
+        {showGroupsButton && (
           <Link href={groupsLink}>
             <Button
               size="sm"
@@ -103,7 +117,8 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
                 "gap-2",
                 isGroupsRoute
                   ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                  : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+                  : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
+                groupsLoading && "opacity-60 pointer-events-none"
               )}
             >
               <Users className="w-4 h-4" />
@@ -158,18 +173,12 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
               ))}
             </select>
           ) : (
-            <select
-              className={cn(
-                "w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-background)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
-              )}
-              aria-label="Select workspace"
+            <div
+              className="px-3 py-2 text-sm font-medium text-[var(--groups1-text)]"
+              suppressHydrationWarning
             >
-              <option>DreamEd Academy</option>
-              <option>Nova Institute</option>
-            </select>
+              {workspaceName}
+            </div>
           )}
         </div>
       </div>

@@ -2,6 +2,8 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 import type {
   MyCallsResponse,
   MyCallsStats,
@@ -11,9 +13,12 @@ import type {
 } from "@/types/call-lists.types";
 
 export function useMyCalls(params?: GetMyCallsParams) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const userId = useAuthStore((state) => state.user?.id);
+  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
   const key = params
-    ? `my-calls-${JSON.stringify(params)}`
-    : "my-calls";
+    ? `${scope}:my-calls-${JSON.stringify(params)}`
+    : `${scope}:my-calls`;
   
   return useSWR<MyCallsResponse>(
     key,
@@ -27,8 +32,11 @@ export function useMyCalls(params?: GetMyCallsParams) {
 }
 
 export function useMyCallsStats() {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const userId = useAuthStore((state) => state.user?.id);
+  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
   return useSWR<MyCallsStats>(
-    "my-calls-stats",
+    `${scope}:my-calls-stats`,
     async () => apiClient.getMyCallsStats(),
     {
       revalidateOnFocus: true,
@@ -39,9 +47,12 @@ export function useMyCallsStats() {
 }
 
 export function useAllCalls(params?: GetMyCallsParams) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const userId = useAuthStore((state) => state.user?.id);
+  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
   const key = params
-    ? `all-calls-${JSON.stringify(params)}`
-    : "all-calls";
+    ? `${scope}:all-calls-${JSON.stringify(params)}`
+    : `${scope}:all-calls`;
   
   return useSWR<MyCallsResponse>(
     key,
@@ -55,9 +66,12 @@ export function useAllCalls(params?: GetMyCallsParams) {
 }
 
 export function useMyCallHistory(params?: GetMyCallHistoryParams) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const userId = useAuthStore((state) => state.user?.id);
+  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
   const key = params
-    ? `my-calls-history-${JSON.stringify(params)}`
-    : "my-calls-history";
+    ? `${scope}:my-calls-history-${JSON.stringify(params)}`
+    : `${scope}:my-calls-history`;
   
   return useSWR<CallLogsResponse>(
     key,

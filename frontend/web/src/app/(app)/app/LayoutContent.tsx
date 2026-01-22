@@ -26,8 +26,8 @@ export function LayoutContent({ children }: { children: ReactNode }) {
   const isCallListDetailPage = pathname?.match(/^\/app\/call-lists\/[^/]+$/);
   const shouldShowGroupSidebar = isGroupDetailPage || (isCallListDetailPage && groupId);
   
-  // Show workspace name on dashboard and groups list, group selector on group detail pages
-  const showWorkspaceName = pathname === "/app" || pathname === "/app/" || isGroupsListPage;
+  // In workspace context pages, always show workspace name (keeps header consistent across sections)
+  const showWorkspaceName = !shouldShowGroupSidebar && !isChatRoute;
   const showGroupSelector = !!shouldShowGroupSidebar;
 
   return (

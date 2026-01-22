@@ -10,6 +10,10 @@ import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
 // Create Express app
 export const app: Express = express();
 
+// Prevent accidental cross-user caching (ETag/304) for API responses behind shared caches/browsers.
+// All authenticated API routes should be treated as non-cacheable unless explicitly designed otherwise.
+app.set('etag', false);
+
 // Trust proxy - required when behind reverse proxy/load balancer (Kubernetes, Render, etc.)
 // This allows Express to correctly identify client IPs from X-Forwarded-For headers
 app.set('trust proxy', true);
@@ -87,6 +91,17 @@ app.use(helmet({
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Disable caching for API routes to avoid leaking tenant-scoped data between users/workspaces
+// via browser/proxy revalidation (304 Not Modified with a stale body).
+app.use('/api/v1', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.vary('Authorization');
+  res.vary('X-Workspace-Id');
+  next();
+});
 
 // Rate limiting is now opt-in per route
 // To enable global rate limiting for all API routes, uncomment the line below:

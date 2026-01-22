@@ -107,7 +107,7 @@ export const previewCallListImport = async (
   }
 
   // Parse file
-  let parsed;
+  let parsed: ParseResult;
   try {
     parsed = await parseFile(fileBuffer, filename);
   } catch (error: any) {

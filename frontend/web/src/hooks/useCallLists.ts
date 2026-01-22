@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useWorkspaceStore } from "@/store/workspace";
 import type {
   CallList,
   CallListItem,
@@ -12,9 +13,10 @@ import type {
 } from "@/types/call-lists.types";
 
 export function useCallLists(params?: CallListsListParams) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
   const key = params
-    ? `call-lists-${JSON.stringify(params)}`
-    : "call-lists";
+    ? `${workspaceId || "no-workspace"}:call-lists-${JSON.stringify(params)}`
+    : `${workspaceId || "no-workspace"}:call-lists`;
   
   return useSWR<CallListsListResponse>(
     key,
@@ -28,8 +30,9 @@ export function useCallLists(params?: CallListsListParams) {
 }
 
 export function useCallList(listId: string | null | undefined) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
   return useSWR<CallList | null>(
-    listId ? `call-list-${listId}` : null,
+    listId ? `${workspaceId || "no-workspace"}:call-list-${listId}` : null,
     async () => (listId ? apiClient.getCallListById(listId) : null),
     {
       revalidateOnFocus: true,
@@ -43,8 +46,9 @@ export function useCallListItems(
   listId: string | null | undefined,
   params?: CallListItemsListParams
 ) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
   const key = listId
-    ? `call-list-items-${listId}-${JSON.stringify(params || {})}`
+    ? `${workspaceId || "no-workspace"}:call-list-items-${listId}-${JSON.stringify(params || {})}`
     : null;
   
   return useSWR<CallListItemsListResponse>(

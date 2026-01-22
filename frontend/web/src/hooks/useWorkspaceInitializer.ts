@@ -18,25 +18,23 @@ export function useWorkspaceInitializer() {
       return;
     }
 
-    // If workspace is already set, mark as initialized
-    if (current) {
-      hasInitialized.current = true;
-      return;
-    }
-
     // Load workspace from API
     const loadWorkspace = async () => {
       try {
         const workspaces = await apiClient.getWorkspaces();
         if (workspaces && workspaces.length > 0) {
-          // Set first workspace as current
-          setCurrentFromApi({
-            id: workspaces[0].id,
-            name: workspaces[0].name,
-            plan: workspaces[0].plan,
-            logo: workspaces[0].logo,
-            timezone: workspaces[0].timezone,
-          });
+          const currentIsValid = current && workspaces.some((w) => w.id === current.id);
+          const nextWorkspace = currentIsValid ? current : workspaces[0];
+
+          if (!currentIsValid) {
+            setCurrentFromApi({
+              id: nextWorkspace.id,
+              name: nextWorkspace.name,
+              plan: nextWorkspace.plan,
+              logo: nextWorkspace.logo,
+              timezone: nextWorkspace.timezone,
+            });
+          }
         } else {
           // No workspaces - redirect to create workspace
           router.push("/choose-plan");

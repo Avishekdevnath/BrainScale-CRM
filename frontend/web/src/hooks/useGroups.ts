@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useWorkspaceStore } from "@/store/workspace";
 
 export interface Group {
   id: string;
@@ -100,11 +101,13 @@ export interface GroupsListParams {
 }
 
 export function useGroups(params?: GroupsListParams) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+
   const queryString = new URLSearchParams();
   if (params?.batchId) queryString.append("batchId", params.batchId);
   if (params?.isActive !== undefined) queryString.append("isActive", String(params.isActive));
 
-  const cacheKey = `groups${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+  const cacheKey = `${workspaceId || "no-workspace"}:groups${queryString.toString() ? `?${queryString.toString()}` : ""}`;
 
   return useSWR<Group[]>(
     cacheKey,

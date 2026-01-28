@@ -24,6 +24,8 @@ build/
 .env.new
 .env.*
 !.env.example
+!.env.local.example
+!.env.*.example
 
 # Guides and documentation (keep local only)
 **/guides/
@@ -34,6 +36,7 @@ guide/
 # All documentation files
 **/*.md
 *.md
+!/README.md
 
 # OS executables
 *.exe

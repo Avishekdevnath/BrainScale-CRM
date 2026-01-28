@@ -1,6 +1,9 @@
 node_modules
 # Keep environment variables out of version control
 .env
+.env.new
+.env.mongodb
+!.env.example
 
 /generated/prisma
 
@@ -10,7 +13,3 @@ node_modules
 # Test/utility scripts that may contain sensitive data
 find-email-direct.js
 test-mongodb.js
-
-.env.example
-.env.new
-.env.mongodb

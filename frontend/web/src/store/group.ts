@@ -5,11 +5,6 @@ type Group = {
   name: string;
 };
 
-const defaultGroup: Group = {
-  id: "1",
-  name: "Batch A",
-};
-
 // Load from localStorage (client-side only)
 const loadFromStorage = (): Group | null => {
   if (typeof window === "undefined") return null;
@@ -34,7 +29,7 @@ type GroupState = {
 };
 
 export const useGroupStore = create<GroupState>((set, get) => ({
-  current: defaultGroup, // Always start with default to avoid hydration mismatch
+  current: null,
   _hasHydrated: false,
   setCurrent: (group) => {
     if (group) {

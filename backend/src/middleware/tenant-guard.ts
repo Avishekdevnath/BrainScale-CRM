@@ -156,6 +156,25 @@ export const tenantGuard = async (
     
     // Load permissions from custom role (if exists)
     const permissions: Array<{ resource: string; action: string }> = [];
+
+    // Default permissions for built-in roles when no custom role is assigned.
+    // Without this, MEMBER users would have an empty permission set and receive 403s across the app.
+    // NOTE: ADMIN bypasses permission checks in requirePermission().
+    const defaultRolePermissions: Record<string, Array<{ resource: string; action: string }>> = {
+      MEMBER: [
+        { resource: 'workspace', action: 'read' },
+        { resource: 'groups', action: 'read' },
+        { resource: 'students', action: 'read' },
+        { resource: 'batches', action: 'read' },
+        { resource: 'courses', action: 'read' },
+        { resource: 'modules', action: 'read' },
+        { resource: 'enrollments', action: 'read' },
+        { resource: 'followups', action: 'read' },
+        { resource: 'calls', action: 'read' },
+        { resource: 'call_lists', action: 'read' },
+      ],
+    };
+
     if (membership.customRole && membership.customRole.permissions) {
       try {
         membership.customRole.permissions.forEach((rp) => {
@@ -170,6 +189,10 @@ export const tenantGuard = async (
         console.error('[tenantGuard] Error loading permissions:', permError);
         // Continue with empty permissions array - user will rely on role-based access
       }
+    } else {
+      const roleKey = (membership.role || '').toUpperCase();
+      const defaults = defaultRolePermissions[roleKey] || [];
+      defaults.forEach((p) => permissions.push(p));
     }
     req.user.permissions = permissions;
     

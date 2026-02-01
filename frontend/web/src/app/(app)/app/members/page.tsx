@@ -3,7 +3,6 @@
 import * as React from "react";
 import { MembersTable } from "@/components/members/MembersTable";
 import { InviteMemberDialog } from "@/components/members/InviteMemberDialog";
-import { CreateMemberDialog } from "@/components/members/CreateMemberDialog";
 import { UpdateMemberRoleDialog } from "@/components/members/UpdateMemberRoleDialog";
 import { GrantGroupAccessDialog } from "@/components/members/GrantGroupAccessDialog";
 import { RemoveMemberDialog } from "@/components/members/RemoveMemberDialog";
@@ -23,7 +22,6 @@ export default function MembersPage() {
   const { members, isLoading, mutate } = useWorkspaceMembers(workspaceId);
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
   const [actionType, setActionType] = React.useState<
     "updateRole" | "grantAccess" | "remove" | null
@@ -123,10 +121,6 @@ export default function MembersPage() {
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Invite Member
-          </Button>
-          <Button onClick={() => setIsCreateDialogOpen(true)} disabled={isLoading}>
-            <UserPlus className="w-4 h-4 mr-2" />
-            Create Member
           </Button>
         </div>
       </div>
@@ -228,13 +222,6 @@ export default function MembersPage() {
       <InviteMemberDialog
         open={isInviteDialogOpen}
         onOpenChange={setIsInviteDialogOpen}
-        workspaceId={workspaceId}
-        onSuccess={handleSuccess}
-      />
-
-      <CreateMemberDialog
-        open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
         workspaceId={workspaceId}
         onSuccess={handleSuccess}
       />

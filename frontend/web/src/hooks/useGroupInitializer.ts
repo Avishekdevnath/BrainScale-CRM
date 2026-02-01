@@ -21,6 +21,14 @@ export function useGroupInitializer() {
   useEffect(() => {
     // Only initialize when groups are loaded and we haven't initialized yet
     if (!groupsLoading && groups && !hasInitialized.current) {
+      // No accessible groups (or none exist) => clear selection so we don't use a fake/default groupId.
+      if (groups.length === 0) {
+        setCurrent(null);
+        hasInitialized.current = true;
+        setIsInitializing(false);
+        return;
+      }
+
       // Check if current group exists and is active
       if (current) {
         const currentGroupInList = groups.find(

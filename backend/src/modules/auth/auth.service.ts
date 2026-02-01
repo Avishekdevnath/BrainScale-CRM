@@ -5,7 +5,6 @@ import { AppError } from '../../middleware/error-handler';
 import {
   SignupInput,
   LoginInput,
-  VerifyEmailInput,
   ResendVerificationInput,
   VerifyEmailOtpInput,
   ResendVerificationOtpInput,
@@ -75,13 +74,11 @@ const issueEmailVerificationOtp = async ({
   userId,
   email,
   name,
-  verificationToken,
   isResend = false,
 }: {
   userId: string;
   email: string;
   name?: string | null;
-  verificationToken: string;
   isResend?: boolean;
 }) => {
   const now = new Date();
@@ -139,7 +136,7 @@ const issueEmailVerificationOtp = async ({
 
   // IMPORTANT: Send email FIRST before creating OTP record
   try {
-    await sendVerificationEmail(email, verificationToken, name || undefined, {
+    await sendVerificationEmail(email, name || undefined, {
       otpCode,
       otpExpiresAt: expiresAt,
       isResend,
@@ -515,7 +512,7 @@ export const signup = async (data: SignupInput) => {
 
   // IMPORTANT: Send email FIRST before creating user account
   try {
-    await sendVerificationEmail(data.email, verificationToken, data.name, {
+    await sendVerificationEmail(data.email, data.name, {
       otpCode,
       otpExpiresAt: expiresAt,
       isResend: false,
@@ -613,7 +610,7 @@ export const signup = async (data: SignupInput) => {
     message: invitationResult
       ? `Account created and added to ${invitationResult.workspaceName}. Please check your email to verify your account.`
       : 'Account created successfully. Please check your email to verify your account before logging in.',
-    actionRequired: ['Check your email inbox', 'Click the verification link or enter the OTP code'],
+    actionRequired: ['Check your email inbox', 'Enter the OTP code'],
   };
 };
 
@@ -652,7 +649,7 @@ export const login = async (data: LoginInput) => {
   
   // Check if email is verified - allow login for admin-created users with temporary password
   if (!user.emailVerified && !userWithFields.temporaryPassword) {
-    throw new AppError(403, 'Please verify your email address before logging in. Check your inbox for the verification link.');
+    throw new AppError(403, 'Please verify your email address before logging in. Check your inbox for the verification code (OTP).');
   }
 
   // Check if password change is required and setup is not completed
@@ -1042,205 +1039,6 @@ export const completeMemberSetup = async (userId: string, data: CompleteMemberSe
   };
 };
 
-/**
- * Verify user email address
- */
-export const verifyEmail = async (data: VerifyEmailInput) => {
-  // Validate token format (64 hex characters)
-  const tokenRegex = /^[a-f0-9]{64}$/i;
-  if (!tokenRegex.test(data.token)) {
-    throw new AppError(400, 'Invalid token format');
-  }
-
-  // Find user by verification token
-  const user = await prisma.user.findUnique({
-    where: { verificationToken: data.token },
-    select: {
-      id: true,
-      emailVerified: true,
-      verificationToken: true,
-      verificationTokenExpiresAt: true,
-    },
-  });
-
-  if (!user) {
-    throw new AppError(400, 'Invalid or expired verification token');
-  }
-
-  // Check if token has expired
-  if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
-    throw new AppError(400, 'Verification token has expired. Please request a new one.');
-  }
-
-  // Check if already verified
-  if (user.emailVerified) {
-    // Clean up token even if already verified - use transaction to avoid race conditions
-    try {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          verificationToken: null,
-          verificationTokenExpiresAt: null,
-        },
-      });
-    } catch (error: any) {
-      // If unique constraint error, user might have been updated by another request
-      if (error?.code === 'P2002') {
-        // Check if token was already cleared
-        const updatedUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { verificationToken: true },
-        });
-        if (!updatedUser?.verificationToken) {
-          // Token already cleared, return success
-          return {
-            message: 'Email address is already verified.',
-          };
-        }
-      }
-      // Re-throw if it's a different error
-      throw error;
-    }
-    return {
-      message: 'Email address is already verified.',
-    };
-  }
-
-  // Use transaction with error handling to prevent race conditions and unique constraint errors
-  try {
-    await prisma.$transaction(async (tx) => {
-      // Re-check if user is still unverified (race condition protection)
-      const currentUser = await tx.user.findUnique({
-        where: { id: user.id },
-        select: { emailVerified: true, verificationToken: true },
-      });
-
-      if (!currentUser) {
-        throw new AppError(404, 'User not found');
-      }
-
-      if (currentUser.emailVerified) {
-        // Already verified by another request - clean up and return
-        await tx.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: EMAIL_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-        return;
-      }
-
-      // Update user - mark as verified
-      // Only clear verificationToken if it exists (avoid null constraint issues)
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          emailVerified: true,
-          // Only clear verificationToken if it exists (avoid null constraint issues)
-          ...(currentUser.verificationToken && {
-            verificationToken: null,
-            verificationTokenExpiresAt: null,
-          }),
-        },
-      });
-
-      // Delete verification record
-      await tx.emailVerification.deleteMany({
-        where: {
-          userId: user.id,
-          purpose: EMAIL_VERIFICATION_PURPOSE,
-        },
-      });
-    });
-  } catch (error: any) {
-    // Handle Prisma unique constraint errors (P2002)
-    if (error?.code === 'P2002') {
-      const constraintField = error?.meta?.target?.[0];
-      
-      // Check if user was actually verified by another concurrent request
-      const updatedUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { emailVerified: true },
-      });
-
-      if (updatedUser?.emailVerified) {
-        // User was verified by another request - clean up and return success
-        await prisma.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: EMAIL_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-
-        return {
-          message: 'Email address verified successfully. You can now log in.',
-        };
-      }
-
-      // Log the specific field causing the constraint error
-      logger.error({ 
-        error, 
-        userId: user.id, 
-        token: data.token.substring(0, 8) + '...',
-        constraintField,
-        errorMeta: error?.meta 
-      }, 'Unique constraint error during email verification');
-
-      // Provide more specific error message based on the field
-      if (constraintField === 'email') {
-        throw new AppError(409, 'An account with this email already exists. Please try logging in instead.');
-      } else if (constraintField === 'verificationToken') {
-        // For verificationToken, try again without setting it to null
-        try {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { emailVerified: true },
-          });
-          
-          await prisma.emailVerification.deleteMany({
-            where: {
-              userId: user.id,
-              purpose: EMAIL_VERIFICATION_PURPOSE,
-            },
-          }).catch(() => undefined);
-
-          return {
-            message: 'Email address verified successfully. You can now log in.',
-          };
-        } catch (retryError: any) {
-          // If retry also fails, check if user is now verified
-          const retryUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: { emailVerified: true },
-          });
-
-          if (retryUser?.emailVerified) {
-            return {
-              message: 'Email address verified successfully. You can now log in.',
-            };
-          }
-          throw new AppError(409, 'Verification conflict. Please try again.');
-        }
-      } else {
-        throw new AppError(409, 'Verification conflict. Please try again.');
-      }
-    }
-
-    // Re-throw AppError instances
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    // Log and re-throw other errors
-    logger.error({ error, userId: user.id }, 'Unexpected error during email verification');
-    throw error;
-  }
-
-  return {
-    message: 'Email address verified successfully. You can now log in.',
-  };
-};
-
 export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
   const user = await prisma.user.findUnique({
     where: { email: data.email },
@@ -1484,219 +1282,6 @@ export const verifyEmailOtp = async (data: VerifyEmailOtpInput) => {
  */
 
 /**
- * Verify signup email with token (separate from general email verification)
- */
-export const verifySignupEmail = async (data: VerifyEmailInput) => {
-  // Validate token format (64 hex characters)
-  const tokenRegex = /^[a-f0-9]{64}$/i;
-  if (!tokenRegex.test(data.token)) {
-    throw new AppError(400, 'Invalid token format');
-  }
-
-  // Find user by verification token
-  const user = await prisma.user.findUnique({
-    where: { verificationToken: data.token },
-    select: {
-      id: true,
-      emailVerified: true,
-      verificationToken: true,
-      verificationTokenExpiresAt: true,
-    },
-  });
-
-  if (!user) {
-    throw new AppError(400, 'Invalid or expired verification token');
-  }
-
-  // Check if token has expired
-  if (user.verificationTokenExpiresAt && user.verificationTokenExpiresAt < new Date()) {
-    throw new AppError(400, 'Verification token has expired. Please request a new one.');
-  }
-
-  // Check if already verified
-  if (user.emailVerified) {
-    // Clean up token and signup verification records
-    try {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          verificationToken: null,
-          verificationTokenExpiresAt: null,
-        },
-      });
-      await prisma.emailVerification.deleteMany({
-        where: {
-          userId: user.id,
-          purpose: SIGNUP_VERIFICATION_PURPOSE,
-        },
-      }).catch(() => undefined);
-    } catch (error: any) {
-      if (error?.code === 'P2002') {
-        const updatedUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { verificationToken: true },
-        });
-        if (!updatedUser?.verificationToken) {
-          return {
-            message: 'Email address is already verified.',
-          };
-        }
-      }
-      throw error;
-    }
-    return {
-      message: 'Email address is already verified.',
-    };
-  }
-
-  // Use transaction with error handling
-  try {
-    await prisma.$transaction(async (tx) => {
-      const currentUser = await tx.user.findUnique({
-        where: { id: user.id },
-        select: { emailVerified: true, verificationToken: true },
-      });
-
-      if (!currentUser) {
-        throw new AppError(404, 'User not found');
-      }
-
-      if (currentUser.emailVerified) {
-        await tx.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: SIGNUP_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-        return;
-      }
-
-      // Update user - mark as verified
-      // CRITICAL: Do NOT set verificationToken to null - this causes unique constraint violations
-      // Just mark email as verified and leave the token as-is
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          emailVerified: true,
-          // Intentionally NOT setting verificationToken to null
-        },
-      });
-
-      // Delete signup verification record only
-      await tx.emailVerification.deleteMany({
-        where: {
-          userId: user.id,
-          purpose: SIGNUP_VERIFICATION_PURPOSE,
-        },
-      });
-    });
-  } catch (error: any) {
-    if (error?.code === 'P2002') {
-      const updatedUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { emailVerified: true },
-      });
-
-      if (updatedUser?.emailVerified) {
-        await prisma.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: SIGNUP_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-        return {
-          message: 'Email address verified successfully. You can now log in.',
-        };
-      }
-
-      logger.error({ 
-        error, 
-        userId: user.id, 
-        token: data.token.substring(0, 8) + '...',
-        constraintField: error?.meta?.target?.[0],
-        errorMeta: error?.meta,
-      }, 'Unique constraint error during signup verification');
-
-      // Final check - is user already verified?
-      const finalCheck = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { emailVerified: true },
-      });
-
-      if (finalCheck?.emailVerified) {
-        await prisma.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: SIGNUP_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-        return {
-          message: 'Email address verified successfully. You can now log in.',
-        };
-      }
-
-      // If not verified, try one more time with just emailVerified update
-      try {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { emailVerified: true },
-        });
-        
-        await prisma.emailVerification.deleteMany({
-          where: {
-            userId: user.id,
-            purpose: SIGNUP_VERIFICATION_PURPOSE,
-          },
-        }).catch(() => undefined);
-
-        return {
-          message: 'Email address verified successfully. You can now log in.',
-        };
-      } catch (retryError: any) {
-        // Last check - maybe another request verified it
-        const lastCheck = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { emailVerified: true },
-        });
-
-        if (lastCheck?.emailVerified) {
-          await prisma.emailVerification.deleteMany({
-            where: {
-              userId: user.id,
-              purpose: SIGNUP_VERIFICATION_PURPOSE,
-            },
-          }).catch(() => undefined);
-          return {
-            message: 'Email address verified successfully. You can now log in.',
-          };
-        }
-
-        // Log the retry error for debugging
-        logger.error({ 
-          retryError, 
-          userId: user.id, 
-          token: data.token.substring(0, 8) + '...',
-          originalError: error 
-        }, 'Failed to verify signup email after retry');
-        
-        throw new AppError(500, 'Unable to verify email at this time. Please try again or contact support.');
-      }
-    }
-
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    logger.error({ error, userId: user.id }, 'Unexpected error during signup verification');
-    throw error;
-  }
-
-  return {
-    message: 'Email address verified successfully. You can now log in.',
-  };
-};
-
-/**
  * Verify signup email with OTP (separate from general email verification)
  */
 export const verifySignupOtp = async (data: VerifyEmailOtpInput) => {
@@ -1938,7 +1523,8 @@ export const resendSignupVerification = async (data: ResendVerificationInput) =>
     };
   }
 
-  const verificationToken = await ensureUserVerificationToken(user);
+  // Ensure user has a verificationToken to satisfy unique constraints (not used for link verification).
+  await ensureUserVerificationToken(user);
 
   // Check for existing signup verification record
   const existing = await prisma.emailVerification.findUnique({
@@ -1981,7 +1567,7 @@ export const resendSignupVerification = async (data: ResendVerificationInput) =>
   const expiresAt = addMinutes(new Date(), OTP_EXPIRY_MINUTES);
 
   try {
-    await sendVerificationEmail(user.email, verificationToken, user.name || undefined, {
+    await sendVerificationEmail(user.email, user.name || undefined, {
       otpCode,
       otpExpiresAt: expiresAt,
       isResend: true,
@@ -2065,14 +1651,14 @@ export const resendVerificationEmail = async (data: ResendVerificationInput) => 
     };
   }
 
-  const verificationToken = await ensureUserVerificationToken(user);
+  // Ensure user has a verificationToken to satisfy unique constraints (not used for link verification).
+  await ensureUserVerificationToken(user);
 
   try {
     await issueEmailVerificationOtp({
       userId: user.id,
       email: user.email,
       name: user.name,
-      verificationToken,
       isResend: true,
     });
   } catch (error) {
@@ -2119,14 +1705,14 @@ export const resendVerificationOtp = async (data: ResendVerificationOtpInput) =>
     throw new AppError(400, 'Email address is already verified');
   }
 
-  const verificationToken = await ensureUserVerificationToken(user);
+  // Ensure user has a verificationToken to satisfy unique constraints (not used for link verification).
+  await ensureUserVerificationToken(user);
 
   try {
     await issueEmailVerificationOtp({
       userId: user.id,
       email: user.email,
       name: user.name,
-      verificationToken,
     });
   } catch (error) {
     if (error instanceof AppError) {
@@ -2343,7 +1929,7 @@ export const resetPassword = async (data: ResetPasswordInput) => {
 
   // Security: Only allow password reset for verified email addresses
   if (!user.emailVerified) {
-    throw new AppError(403, 'Please verify your email address before resetting your password. Check your inbox for the verification link.');
+    throw new AppError(403, 'Please verify your email address before resetting your password. Check your inbox for the verification code (OTP).');
   }
 
   // Verify OTP
@@ -2473,4 +2059,3 @@ export const resendResetPasswordOtp = async (data: ResendResetPasswordOtpInput) 
     message: 'If an account exists with this email and is verified, a password reset code has been sent.',
   };
 };
-

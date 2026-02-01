@@ -1,19 +1,19 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth";
 import { useWorkspaceStore } from "@/store/workspace";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Check } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
@@ -33,27 +33,6 @@ const CreateWorkspaceSchema = z.object({
 
 type CreateWorkspaceFormValues = z.input<typeof CreateWorkspaceSchema>;
 type CreateWorkspaceValues = z.output<typeof CreateWorkspaceSchema>;
-
-const plans = [
-  {
-    id: "FREE",
-    name: "Starter",
-    price: "$0",
-    features: ["1 workspace", "Up to 3 users", "Basic features"],
-  },
-  {
-    id: "PRO",
-    name: "Team",
-    price: "$29/user/mo",
-    features: ["Multiple workspaces", "Advanced features"],
-  },
-  {
-    id: "BUSINESS",
-    name: "Business",
-    price: "$59/user/mo",
-    features: ["Everything in Team", "Enterprise features"],
-  },
-];
 
 const commonTimezones = [
   { value: "Asia/Dhaka", label: "Asia/Dhaka (GMT+6)" },
@@ -82,8 +61,6 @@ export default function CreateWorkspacePage() {
 function CreateWorkspacePageContent() {
   usePageTitle("Create Workspace");
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const planParam = searchParams.get("plan") || "FREE";
   const accessToken = useAuthStore((state) => state.accessToken);
   const setTokens = useAuthStore((state) => state.setTokens);
   const user = useAuthStore((state) => state.user);
@@ -91,8 +68,6 @@ function CreateWorkspacePageContent() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  const selectedPlan = plans.find((p) => p.id === planParam) || plans[0];
 
   const {
     register,
@@ -114,11 +89,6 @@ function CreateWorkspacePageContent() {
         return;
       }
 
-      if (!planParam) {
-        router.push("/choose-plan");
-        return;
-      }
-
       try {
         const workspaces = await apiClient.getWorkspaces();
         if (workspaces && workspaces.length > 0) {
@@ -133,7 +103,7 @@ function CreateWorkspacePageContent() {
     };
 
     checkAuth();
-  }, [accessToken, router, planParam]);
+  }, [accessToken, router]);
 
   const onSubmit = async (values: CreateWorkspaceFormValues) => {
     const parsedValues = CreateWorkspaceSchema.parse(values);
@@ -164,15 +134,10 @@ function CreateWorkspacePageContent() {
       });
 
       toast.success("Workspace created successfully!");
-      router.push(`/plan-features?plan=${planParam}`);
+      router.push(`/plan-features?plan=FREE`);
     } catch (error: any) {
       const errorMessage = error?.message || "Failed to create workspace";
       toast.error(errorMessage);
-
-      // Handle specific errors
-      if (errorMessage.includes("Free plan limit reached")) {
-        toast.info("You've reached the free plan limit. Please upgrade to create more workspaces.");
-      }
     } finally {
       setSubmitting(false);
     }
@@ -189,47 +154,11 @@ function CreateWorkspacePageContent() {
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
       <div className="space-y-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/choose-plan")}
-          className="text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to plans
-        </Button>
         <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Create Your Workspace</h1>
         <p className="text-sm text-[var(--groups1-text-secondary)]">
           Set up your workspace to get started
         </p>
       </div>
-
-      {/* Selected Plan Display */}
-      <Card variant="groups1">
-        <CardHeader variant="groups1">
-          <CardTitle className="text-sm font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-            Selected Plan
-          </CardTitle>
-        </CardHeader>
-        <CardContent variant="groups1" className="pt-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-[var(--groups1-text)]">{selectedPlan.name}</div>
-              <div className="text-sm text-[var(--groups1-text-secondary)]">
-                {selectedPlan.price}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              {selectedPlan.features.slice(0, 2).map((feature) => (
-                <div key={feature} className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
-                  <Check className="w-3 h-3 text-[var(--groups1-primary)]" />
-                  {feature}
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Workspace Creation Form */}
       <Card variant="groups1">
@@ -307,7 +236,7 @@ function CreateWorkspacePageContent() {
             <div className="flex gap-3 pt-2">
               <Button
                 type="button"
-                onClick={() => router.push("/choose-plan")}
+                onClick={() => router.push("/")}
                 disabled={submitting}
                 className="flex-1 border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
               >

@@ -1,4 +1,5 @@
 import { prisma } from '../../db/client';
+import { env } from '../../config/env';
 import { AppError } from '../../middleware/error-handler';
 import { logger } from '../../config/logger';
 import { sendInvitationEmail } from '../../utils/email';
@@ -32,8 +33,9 @@ export const sendInvitation = async (
     throw new AppError(404, 'Workspace not found');
   }
 
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
   // Check member limit for FREE plan
-  if (workspace.plan === 'FREE') {
+  if (env.BILLING_ENABLED && workspace.plan === 'FREE') {
     const currentMemberCount = workspace.members.length;
     if (currentMemberCount >= 5) {
       throw new AppError(
@@ -223,8 +225,9 @@ export const acceptInvitation = async (token: string, userId: string) => {
     throw new AppError(404, 'Workspace not found');
   }
 
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
   // Check member limit for FREE plan
-  if (workspace.plan === 'FREE') {
+  if (env.BILLING_ENABLED && workspace.plan === 'FREE') {
     const currentMemberCount = workspace.members.length;
     if (currentMemberCount >= 5) {
       // Mark invitation as expired/cancelled since limit was reached
@@ -337,4 +340,3 @@ export const cancelInvitation = async (invitationId: string, workspaceId: string
 
   return { message: 'Invitation cancelled successfully' };
 };
-

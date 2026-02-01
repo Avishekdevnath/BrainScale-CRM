@@ -43,12 +43,9 @@ function VerifyEmailPageContent() {
   usePageTitle("Verify Email");
   const params = useSearchParams();
   const router = useRouter();
-  const token = useMemo(() => params.get("token"), [params]);
   const initialEmail = useMemo(() => params.get("email") ?? "", [params]);
   const isSignup = useMemo(() => params.get("signup") === "true", [params]);
 
-  const [tokenStatus, setTokenStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [tokenError, setTokenError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
 
   const [email, setEmail] = useState(initialEmail);
@@ -65,46 +62,6 @@ function VerifyEmailPageContent() {
   useEffect(() => {
     setEmail(initialEmail);
   }, [initialEmail]);
-
-  useEffect(() => {
-    if (!token) {
-      setTokenStatus("idle");
-      return;
-    }
-    const verifyWithToken = async () => {
-      setTokenStatus("loading");
-      setTokenError(null);
-      try {
-        // Use signup-specific endpoint if this is a signup flow
-        if (isSignup) {
-          await apiClient.verifySignupEmail(token);
-        } else {
-          await apiClient.verifyEmail(token);
-        }
-        setVerified(true);
-        toast.success("Email verified. You can sign in now.");
-      } catch (error: any) {
-        setTokenStatus("error");
-        const message = error?.message ?? "Verification failed. Enter the code from your email or request a new one.";
-        
-        // Handle specific error cases for token verification
-        if (message.includes("already verified")) {
-          setVerified(true);
-          toast.success("Email is already verified. Redirecting to login...");
-          setTimeout(() => {
-            router.push("/login");
-          }, 1500);
-        } else if (message.includes("expired")) {
-          setTokenError("Verification link has expired. Please request a new verification code below.");
-          toast.error("Verification link has expired. Please use the code from your email or request a new one.");
-        } else {
-          setTokenError(message);
-          toast.error(message);
-        }
-      }
-    };
-    void verifyWithToken();
-  }, [token, isSignup]);
 
 
   useEffect(() => {
@@ -235,7 +192,7 @@ function VerifyEmailPageContent() {
       <div className="space-y-2">
         <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Verify your email</h1>
         <p className="text-sm text-[var(--groups1-text-secondary)]">
-          {verified ? "Your email address is verified. You can continue to sign in." : "Enter the code we emailed you or resend a new one."}
+      {verified ? "Your email address is verified. You can continue to sign in." : "Enter the code we emailed you or resend a new one."}
         </p>
         {!verified && (
           <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
@@ -244,16 +201,6 @@ function VerifyEmailPageContent() {
           </div>
         )}
       </div>
-
-      {tokenStatus === "loading" && (
-        <p className="text-sm text-[var(--groups1-text-secondary)]">Verifying your email link…</p>
-      )}
-
-      {tokenStatus === "error" && tokenError && (
-        <div className="rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/20 p-4 text-sm text-red-700 dark:text-red-400">
-          {tokenError}
-        </div>
-      )}
 
       {verified ? (
         <Button

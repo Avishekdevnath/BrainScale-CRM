@@ -292,7 +292,7 @@ export const sendInvitationEmail = async (
   invitationToken: string,
   inviterName: string
 ): Promise<void> => {
-  const invitationUrl = `${env.APP_URL}/accept-invitation?token=${invitationToken}`;
+  const invitationUrl = `${env.FRONTEND_URL}/accept-invitation?token=${invitationToken}`;
   
   const html = `
     <!DOCTYPE html>
@@ -339,7 +339,6 @@ type VerificationEmailOptions = {
 
 export const sendVerificationEmail = async (
   email: string,
-  verificationToken: string,
   userName?: string,
   options?: VerificationEmailOptions
 ): Promise<void> => {
@@ -347,10 +346,7 @@ export const sendVerificationEmail = async (
     throw new Error('OTP code and expiration time are required to send verification email.');
   }
 
-  const verificationUrl = `${env.APP_URL}/verify-email?token=${verificationToken}`;
-
   const html = (options.isResend ? resendVerificationTemplate : emailVerificationTemplate)(
-    verificationUrl,
     options.otpCode,
     options.otpExpiresAt,
     userName
@@ -365,12 +361,11 @@ export const sendVerificationEmail = async (
 
 export const sendResendVerificationEmail = async (
   email: string,
-  verificationToken: string,
   userName: string | undefined,
   otpCode: string,
   otpExpiresAt: Date
 ) => {
-  await sendVerificationEmail(email, verificationToken, userName, {
+  await sendVerificationEmail(email, userName, {
     otpCode,
     otpExpiresAt,
     isResend: true,
@@ -383,7 +378,7 @@ export const sendTemporaryPasswordEmail = async (
   workspaceName: string,
   temporaryPassword: string
 ): Promise<void> => {
-  const loginUrl = `${env.APP_URL}/login`;
+  const loginUrl = `${env.FRONTEND_URL}/login`;
   
   const html = `
     <!DOCTYPE html>

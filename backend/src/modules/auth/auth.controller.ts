@@ -40,11 +40,6 @@ export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-export const verifyEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const result = await authService.verifyEmail(req.validatedData);
-  res.json(result);
-});
-
 export const verifyEmailOtp = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.verifyEmailOtp(req.validatedData);
   res.json(result);
@@ -87,12 +82,6 @@ export const resendPasswordChangeOtp = asyncHandler(async (req: AuthRequest, res
 
 export const resendResetPasswordOtp = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.resendResetPasswordOtp(req.validatedData);
-  res.json(result);
-});
-
-// Signup verification endpoints (separate from general verification)
-export const verifySignupEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const result = await authService.verifySignupEmail(req.validatedData);
   res.json(result);
 });
 

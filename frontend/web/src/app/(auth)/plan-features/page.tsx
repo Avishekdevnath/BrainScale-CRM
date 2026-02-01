@@ -1,14 +1,12 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth";
-import { useWorkspaceStore } from "@/store/workspace";
 import { CheckCircle, AlertCircle, Loader2, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
@@ -25,38 +23,7 @@ const planFeatures = {
       "Basic dashboards",
       "Email support",
     ],
-    limitations: [
-      "Only 1 workspace allowed",
-      "Up to 3 team members",
-      "Basic analytics only",
-    ],
-  },
-  PRO: {
-    name: "Team",
-    included: [
-      "Multiple workspaces",
-      "Unlimited users",
-      "Everything in Starter",
-      "Advanced imports",
-      "Dashboards & charts",
-      "Role-based permissions",
-      "Team pipelines",
-      "Shared templates",
-    ],
-    limitations: ["Billing per active user"],
-  },
-  BUSINESS: {
-    name: "Business",
-    included: [
-      "Everything in Team",
-      "Custom roles",
-      "Members & groups",
-      "Priority support",
-      "SSO / SAML",
-      "Audit logs",
-      "API & webhooks",
-    ],
-    limitations: ["Billing per active user"],
+    limitations: [],
   },
 };
 
@@ -77,16 +44,12 @@ export default function PlanFeaturesPage() {
 function PlanFeaturesPageContent() {
   usePageTitle("Plan Features");
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const planParam = searchParams.get("plan") || "FREE";
   const accessToken = useAuthStore((state) => state.accessToken);
-  const { current: workspace, getCurrentPlan } = useWorkspaceStore();
 
   const [loading, setLoading] = useState(true);
 
-  // Determine plan from URL param or workspace
-  const plan = (planParam.toUpperCase() as "FREE" | "PRO" | "BUSINESS") || getCurrentPlan() || "FREE";
-  const features = planFeatures[plan] || planFeatures.FREE;
+  // Pricing / billing is disabled for now: always use Starter.
+  const features = planFeatures.FREE;
 
   // Route protection
   useEffect(() => {
@@ -117,10 +80,6 @@ function PlanFeaturesPageContent() {
   const handleContinue = () => {
     toast.success("Welcome to your workspace!");
     router.push("/app");
-  };
-
-  const handleUpgrade = () => {
-    router.push("/app/billing");
   };
 
   if (loading) {
@@ -197,18 +156,10 @@ function PlanFeaturesPageContent() {
           Continue to Dashboard
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
-        {plan === "FREE" && (
-          <Button
-            onClick={handleUpgrade}
-            className="w-full border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          >
-            Upgrade Plan
-          </Button>
-        )}
       </div>
 
       <div className="text-center text-xs text-[var(--groups1-text-secondary)] pt-2">
-        <p>You can upgrade or change your plan anytime from workspace settings.</p>
+        <p>Your Starter plan is active.</p>
       </div>
     </div>
   );

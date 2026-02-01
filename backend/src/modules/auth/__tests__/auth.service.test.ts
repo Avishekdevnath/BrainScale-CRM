@@ -14,7 +14,12 @@ const mockPrisma = vi.hoisted(() => ({
     delete: vi.fn(),
     deleteMany: vi.fn(),
   },
-  $transaction: vi.fn(async (operations: Promise<unknown>[]) => Promise.all(operations)),
+  $transaction: vi.fn(async (arg: any) => {
+    if (typeof arg === "function") {
+      return arg(mockPrisma);
+    }
+    return Promise.all(arg);
+  }),
 }));
 
 vi.mock("../../../db/client", () => ({
@@ -41,7 +46,12 @@ beforeEach(() => {
   mockPrisma.emailVerification.deleteMany.mockResolvedValue(undefined);
   mockPrisma.emailVerification.delete.mockResolvedValue(undefined);
   mockPrisma.emailVerification.upsert.mockResolvedValue(undefined);
-  mockPrisma.$transaction.mockImplementation(async (operations: Promise<unknown>[]) => Promise.all(operations));
+  mockPrisma.$transaction.mockImplementation(async (arg: any) => {
+    if (typeof arg === "function") {
+      return arg(mockPrisma);
+    }
+    return Promise.all(arg);
+  });
 });
 
 describe("verifyEmailOtp", () => {
@@ -49,10 +59,16 @@ describe("verifyEmailOtp", () => {
     const otp = "123456";
     const codeHash = await bcrypt.hash(otp, 10);
 
-    mockPrisma.user.findUnique.mockResolvedValueOnce({
-      id: "user-1",
-      emailVerified: false,
-    });
+    mockPrisma.user.findUnique
+      .mockResolvedValueOnce({
+        id: "user-1",
+        emailVerified: false,
+      })
+      // verifyEmailOtp uses a transaction that re-checks the user
+      .mockResolvedValueOnce({
+        id: "user-1",
+        emailVerified: false,
+      });
 
     mockPrisma.emailVerification.findUnique.mockResolvedValueOnce({
       userId: "user-1",
@@ -142,7 +158,7 @@ describe("resendVerificationOtp", () => {
     });
 
     await expect(resendVerificationOtp({ email: "user@example.com" })).rejects.toThrow(
-      /Too many verification requests/
+      /Please wait/i
     );
     expect(sendVerificationEmailMock).not.toHaveBeenCalled();
   });

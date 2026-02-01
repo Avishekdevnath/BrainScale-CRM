@@ -299,12 +299,6 @@ export class ApiClient {
       body: JSON.stringify(body),
     });
   }
-  verifyEmail(token: string) {
-    return this.request<{ message: string }>("/auth/verify-email", {
-      method: "POST",
-      body: JSON.stringify({ token }),
-    });
-  }
 
   verifyEmailOtp(body: { email: string; otp: string }) {
     return this.request<{ message: string }>("/auth/verify-email-otp", {
@@ -328,13 +322,6 @@ export class ApiClient {
   }
 
   // Signup-specific verification endpoints (separate from general verification)
-  verifySignupEmail(token: string) {
-    return this.request<{ message: string }>("/auth/verify-signup-email", {
-      method: "POST",
-      body: JSON.stringify({ token }),
-    });
-  }
-
   verifySignupOtp(body: { email: string; otp: string }) {
     return this.request<{ message: string }>("/auth/verify-signup-otp", {
       method: "POST",

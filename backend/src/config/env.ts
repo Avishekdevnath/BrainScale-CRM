@@ -66,6 +66,15 @@ export const env = {
   COMPANY_ADDRESS: (process.env.COMPANY_ADDRESS || '').trim(),
   
   // App
+  // NOTE: Historically APP_URL was used as the link base in outbound emails.
+  // That caused emails to sometimes point to the backend host (e.g. http://localhost:5000).
+  // FRONTEND_URL is now the preferred base for user-facing links (login, reset password, etc).
+  FRONTEND_URL:
+    process.env.FRONTEND_URL ||
+    process.env.APP_URL ||
+    'http://localhost:3000',
+
+  // Backward-compatible: keep APP_URL for any existing non-email usage.
   APP_URL: process.env.APP_URL || `http://localhost:${parseInt(process.env.PORT || '3000', 10)}`,
   
   // CORS
@@ -89,6 +98,10 @@ export const env = {
   
   // Cron
   CRON_SECRET: process.env.CRON_SECRET || '',
+
+  // Billing / plan enforcement
+  // Disabled by default. Set BILLING_ENABLED=true to enforce plan limits & enable billing flows.
+  BILLING_ENABLED: process.env.BILLING_ENABLED === 'true',
   
   // AI Configuration
   AI_ENABLED: process.env.AI_ENABLED === 'true',

@@ -37,12 +37,12 @@ export function useWorkspaceInitializer() {
           }
         } else {
           // No workspaces - redirect to create workspace
-          router.push("/choose-plan");
+          router.push("/create-workspace");
         }
       } catch (error) {
         console.error("Failed to load workspace:", error);
-        // On error, redirect to login or choose-plan
-        router.push("/choose-plan");
+        // On error, redirect to create workspace
+        router.push("/create-workspace");
       } finally {
         hasInitialized.current = true;
       }

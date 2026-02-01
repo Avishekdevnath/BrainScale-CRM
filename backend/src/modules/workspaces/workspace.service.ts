@@ -1,4 +1,5 @@
 import { prisma } from '../../db/client';
+import { env } from '../../config/env';
 import { AppError } from '../../middleware/error-handler';
 import { hashPassword } from '../../auth/password';
 import { sendTemporaryPasswordEmail } from '../../utils/email';
@@ -14,24 +15,27 @@ import {
 } from './workspace.schemas';
 
 export const createWorkspace = async (userId: string, data: CreateWorkspaceInput) => {
-  // Check user's plan - Free plan can only have 1 workspace
-  const existingMemberships = await prisma.workspaceMember.findMany({
-    where: { userId },
-    include: {
-      workspace: true,
-    },
-  });
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
+  if (env.BILLING_ENABLED) {
+    // Check user's plan - Free plan can only have 1 workspace
+    const existingMemberships = await prisma.workspaceMember.findMany({
+      where: { userId },
+      include: {
+        workspace: true,
+      },
+    });
 
-  // Check if user already has a workspace with FREE plan
-  const hasFreePlanWorkspace = existingMemberships.some(
-    (m) => m.workspace.plan === 'FREE'
-  );
-
-  if (hasFreePlanWorkspace && existingMemberships.length >= 1) {
-    throw new AppError(
-      403,
-      'Free plan allows only 1 workspace. Please upgrade to create more workspaces.'
+    // Check if user already has a workspace with FREE plan
+    const hasFreePlanWorkspace = existingMemberships.some(
+      (m) => m.workspace.plan === 'FREE'
     );
+
+    if (hasFreePlanWorkspace && existingMemberships.length >= 1) {
+      throw new AppError(
+        403,
+        'Free plan allows only 1 workspace. Please upgrade to create more workspaces.'
+      );
+    }
   }
 
   // Create workspace and add user as admin
@@ -205,8 +209,9 @@ export const inviteMember = async (
     throw new AppError(404, 'Workspace not found');
   }
 
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
   // Check member limit for FREE plan
-  if (workspace.plan === 'FREE') {
+  if (env.BILLING_ENABLED && workspace.plan === 'FREE') {
     const currentMemberCount = workspace.members.length;
     if (currentMemberCount >= 5) {
       throw new AppError(
@@ -617,8 +622,9 @@ export const createMemberWithAccount = async (
     throw new AppError(404, 'Workspace not found');
   }
 
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
   // Check member limit for FREE plan
-  if (workspace.plan === 'FREE') {
+  if (env.BILLING_ENABLED && workspace.plan === 'FREE') {
     const currentMemberCount = workspace.members.length;
     if (currentMemberCount >= 5) {
       throw new AppError(

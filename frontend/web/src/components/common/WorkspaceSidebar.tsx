@@ -22,7 +22,6 @@ import {
   UserPlus,
   Mail,
   FileText,
-  CreditCard,
   FileCheck,
   Layers,
   ChevronDown,
@@ -116,7 +115,6 @@ const navSections: NavSection[] = [
     items: [
       { href: "/app/audit-logs", label: "Audit Logs", icon: FileCheck },
       { href: "/app/email-settings", label: "Email Settings", icon: Mail },
-      { href: "/app/billing", label: "Plan & Billing", icon: CreditCard },
       { href: "/app/settings", label: "Settings", icon: Settings },
     ],
   },

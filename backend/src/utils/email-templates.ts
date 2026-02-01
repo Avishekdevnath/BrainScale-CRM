@@ -66,7 +66,7 @@ export const followupAssignmentTemplate = (
       ${notes ? `<p style="margin: 10px 0 0 0;"><strong>Notes:</strong> ${notes}</p>` : ''}
     </div>
     <p style="margin-top: 30px;">
-      <a href="${env.APP_URL}/followups" 
+      <a href="${env.FRONTEND_URL}/followups" 
          style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
         View Follow-up
       </a>
@@ -109,7 +109,7 @@ export const followupReminderTemplate = (
       ${notes ? `<p style="margin: 10px 0 0 0;"><strong>Notes:</strong> ${notes}</p>` : ''}
     </div>
     <p style="margin-top: 30px;">
-      <a href="${env.APP_URL}/followups" 
+      <a href="${env.FRONTEND_URL}/followups" 
          style="background-color: ${statusColor}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
         View Follow-up
       </a>
@@ -179,7 +179,7 @@ export const dailyDigestTemplate = (
     ` : ''}
 
     <p style="margin-top: 30px;">
-      <a href="${env.APP_URL}/dashboard" 
+      <a href="${env.FRONTEND_URL}/dashboard" 
          style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
         View Dashboard
       </a>
@@ -246,7 +246,7 @@ export const weeklyDigestTemplate = (
     ` : ''}
 
     <p style="margin-top: 30px;">
-      <a href="${env.APP_URL}/dashboard" 
+      <a href="${env.FRONTEND_URL}/dashboard" 
          style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
         View Dashboard
       </a>
@@ -269,13 +269,11 @@ const formatOtpExpiry = (expiresAt: Date) =>
   });
 
 const verificationEmailContent = ({
-  verificationUrl,
   otpCode,
   otpExpiresAt,
   userName,
   isResend,
 }: {
-  verificationUrl: string;
   otpCode: string;
   otpExpiresAt: Date;
   userName?: string;
@@ -286,7 +284,7 @@ const verificationEmailContent = ({
   return `
     <h2 style="color: #4F46E5;">Verify Your Email Address</h2>
     <p>Hi${userName ? ` ${userName}` : ''},</p>
-    <p>${isResend ? 'You requested a new verification email.' : 'Thank you for signing up for BrainScale CRM!'} Verify your email using either option below:</p>
+    <p>${isResend ? 'You requested a new verification code.' : 'Thank you for signing up for BrainScale CRM!'} Use the code below to verify your email:</p>
 
     <div style="margin: 24px 0; padding: 20px; background-color: #eef2ff; border-radius: 12px; text-align: center;">
       <p style="margin: 0 0 12px 0; font-size: 14px; letter-spacing: 0.1em; color: #4F46E5; text-transform: uppercase;">Your One-Time Code</p>
@@ -294,33 +292,19 @@ const verificationEmailContent = ({
       <p style="margin-top: 12px; font-size: 12px; color: #4b5563;">Code expires on <strong>${expiresText}</strong></p>
     </div>
 
-    <p style="text-align: center; margin: 30px 0;">
-      <a href="${verificationUrl}"
-         style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-        Verify Email with Link
-      </a>
-    </p>
-
-    <p style="color: #666; font-size: 12px; margin-top: 24px;">
-      If the button doesn't work, copy and paste this link into your browser:<br />
-      <span style="display: inline-block; margin-top: 8px; background-color: #f9fafb; padding: 10px; border-radius: 4px; word-break: break-all;">${verificationUrl}</span>
-    </p>
-
     <p style="margin-top: 30px; color: #666; font-size: 12px;">
-      This verification link expires in 24 hours and the code above expires soon, so please verify your email as soon as possible. If you didn't request this, you can safely ignore this email.
+      This verification code expires soon, so please verify your email as soon as possible. If you didn't request this, you can safely ignore this email.
     </p>
   `;
 };
 
 export const emailVerificationTemplate = (
-  verificationUrl: string,
   otpCode: string,
   otpExpiresAt: Date,
   userName?: string
 ): string => {
   return baseTemplate(
     verificationEmailContent({
-      verificationUrl,
       otpCode,
       otpExpiresAt,
       userName,
@@ -330,14 +314,12 @@ export const emailVerificationTemplate = (
 };
 
 export const resendVerificationTemplate = (
-  verificationUrl: string,
   otpCode: string,
   otpExpiresAt: Date,
   userName?: string
 ): string => {
   return baseTemplate(
     verificationEmailContent({
-      verificationUrl,
       otpCode,
       otpExpiresAt,
       userName,
@@ -362,7 +344,7 @@ const passwordChangeOtpContent = ({
   isResend?: boolean;
 }): string => {
   const expiresText = formatOtpExpiry(otpExpiresAt);
-  const loginUrl = `${env.APP_URL}/login`;
+  const loginUrl = `${env.FRONTEND_URL}/login`;
 
   return `
     <h2 style="color: #4F46E5;">Change Your Password</h2>
@@ -418,7 +400,7 @@ const resetPasswordOtpContent = ({
   isResend?: boolean;
 }): string => {
   const expiresText = formatOtpExpiry(otpExpiresAt);
-  const resetUrl = `${env.APP_URL}/reset-password`;
+  const resetUrl = `${env.FRONTEND_URL}/reset-password`;
 
   return `
     <h2 style="color: #4F46E5;">Reset Your Password</h2>

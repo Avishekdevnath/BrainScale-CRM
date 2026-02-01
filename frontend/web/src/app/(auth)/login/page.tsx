@@ -79,11 +79,11 @@ export default function LoginPage() {
 
       // Check for workspaces
       try {
-        const workspaces = await apiClient.getWorkspaces();
-        if (!workspaces || workspaces.length === 0) {
-          toast.info("Let's set up your workspace");
-          router.push("/choose-plan");
-        } else {
+          const workspaces = await apiClient.getWorkspaces();
+          if (!workspaces || workspaces.length === 0) {
+            toast.info("Let's set up your workspace");
+            router.push("/create-workspace");
+          } else {
           // Set first workspace as current
           const workspaceStore = useWorkspaceStore.getState();
           workspaceStore.setCurrentFromApi({
@@ -97,9 +97,9 @@ export default function LoginPage() {
           router.push("/app");
         }
       } catch (workspaceError) {
-        // If workspace check fails, redirect to choose-plan as fallback
+        // If workspace check fails, redirect to create-workspace as fallback
         console.error("Workspace check failed:", workspaceError);
-        router.push("/choose-plan");
+        router.push("/create-workspace");
       }
     } catch (e: any) {
       toast.error(e?.message ?? "Login failed");

@@ -7,7 +7,6 @@ import {
   SignupSchema,
   LoginSchema,
   RefreshTokenSchema,
-  VerifyEmailSchema,
   ResendVerificationSchema,
   VerifyEmailOtpSchema,
   ResendVerificationOtpSchema,
@@ -145,33 +144,6 @@ router.post('/logout', authGuard, authController.logout);
 
 /**
  * @openapi
- * /auth/verify-email:
- *   post:
- *     summary: Verify email address with token
- *     tags: [Auth]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *             properties:
- *               token:
- *                 type: string
- *                 description: Verification token from email
- *     responses:
- *       200:
- *         description: Email verified successfully
- *       400:
- *         description: Invalid or expired token
- */
-router.post('/verify-email', authLimiter, zodValidator(VerifyEmailSchema), authController.verifyEmail);
-
-/**
- * @openapi
  * /auth/verify-email-otp:
  *   post:
  *     summary: Verify email address using a one-time password (OTP)
@@ -262,33 +234,6 @@ router.post(
   zodValidator(ResendVerificationOtpSchema),
   authController.resendVerificationOtp
 );
-
-/**
- * @openapi
- * /auth/verify-signup-email:
- *   post:
- *     summary: Verify signup email address with token (signup-specific)
- *     tags: [Auth]
- *     security: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - token
- *             properties:
- *               token:
- *                 type: string
- *                 description: Verification token from signup email
- *     responses:
- *       200:
- *         description: Email verified successfully
- *       400:
- *         description: Invalid or expired token
- */
-router.post('/verify-signup-email', authLimiter, zodValidator(VerifyEmailSchema), authController.verifySignupEmail);
 
 /**
  * @openapi

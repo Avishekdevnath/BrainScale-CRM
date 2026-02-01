@@ -47,9 +47,6 @@ export function PublicNavbar() {
           <Link href="/features" className="transition hover:text-[var(--groups1-primary)] text-[var(--groups1-text)]">
             Features
           </Link>
-          <Link href="/pricing" className="transition hover:text-[var(--groups1-primary)] text-[var(--groups1-text)]">
-            Pricing
-          </Link>
           <Link href="/integrations" className="transition hover:text-[var(--groups1-primary)] text-[var(--groups1-text)]">
             Integrations
           </Link>

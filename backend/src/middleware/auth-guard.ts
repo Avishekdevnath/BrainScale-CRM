@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, JWTPayload } from '../auth/jwt';
 import { AppError } from './error-handler';
 
-export interface AuthRequest extends Request {
+// Explicitly type params as string values (Express' default can allow string[] for unnamed regex params).
+export interface AuthRequest extends Request<Record<string, string>, any, any, any> {
   user?: JWTPayload;
   validatedData?: any; // Populated by zodValidator middleware
 }

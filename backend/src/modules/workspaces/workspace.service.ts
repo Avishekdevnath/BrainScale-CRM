@@ -501,7 +501,7 @@ export const updateMember = async (
     if (isCurrentlyAdmin) {
       // Check if custom role has workspace management permissions (admin-like)
       const hasAdminPermissions = customRole.permissions.some(
-        (rp) => rp.permission.resource === 'workspaces' && 
+        (rp) => rp.permission.resource === 'workspace' && 
                 (rp.permission.action === 'manage' || rp.permission.action === 'update')
       );
 

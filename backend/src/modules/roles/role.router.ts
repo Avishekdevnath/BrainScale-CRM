@@ -39,6 +39,28 @@ router.get('/available-permissions', authGuard, tenantGuard, requireRole('ADMIN'
 
 /**
  * @openapi
+ * /workspaces/initialize-permissions:
+ *   post:
+ *     summary: Initialize default permissions (Admin only)
+ *     tags: [Roles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: X-Workspace-Id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Permissions initialized
+ *       403:
+ *         description: Admin access required
+ */
+router.post('/initialize-permissions', authGuard, tenantGuard, requireRole('ADMIN'), roleController.initializePermissions);
+
+/**
+ * @openapi
  * /workspaces/{workspaceId}/roles:
  *   post:
  *     summary: Create a custom role

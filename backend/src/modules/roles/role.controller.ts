@@ -52,6 +52,11 @@ export const listPermissions = asyncHandler(async (req: AuthRequest, res: Respon
   res.json(permissions);
 });
 
+export const initializePermissions = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  const result = await roleService.initializeDefaultPermissions();
+  res.status(201).json(result);
+});
+
 export const createDefaultRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await roleService.createDefaultRolesWithAllPermissions(req.user!.workspaceId!);
   res.status(201).json(result);

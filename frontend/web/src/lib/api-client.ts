@@ -108,6 +108,7 @@ import type {
   AssignPermissionsPayload,
   PermissionsResponse,
 } from "@/types/roles.types";
+import { mutate as swrMutate } from "swr";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -154,6 +155,7 @@ export class ApiClient {
   }
 
   private async request<T>(endpoint: string, init: RequestInit = {}): Promise<T> {
+    const method = (init.method || "GET").toUpperCase();
     // Don't set Content-Type for FormData - browser needs to set it with boundary
     const isFormData = init.body instanceof FormData;
     const headers: HeadersInit = {
@@ -189,13 +191,28 @@ export class ApiClient {
       }
       const retry = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers: retryHeaders });
       if (!retry.ok) throw await this.parseError(retry);
-      return retry.json();
+      const data = (await retry.json()) as T;
+
+      // After successful mutations, revalidate SWR caches so UI updates without manual reload.
+      if (typeof window !== "undefined" && method !== "GET") {
+        void swrMutate(() => true, undefined, { revalidate: true });
+      }
+
+      return data;
     }
     if (!res.ok) throw await this.parseError(res);
-    return res.json();
+    const data = (await res.json()) as T;
+
+    // After successful mutations, revalidate SWR caches so UI updates without manual reload.
+    if (typeof window !== "undefined" && method !== "GET") {
+      void swrMutate(() => true, undefined, { revalidate: true });
+    }
+
+    return data;
   }
 
   private async requestBlob(endpoint: string, init: RequestInit = {}): Promise<Blob> {
+    const method = (init.method || "GET").toUpperCase();
     const headers: HeadersInit = {
       ...(init.headers || {}),
     };
@@ -227,10 +244,18 @@ export class ApiClient {
       }
       const retry = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers: retryHeaders });
       if (!retry.ok) throw await this.parseError(retry);
-      return retry.blob();
+      const blob = await retry.blob();
+      if (typeof window !== "undefined" && method !== "GET") {
+        void swrMutate(() => true, undefined, { revalidate: true });
+      }
+      return blob;
     }
     if (!res.ok) throw await this.parseError(res);
-    return res.blob();
+    const blob = await res.blob();
+    if (typeof window !== "undefined" && method !== "GET") {
+      void swrMutate(() => true, undefined, { revalidate: true });
+    }
+    return blob;
   }
 
   private async parseError(res: Response): Promise<Error & { status?: number; retryAfter?: number; canRetryAt?: string }> {
@@ -1938,6 +1963,16 @@ export class ApiClient {
     // Use the correct endpoint path - workspace ID is already added by request() method via X-Workspace-Id header
     return this.request<PermissionsResponse>("/workspaces/available-permissions", {
       method: "GET",
+    });
+  }
+
+  initializeDefaultPermissions(): Promise<{ message: string }> {
+    const workspaceId = getWorkspaceId();
+    if (!workspaceId) {
+      throw new Error("Workspace ID is required to initialize permissions.");
+    }
+    return this.request<{ message: string }>("/workspaces/initialize-permissions", {
+      method: "POST",
     });
   }
 

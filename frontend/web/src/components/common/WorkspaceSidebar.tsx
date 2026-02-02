@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronRight,
   Database,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
@@ -107,6 +108,7 @@ const navSections: NavSection[] = [
     adminOnly: true,
     items: [
       { href: "/app/members", label: "Members & Roles", icon: UserCog },
+      { href: "/app/access-control", label: "Access Control", icon: Shield },
       { href: "/app/invitations", label: "Invitations", icon: UserPlus },
       { href: "/app/workspace-settings", label: "Workspace Settings", icon: Settings },
     ],

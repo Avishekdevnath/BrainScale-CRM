@@ -2,14 +2,14 @@
 
 import { useMemo } from "react";
 import { useCurrentMember } from "./useCurrentMember";
-import { useWorkspaceStore } from "@/store/workspace-store";
+import { useWorkspaceStore } from "@/store/workspace";
 
 /**
  * Hook to check if the current user has a specific permission
- * Since custom roles are removed, only ADMIN role has full access
- * @param resource - The resource name (e.g., 'students', 'call_lists') - kept for API compatibility
- * @param action - The action name (e.g., 'create', 'read', 'update', 'delete') - kept for API compatibility
- * @returns boolean indicating if the user is an ADMIN
+ * ADMIN role has full access; custom roles use explicit permissions.
+ * @param resource - The resource name (e.g., 'students', 'call_lists')
+ * @param action - The action name (e.g., 'create', 'read', 'update', 'delete')
+ * @returns boolean indicating if the user has permission
  */
 export function useHasPermission(resource: string, action: string): boolean {
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
@@ -19,7 +19,14 @@ export function useHasPermission(resource: string, action: string): boolean {
     if (!member) return false;
 
     // ADMIN role has full access
-    return member.role === "ADMIN";
+    if (member.role === "ADMIN") return true;
+
+    const permissions = member.permissions || [];
+    return permissions.some(
+      (p) =>
+        p.resource === resource &&
+        (p.action === action || p.action === "manage")
+    );
   }, [member]);
 }
 

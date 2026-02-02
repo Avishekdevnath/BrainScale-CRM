@@ -18,6 +18,7 @@ type WorkspaceState = {
     logo?: string | null;
     timezone?: string;
   }) => void;
+  clear: () => void;
   getCurrentName: () => string;
   getCurrentPlan: () => "FREE" | "PRO" | "BUSINESS" | null;
   getCurrentId: () => string | null;
@@ -56,6 +57,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         localStorage.setItem("currentWorkspace", JSON.stringify(workspace));
       } catch {}
       set({ current: workspace });
+    },
+    clear: () => {
+      try {
+        localStorage.removeItem("currentWorkspace");
+      } catch {}
+      set({ current: null });
     },
     getCurrentName: () => {
       const state = get();

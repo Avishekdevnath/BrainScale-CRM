@@ -15,6 +15,20 @@ import {
 } from './workspace.schemas';
 
 export const createWorkspace = async (userId: string, data: CreateWorkspaceInput) => {
+  // Current constraint: one admin can have only one workspace.
+  // Block creating another workspace if the user is already an ADMIN in any workspace.
+  const existingAdminMembership = await prisma.workspaceMember.findFirst({
+    where: { userId, role: 'ADMIN' },
+    select: { id: true, workspaceId: true },
+  });
+
+  if (existingAdminMembership) {
+    throw new AppError(
+      400,
+      'You can only have one workspace right now. Delete your existing workspace to create another.'
+    );
+  }
+
   // Plan enforcement is disabled unless BILLING_ENABLED=true.
   if (env.BILLING_ENABLED) {
     // Check user's plan - Free plan can only have 1 workspace
@@ -88,6 +102,92 @@ export const createWorkspace = async (userId: string, data: CreateWorkspaceInput
     accessToken,
     refreshToken,
   } as typeof workspace & { accessToken: string; refreshToken: string };
+};
+
+export const deleteWorkspace = async (workspaceId: string) => {
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: workspaceId },
+    select: { id: true },
+  });
+
+  if (!workspace) {
+    throw new AppError(404, 'Workspace not found');
+  }
+
+  // Collect IDs for relation tables that don't have workspaceId.
+  const [groups, batches, courses, students, customRoles] = await Promise.all([
+    prisma.group.findMany({ where: { workspaceId }, select: { id: true } }),
+    prisma.batch.findMany({ where: { workspaceId }, select: { id: true } }),
+    prisma.course.findMany({ where: { workspaceId }, select: { id: true } }),
+    prisma.student.findMany({ where: { workspaceId }, select: { id: true } }),
+    prisma.customRole.findMany({ where: { workspaceId }, select: { id: true } }),
+  ]);
+
+  const groupIds = groups.map((g) => g.id);
+  const batchIds = batches.map((b) => b.id);
+  const courseIds = courses.map((c) => c.id);
+  const studentIds = students.map((s) => s.id);
+  const customRoleIds = customRoles.map((r) => r.id);
+
+  const modules = courseIds.length
+    ? await prisma.module.findMany({ where: { courseId: { in: courseIds } }, select: { id: true } })
+    : [];
+  const moduleIds = modules.map((m) => m.id);
+
+  // Delete in a safe order (Mongo doesn't enforce FKs; this prevents leaving dependent docs around).
+  if (groupIds.length) {
+    await prisma.enrollment.deleteMany({ where: { groupId: { in: groupIds } } });
+    await prisma.studentGroupStatus.deleteMany({ where: { groupId: { in: groupIds } } });
+    await prisma.groupAccess.deleteMany({ where: { groupId: { in: groupIds } } });
+  }
+
+  if (studentIds.length) {
+    await prisma.studentGroupStatus.deleteMany({ where: { studentId: { in: studentIds } } });
+    await prisma.moduleProgress.deleteMany({ where: { studentId: { in: studentIds } } });
+    await prisma.studentBatch.deleteMany({ where: { studentId: { in: studentIds } } });
+  }
+
+  if (batchIds.length) {
+    await prisma.studentBatch.deleteMany({ where: { batchId: { in: batchIds } } });
+  }
+
+  if (moduleIds.length) {
+    await prisma.moduleProgress.deleteMany({ where: { moduleId: { in: moduleIds } } });
+  }
+
+  if (courseIds.length) {
+    await prisma.module.deleteMany({ where: { courseId: { in: courseIds } } });
+  }
+
+  if (customRoleIds.length) {
+    await prisma.rolePermission.deleteMany({ where: { customRoleId: { in: customRoleIds } } });
+  }
+
+  // Workspace-scoped collections
+  await Promise.all([
+    prisma.chatMessage.deleteMany({ where: { workspaceId } }),
+    prisma.chat.deleteMany({ where: { workspaceId } }),
+    prisma.callLog.deleteMany({ where: { workspaceId } }),
+    prisma.followup.deleteMany({ where: { workspaceId } }),
+    prisma.callListItem.deleteMany({ where: { workspaceId } }),
+    prisma.callList.deleteMany({ where: { workspaceId } }),
+    prisma.call.deleteMany({ where: { workspaceId } }),
+    prisma.payment.deleteMany({ where: { workspaceId } }),
+    prisma.import.deleteMany({ where: { workspaceId } }),
+    prisma.auditLog.deleteMany({ where: { workspaceId } }),
+    prisma.invitation.deleteMany({ where: { workspaceId } }),
+    prisma.studentPhone.deleteMany({ where: { workspaceId } }),
+    prisma.workspaceMember.deleteMany({ where: { workspaceId } }),
+    prisma.customRole.deleteMany({ where: { workspaceId } }),
+    prisma.group.deleteMany({ where: { workspaceId } }),
+    prisma.batch.deleteMany({ where: { workspaceId } }),
+    prisma.course.deleteMany({ where: { workspaceId } }),
+    prisma.student.deleteMany({ where: { workspaceId } }),
+  ]);
+
+  await prisma.workspace.delete({ where: { id: workspaceId } });
+
+  return { message: 'Workspace deleted' };
 };
 
 export const getWorkspaces = async (userId: string) => {

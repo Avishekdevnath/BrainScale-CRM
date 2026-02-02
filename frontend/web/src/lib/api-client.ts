@@ -546,6 +546,12 @@ export class ApiClient {
     });
   }
 
+  deleteWorkspace(workspaceId: string) {
+    return this.request<{ message: string }>(`/workspaces/${workspaceId}`, {
+      method: "DELETE",
+    });
+  }
+
   getCurrentWorkspaceMember(workspaceId: string) {
     return this.request<{
       id: string;

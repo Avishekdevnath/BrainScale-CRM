@@ -131,6 +131,36 @@ router.patch(
 
 /**
  * @openapi
+ * /workspaces/{workspaceId}:
+ *   delete:
+ *     summary: Delete workspace (admin only)
+ *     tags: [Workspaces]
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Workspace deleted
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Workspace not found
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/:workspaceId',
+  authGuard,
+  tenantGuard,
+  requireRole('ADMIN'),
+  workspaceController.remove
+);
+
+/**
+ * @openapi
  * /workspaces/{workspaceId}/members/invite:
  *   post:
  *     summary: Invite a member to workspace

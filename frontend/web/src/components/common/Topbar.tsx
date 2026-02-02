@@ -153,7 +153,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
             </div>
           ) : showGroupSelector ? (
             <select
-              value={selectedGroupId}
+              value={urlGroupId || currentGroup?.id || ""}
               onChange={(e) => handleGroupChange(e.target.value)}
               className={cn(
                 "w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",

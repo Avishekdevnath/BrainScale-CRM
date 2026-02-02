@@ -32,6 +32,11 @@ export const update = asyncHandler(async (req: AuthRequest, res: Response) => {
   res.json(workspace);
 });
 
+export const remove = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await workspaceService.deleteWorkspace(req.params.workspaceId);
+  res.json(result);
+});
+
 export const invite = asyncHandler(async (req: AuthRequest, res: Response) => {
   const member = await workspaceService.inviteMember(
     req.params.workspaceId,

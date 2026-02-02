@@ -296,6 +296,13 @@ export function CallListFormDialog({
       return;
     }
 
+    const normalizedQuestions = form.questions.map((q) => ({
+      ...q,
+      question: q.question.trim(),
+      shortLabel: q.shortLabel?.trim() ? q.shortLabel.trim() : undefined,
+      options: q.options?.map((o) => o.trim()).filter(Boolean),
+    }));
+
     setSaving(true);
     try {
       if (isEditMode && callList) {
@@ -303,7 +310,7 @@ export function CallListFormDialog({
           name: form.name.trim(),
           description: form.description.trim() || undefined,
           messages: form.messages.filter(msg => msg.trim()),
-          questions: form.questions.length > 0 ? form.questions : undefined,
+          questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
           status: form.status || undefined,
         };
         await apiClient.updateCallList(callList.id, payload);
@@ -319,7 +326,7 @@ export function CallListFormDialog({
           studentsData: form.studentsData.length > 0 ? form.studentsData : undefined,
           groupIds: form.groupIds.length > 0 ? form.groupIds : undefined,
           messages: form.messages.filter(msg => msg.trim()),
-          questions: form.questions.length > 0 ? form.questions : undefined,
+          questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
           matchBy: form.studentsData.length > 0 ? 'email_or_phone' : undefined,
           skipDuplicates: form.studentsData.length > 0 ? true : undefined,
         };

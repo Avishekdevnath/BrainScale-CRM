@@ -17,6 +17,11 @@ export interface CallListBulkActionsToolbarProps {
   onClearSelection?: () => void;
   disabled?: boolean;
   isAdmin?: boolean;
+  selectionMeta?: {
+    assignedToMe: number;
+    unassigned: number;
+    assignedToOthers: number;
+  };
 }
 
 export function CallListBulkActionsToolbar({
@@ -26,6 +31,7 @@ export function CallListBulkActionsToolbar({
   onClearSelection,
   disabled = false,
   isAdmin = false,
+  selectionMeta,
 }: CallListBulkActionsToolbarProps) {
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -112,6 +118,9 @@ export function CallListBulkActionsToolbar({
 
   if (!hasSelection) return null;
 
+  const shouldShowUnassignInCollapsed =
+    !!selectionMeta && selectionMeta.assignedToMe === selectedItemIds.length;
+
   return (
     <>
       <div
@@ -134,28 +143,37 @@ export function CallListBulkActionsToolbar({
                   if (!hasSelection || isUpdating || disabled) return;
                   setIsUpdating(true);
                   try {
-                    await apiClient.assignCallListItems(listId, {
-                      itemIds: selectedItemIds,
-                    });
-                    toast.success(`${selectedItemIds.length} items assigned to you`);
+                    if (shouldShowUnassignInCollapsed) {
+                      await apiClient.unassignCallListItems(listId, { itemIds: selectedItemIds });
+                      toast.success(`${selectedItemIds.length} items unassigned`);
+                    } else {
+                      await apiClient.assignCallListItems(listId, { itemIds: selectedItemIds });
+                      toast.success(`${selectedItemIds.length} items assigned to you`);
+                    }
                     onItemsUpdated?.();
                   } catch (error: any) {
-                    console.error("Failed to assign items:", error);
-                    const errorMessage = error?.message || "Failed to assign items";
+                    console.error("Failed to update assignment:", error);
+                    const errorMessage =
+                      error?.message || (shouldShowUnassignInCollapsed ? "Failed to unassign items" : "Failed to assign items");
                     toast.error(errorMessage);
                   } finally {
                     setIsUpdating(false);
                   }
                 }}
                 disabled={isUpdating || disabled}
-                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] dark:font-semibold"
+                className={cn(
+                  "dark:font-semibold",
+                  shouldShowUnassignInCollapsed
+                    ? "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                    : "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                )}
               >
                 {isUpdating ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
+                ) : !shouldShowUnassignInCollapsed ? (
                   <UserPlus className="w-4 h-4 mr-2" />
-                )}
-                Assign to Me
+                ) : null}
+                {shouldShowUnassignInCollapsed ? "Unassign" : "Assign to Me"}
               </Button>
             )}
           </div>

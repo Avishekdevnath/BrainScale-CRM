@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Building2, Users, Brain } from "lucide-react";
+import { Search, Bell, Building2, Users, Brain, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
 import { cn } from "@/lib/utils";
@@ -14,9 +14,10 @@ import Link from "next/link";
 interface TopbarProps {
   showWorkspaceName?: boolean;
   showGroupSelector?: boolean;
+  onMenuClick?: () => void;
 }
 
-export function Topbar({ showWorkspaceName = false, showGroupSelector = false }: TopbarProps) {
+export function Topbar({ showWorkspaceName = false, showGroupSelector = false, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const workspaceName = useWorkspaceStore((state) => state.getCurrentName());
@@ -91,8 +92,32 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
 
   return (
     <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] flex items-center px-4 gap-4 flex-shrink-0">
+      {/* Mobile: Menu + Brand */}
+      <div className="flex items-center gap-3 md:hidden">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className={cn(
+            "w-10 h-10 flex items-center justify-center rounded-lg",
+            "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          )}
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-[var(--groups1-text)] truncate">
+            BrainScale CRM
+          </div>
+          <div className="text-xs text-[var(--groups1-text-secondary)] truncate" suppressHydrationWarning>
+            {workspaceName}
+          </div>
+        </div>
+      </div>
+
       {/* Left: Workspace/Groups/Brain Toggle Buttons */}
-      <div className="flex items-center gap-2">
+      <div className="hidden md:flex items-center gap-2">
         <Link href="/app">
           <Button
             size="sm"
@@ -144,7 +169,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
       </div>
 
       {/* Workspace Name or Group Selector */}
-      <div className="flex items-center gap-3">
+      <div className="hidden md:flex items-center gap-3">
         <div className="min-w-[180px]">
           {showWorkspaceName ? (
             <div 
@@ -184,7 +209,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
       </div>
 
       {/* Center: Search Box */}
-      <div className="flex-1 flex justify-center max-w-md mx-auto">
+      <div className="hidden md:flex flex-1 justify-center max-w-md mx-auto">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
           <input
@@ -201,9 +226,59 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false }:
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {/* Mobile: Route toggles */}
+        <div className="md:hidden flex items-center gap-1">
+          <Link
+            href="/app"
+            aria-label="Workspace"
+            className={cn(
+              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
+              isWorkspaceRoute
+                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
+                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+            )}
+          >
+            <Building2 className="w-5 h-5" />
+          </Link>
+          <Link
+            href={groupsLink}
+            aria-label="Groups"
+            aria-disabled={groupsLoading ? "true" : undefined}
+            className={cn(
+              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
+              isGroupsRoute
+                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
+                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
+              groupsLoading && "opacity-60 pointer-events-none"
+            )}
+          >
+            <Users className="w-5 h-5" />
+          </Link>
+          <Link
+            href="/app/ai-chat"
+            aria-label="Brain"
+            className={cn(
+              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
+              isChatRoute
+                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
+                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+            )}
+          >
+            <Brain className="w-5 h-5" />
+          </Link>
+          <div className="w-px h-6 bg-[var(--groups1-border)] mx-1" />
+        </div>
+
         <button
           type="button"
-          className="relative w-10 h-10 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          className="md:hidden relative w-10 h-10 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          aria-label="Search"
+        >
+          <Search className="w-5 h-5" />
+        </button>
+        <button
+          type="button"
+          className="hidden md:relative w-10 h-10 md:flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
           aria-label="Notifications"
         >
           <Bell className="w-5 h-5" />

@@ -65,7 +65,7 @@ export function PublicNavbar() {
                 <Button 
                   size="sm" 
                   variant="outline"
-                  className="hidden sm:inline-flex border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                  className="inline-flex border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                 >
                   Dashboard
                 </Button>

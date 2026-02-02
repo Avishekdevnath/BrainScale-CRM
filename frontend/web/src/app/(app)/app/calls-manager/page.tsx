@@ -19,9 +19,10 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search } from "lucide-react";
 import { mutate } from "swr";
-import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState } from "@/types/call-lists.types";
+import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
 
 export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
@@ -51,6 +52,14 @@ export default function CallsManagerPage() {
     followUpDate?: string;
     followUpNote?: string;
   }>>({});
+  const [itemAnswers, setItemAnswers] = useState<Record<string, Record<string, any>>>({});
+  const [textAnswerEditor, setTextAnswerEditor] = useState<{
+    open: boolean;
+    itemId: string | null;
+    questionId: string | null;
+    questionLabel: string;
+    draft: string;
+  }>({ open: false, itemId: null, questionId: null, questionLabel: "", draft: "" });
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [bulkActionDialog, setBulkActionDialog] = useState<{
     open: boolean;
@@ -98,11 +107,64 @@ export default function CallsManagerPage() {
     
     return params;
   }, [page, pageSize, state, showFollowUps, debouncedSearchQuery, groupId, batchId, callListId]);
-  
+
   const { data, isLoading, error, mutate: mutateCalls } = useMyCalls(apiParams);
 
   const items = data?.items || [];
   const pageItemIds = useMemo(() => items.map((item) => item.id), [items]);
+
+  const tableQuestions = useMemo(() => {
+    const callListIds = new Set(items.map((i) => i.callListId).filter(Boolean));
+    if (callListIds.size !== 1) return [];
+
+    const firstWithCallList = items.find((i) => i.callList && i.callListId);
+    const rawQuestions = (firstWithCallList?.callList?.questions || []) as Question[];
+    return [...rawQuestions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [items]);
+
+  const showQuestionColumns = tableQuestions.length > 0;
+
+  const setAnswerValue = (itemId: string, questionId: string, value: any) => {
+    setItemAnswers((prev) => {
+      const nextForItem = { ...(prev[itemId] || {}) };
+      if (value === undefined || value === null || value === "") {
+        delete nextForItem[questionId];
+      } else {
+        nextForItem[questionId] = value;
+      }
+      return { ...prev, [itemId]: nextForItem };
+    });
+  };
+
+  const getAnswerValue = (item: CallListItem, questionId: string) => {
+    const local = itemAnswers[item.id]?.[questionId];
+    if (local !== undefined) return local;
+    const existing = item.callLog?.answers?.find((a) => a.questionId === questionId)?.answer;
+    return existing ?? "";
+  };
+
+  const buildAnswersForItem = (item: CallListItem, questions: Question[]): Answer[] => {
+    const answersByQuestionId = itemAnswers[item.id] || {};
+
+    return questions
+      .map((q) => {
+        const raw = answersByQuestionId[q.id];
+        if (raw === undefined || raw === null || raw === "") return null;
+
+        let answerValue: string | number | boolean = raw;
+        if (q.type === "number" && typeof answerValue === "string") {
+          answerValue = parseFloat(answerValue);
+        }
+
+        return {
+          questionId: q.id,
+          question: q.question,
+          answer: answerValue,
+          answerType: q.type,
+        };
+      })
+      .filter(Boolean) as Answer[];
+  };
 
   useEffect(() => {
     setSelectedItemIds(new Set());
@@ -178,13 +240,22 @@ export default function CallsManagerPage() {
     try {
       const followUp = followUpData[item.id];
       const selectedStatus = callStatuses[item.id] ?? "completed";
+      const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+      const answers = buildAnswersForItem(item, questions);
+      const validation = validateCallLog(answers, questions);
+      if (!validation.valid) {
+        toast.error(validation.errors[0] || "Please answer all required questions");
+        return;
+      }
 
       // Create a minimal call log
       // Note: Backend allows empty answers array if there are no required questions
       const payload: CreateCallLogRequest = {
         callListItemId: item.id,
         status: selectedStatus,
-        answers: [], // Empty array - backend will validate if there are required questions
+        answers,
         callerNote: callerNote || undefined,
         followUpRequired: followUp?.followUpRequired || false,
         followUpDate: followUp?.followUpRequired && followUp?.followUpDate 
@@ -214,6 +285,11 @@ export default function CallsManagerPage() {
         delete newData[item.id];
         return newData;
       });
+      setItemAnswers((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
 
       // Refresh data - force refresh to update follow-ups list
       await mutateCalls();
@@ -240,6 +316,16 @@ export default function CallsManagerPage() {
     setCallerNoteEditor({ open: false, itemId: null, draft: "" });
   };
 
+  const handleTextAnswerEditorSave = () => {
+    if (!textAnswerEditor.itemId || !textAnswerEditor.questionId) return;
+    setAnswerValue(textAnswerEditor.itemId, textAnswerEditor.questionId, textAnswerEditor.draft);
+    setTextAnswerEditor({ open: false, itemId: null, questionId: null, questionLabel: "", draft: "" });
+  };
+
+  const handleTextAnswerEditorCancel = () => {
+    setTextAnswerEditor({ open: false, itemId: null, questionId: null, questionLabel: "", draft: "" });
+  };
+
   const handleToggleSelectAllOnPage = () => {
     if (pageItemIds.length === 0) return;
     setSelectedItemIds((prev) => {
@@ -261,6 +347,115 @@ export default function CallsManagerPage() {
       else next.add(itemId);
       return next;
     });
+  };
+
+  const renderQuestionInput = (item: CallListItem, q: Question, isSubmitting: boolean) => {
+    const isReadOnly = !!item.callLog;
+    const value = getAnswerValue(item, q.id);
+
+    const baseClass = cn(
+      "w-full px-2.5 py-2 text-[13px] rounded-lg border border-[var(--groups1-border)]",
+      "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+      "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+      isSubmitting && "opacity-50 cursor-not-allowed"
+    );
+
+    if (isReadOnly) {
+      const existingAnswer = item.callLog?.answers?.find((a) => a.questionId === q.id);
+      return (
+        <div className="text-[13px] text-[var(--groups1-text)]">
+          {existingAnswer ? formatAnswer(existingAnswer) : <span className="text-[var(--groups1-text-secondary)]">—</span>}
+        </div>
+      );
+    }
+
+    if (q.type === "multiple_choice") {
+      return (
+        <select
+          value={String(value || "")}
+          onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+          disabled={isSubmitting}
+          className={baseClass}
+        >
+          <option value="">—</option>
+          {(q.options || []).map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (q.type === "yes_no") {
+      return (
+        <select
+          value={value === true ? "true" : value === false ? "false" : ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            setAnswerValue(item.id, q.id, v === "" ? undefined : v === "true");
+          }}
+          disabled={isSubmitting}
+          className={baseClass}
+        >
+          <option value="">—</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      );
+    }
+
+    if (q.type === "number") {
+      return (
+        <Input
+          value={value === "" ? "" : String(value)}
+          onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+          disabled={isSubmitting}
+          className={baseClass}
+          inputMode="decimal"
+        />
+      );
+    }
+
+    if (q.type === "date") {
+      return (
+        <Input
+          type="date"
+          value={String(value || "")}
+          onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+          disabled={isSubmitting}
+          className={baseClass}
+        />
+      );
+    }
+
+    // text
+    return (
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={() =>
+          setTextAnswerEditor({
+            open: true,
+            itemId: item.id,
+            questionId: q.id,
+            questionLabel: q.question,
+            draft: String(value || ""),
+          })
+        }
+        className={cn(
+          "w-full text-left rounded-lg border border-[var(--groups1-border)]",
+          "bg-[var(--groups1-surface)] px-2.5 py-2 text-[13px]",
+          "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+          "disabled:opacity-50 disabled:cursor-not-allowed"
+        )}
+        title={q.question}
+      >
+        <span className={cn("block truncate", value ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
+          {value ? String(value) : "Write..."}
+        </span>
+      </button>
+    );
   };
 
   const openBulkDialog = (type: "done" | "unassign") => {
@@ -321,6 +516,8 @@ export default function CallsManagerPage() {
     try {
       const concurrency = 5;
       let completed = 0;
+      let failed = 0;
+      const errorMessages: string[] = [];
       const selectedItemsCopy = [...selectedItems];
 
       const worker = async () => {
@@ -332,11 +529,23 @@ export default function CallsManagerPage() {
 
           const followUp = followUpData[item.id];
           const selectedStatus = callStatuses[item.id] ?? "completed";
+          const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
+            (a, b) => (a.order ?? 0) - (b.order ?? 0)
+          );
+          const answers = buildAnswersForItem(item, questions);
+          const validation = validateCallLog(answers, questions);
+          if (!validation.valid) {
+            failed += 1;
+            if (errorMessages.length < 5) {
+              errorMessages.push(validation.errors[0] || `Missing required answers for ${item.student?.name || "a call"}`);
+            }
+            continue;
+          }
 
           const payload: CreateCallLogRequest = {
             callListItemId: item.id,
             status: selectedStatus,
-            answers: [],
+            answers,
             callerNote,
             followUpRequired: followUp?.followUpRequired || false,
             followUpDate:
@@ -351,7 +560,13 @@ export default function CallsManagerPage() {
       };
 
       await Promise.all(Array.from({ length: Math.min(concurrency, selectedItems.length) }, () => worker()));
-      toast.success(`Marked ${completed} call(s) as done`);
+      if (completed > 0) toast.success(`Marked ${completed} call(s) as done`);
+      if (failed > 0) {
+        toast.error(`${failed} call(s) skipped (missing required answers)`);
+        if (errorMessages.length > 0) {
+          console.error("Bulk done skipped due to validation:", errorMessages);
+        }
+      }
 
       setSelectedItemIds(new Set());
       await mutateCalls();
@@ -644,7 +859,213 @@ export default function CallsManagerPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile view (cards) */}
+              <div className="md:hidden p-4 space-y-4">
+                <div className="flex items-center justify-between rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-3 py-2">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-[var(--groups1-text)]">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all calls on this page"
+                      className="h-4 w-4 cursor-pointer accent-[var(--groups1-primary)]"
+                      checked={isAllSelectedOnPage}
+                      onChange={handleToggleSelectAllOnPage}
+                    />
+                    Select all on page
+                  </label>
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">{items.length} calls</span>
+                </div>
+                {items.map((item) => {
+                  const student = item.student;
+                  const primaryPhone = student?.phones?.find((p) => p.isPrimary) || student?.phones?.[0];
+                  const callerNote = callerNotes[item.id] || "";
+                  const callerNoteTrimmed = callerNote.trim();
+                  const followUp = followUpData[item.id];
+                  const hasExistingFollowUp = item.callLog?.followUpRequired || false;
+                  const hasPendingFollowUp = followUp?.followUpRequired || false;
+                  const isSubmitting = submittingItemId === item.id;
+                  const isDoneDisabled = isSubmitting || callerNoteTrimmed.length === 0;
+                  const followUpDate = item.callLog?.followUpDate ?? followUp?.followUpDate ?? null;
+                  const callListName = item.callList?.name ?? null;
+                  const groupName = item.callList?.group?.name ?? null;
+                  const existingCallStatus = item.callLog?.status as CallLogStatus | undefined;
+                  const selectedCallStatus = callStatuses[item.id] ?? "completed";
+                  const displayedStatus = existingCallStatus ?? selectedCallStatus;
+                  const isSelected = selectedItemIds.has(item.id);
+                  const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
+                    (a, b) => (a.order ?? 0) - (b.order ?? 0)
+                  );
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] overflow-hidden"
+                    >
+                      <div className="p-4 space-y-4">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${student?.name ?? "call"}`}
+                            className="mt-1 h-4 w-4 cursor-pointer accent-[var(--groups1-primary)]"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelectOne(item.id)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <Link
+                                  href={student?.id ? `/app/students/${student.id}` : "#"}
+                                  className={cn(
+                                    "block text-base font-semibold text-[var(--groups1-text)] truncate",
+                                    student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
+                                  )}
+                                >
+                                  {student?.name || "Unknown"}
+                                </Link>
+                                <div className="mt-0.5 text-xs text-[var(--groups1-text-secondary)] truncate">
+                                  {callListName ? callListName : "Call list"}
+                                  {groupName ? ` • ${groupName}` : ""}
+                                </div>
+                              </div>
+                              {primaryPhone ? (
+                                <Button asChild variant="outline" size="sm" className="h-8 px-3 text-xs">
+                                  <a href={`tel:${primaryPhone.phone}`}>Call</a>
+                                </Button>
+                              ) : null}
+                            </div>
+                            <div className="mt-1 text-sm">
+                              {primaryPhone ? (
+                                <a href={`tel:${primaryPhone.phone}`} className="text-[var(--groups1-primary)] hover:underline">
+                                  {primaryPhone.phone}
+                                </a>
+                              ) : (
+                                <span className="text-[var(--groups1-text-secondary)]">No phone</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                            Call Status
+                          </label>
+                          {item.callLog ? (
+                            <StatusBadge variant={displayedStatus === "completed" ? "success" : "info"} size="sm">
+                              {displayedStatus.replaceAll("_", " ")}
+                            </StatusBadge>
+                          ) : (
+                            <select
+                              value={selectedCallStatus}
+                              onChange={(e) => handleCallStatusChange(item.id, e.target.value as CallLogStatus)}
+                              disabled={isSubmitting}
+                              className={cn(
+                                "w-full px-3 py-2 text-[13px] rounded-lg border border-[var(--groups1-border)]",
+                                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                              )}
+                            >
+                              <option value="completed">Completed</option>
+                              <option value="no_answer">No answer</option>
+                              <option value="missed">Missed</option>
+                              <option value="busy">Busy</option>
+                              <option value="voicemail">Voicemail</option>
+                              <option value="other">Other</option>
+                            </select>
+                          )}
+                        </div>
+
+                        {questions.length > 0 ? (
+                          <div className="grid grid-cols-1 gap-3">
+                            {questions.map((q) => {
+                              const short = (q.shortLabel?.trim() || q.question || "").trim();
+                              return (
+                                <div key={q.id} className="space-y-1">
+                                  <label
+                                    title={q.question}
+                                    className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]"
+                                  >
+                                    {short || "Question"}
+                                    {q.required ? <span className="text-red-500 ml-1">*</span> : null}
+                                  </label>
+                                  {renderQuestionInput(item, q, isSubmitting)}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                            Caller Note <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={callerNote}
+                            onChange={(e) => handleCallerNoteChange(item.id, e.target.value)}
+                            disabled={isSubmitting}
+                            placeholder="Add caller note..."
+                            className={cn(
+                              "w-full resize-none rounded-lg border border-[var(--groups1-border)]",
+                              "bg-[var(--groups1-surface)] p-3 text-[13px] text-[var(--groups1-text)]",
+                              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                              "disabled:opacity-50 disabled:cursor-not-allowed"
+                            )}
+                          />
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isSubmitting}
+                              onClick={() => openCallerNoteEditor(item.id)}
+                            >
+                              Edit in modal
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
+                        <Button
+                          variant="outline"
+                          className={cn("flex-1", (hasExistingFollowUp || hasPendingFollowUp) && "border-[var(--groups1-primary)]")}
+                          onClick={() => handleFollowUpClick(item)}
+                          disabled={isSubmitting}
+                        >
+                          <Calendar className="w-4 h-4 mr-2" />
+                          Follow-up
+                          {(hasExistingFollowUp || hasPendingFollowUp) && followUpDate ? (
+                            <span className="ml-2 text-xs text-[var(--groups1-text-secondary)]">
+                              {new Date(followUpDate).toLocaleDateString()}
+                            </span>
+                          ) : null}
+                        </Button>
+                        <Button
+                          className="flex-1 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                          onClick={() => handleDone(item)}
+                          disabled={isDoneDisabled}
+                          title={callerNoteTrimmed.length === 0 ? "Add caller note to enable Done" : undefined}
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              Mark Done
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--groups1-card-border-inner)]">
@@ -669,6 +1090,19 @@ export default function CallsManagerPage() {
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
                       Call Status
                     </th>
+                    {showQuestionColumns &&
+                      tableQuestions.map((q) => {
+                        const heading = (q.shortLabel?.trim() || q.question || "").trim();
+                        return (
+                          <th
+                            key={q.id}
+                            title={q.question}
+                            className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase whitespace-nowrap"
+                          >
+                            {heading || "Question"}
+                          </th>
+                        );
+                      })}
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
                       Follow-up
                     </th>
@@ -804,6 +1238,104 @@ export default function CallsManagerPage() {
                             </select>
                           )}
                         </td>
+                        {showQuestionColumns &&
+                          tableQuestions.map((q) => {
+                            const isReadOnly = !!item.callLog;
+                            const value = getAnswerValue(item, q.id);
+
+                            const cellBaseClass = cn(
+                              "w-full max-w-[180px] px-2 py-1 text-[13px] rounded-md border border-[var(--groups1-border)]",
+                              "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                              isSubmitting && "opacity-50 cursor-not-allowed"
+                            );
+
+                            return (
+                              <td key={q.id} className="py-2 px-4 align-top">
+                                {isReadOnly ? (
+                                  <div
+                                    title={q.question}
+                                    className="max-w-[220px] text-[13px] text-[var(--groups1-text)] truncate"
+                                  >
+                                    {(() => {
+                                      const existingAnswer = item.callLog?.answers?.find((a) => a.questionId === q.id);
+                                      if (!existingAnswer) return <span className="text-[var(--groups1-text-secondary)]">—</span>;
+                                      return formatAnswer(existingAnswer);
+                                    })()}
+                                  </div>
+                                ) : q.type === "multiple_choice" ? (
+                                  <select
+                                    value={String(value || "")}
+                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+                                    disabled={isSubmitting}
+                                    className={cn(cellBaseClass, "max-w-[220px]")}
+                                  >
+                                    <option value="">—</option>
+                                    {(q.options || []).map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : q.type === "yes_no" ? (
+                                  <select
+                                    value={value === true ? "true" : value === false ? "false" : ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setAnswerValue(item.id, q.id, v === "" ? undefined : v === "true");
+                                    }}
+                                    disabled={isSubmitting}
+                                    className={cn(cellBaseClass, "max-w-[140px]")}
+                                  >
+                                    <option value="">—</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                  </select>
+                                ) : q.type === "number" ? (
+                                  <Input
+                                    value={value === "" ? "" : String(value)}
+                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+                                    disabled={isSubmitting}
+                                    className={cn(cellBaseClass, "max-w-[140px]")}
+                                    inputMode="decimal"
+                                  />
+                                ) : q.type === "date" ? (
+                                  <Input
+                                    type="date"
+                                    value={String(value || "")}
+                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
+                                    disabled={isSubmitting}
+                                    className={cn(cellBaseClass, "max-w-[160px]")}
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isSubmitting}
+                                    onClick={() =>
+                                      setTextAnswerEditor({
+                                        open: true,
+                                        itemId: item.id,
+                                        questionId: q.id,
+                                        questionLabel: q.question,
+                                        draft: String(value || ""),
+                                      })
+                                    }
+                                    className={cn(
+                                      "w-full max-w-[220px] text-left rounded-md border border-[var(--groups1-border)]",
+                                      "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
+                                      "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                                    )}
+                                    title={q.question}
+                                  >
+                                    <span className={cn("block truncate", value ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
+                                      {value ? String(value) : "Write..."}
+                                    </span>
+                                  </button>
+                                )}
+                              </td>
+                            );
+                          })}
                         <td className="py-2 px-4">
                           <div className="flex items-center gap-2">
                             {(hasExistingFollowUp || hasPendingFollowUp) && (
@@ -859,7 +1391,8 @@ export default function CallsManagerPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -908,6 +1441,42 @@ export default function CallsManagerPage() {
                 className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
               >
                 Set note
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={textAnswerEditor.open} onOpenChange={(open) => (!open ? handleTextAnswerEditorCancel() : undefined)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Answer</DialogTitle>
+            <DialogClose onClose={handleTextAnswerEditorCancel} />
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--groups1-text-secondary)]">
+              {textAnswerEditor.questionLabel}
+            </p>
+            <textarea
+              value={textAnswerEditor.draft}
+              onChange={(e) => setTextAnswerEditor((prev) => ({ ...prev, draft: e.target.value }))}
+              className={cn(
+                "w-full min-h-[140px] resize-y rounded-md border border-[var(--groups1-border)]",
+                "bg-[var(--groups1-surface)] p-3 text-sm text-[var(--groups1-text)]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              )}
+              placeholder="Type answer..."
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleTextAnswerEditorCancel}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleTextAnswerEditorSave}
+                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+              >
+                Save
               </Button>
             </div>
           </div>

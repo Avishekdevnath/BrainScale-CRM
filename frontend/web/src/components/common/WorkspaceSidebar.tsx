@@ -48,6 +48,11 @@ interface NavSection {
   collapsible?: boolean;
 }
 
+export interface WorkspaceSidebarProps {
+  mode?: "desktop" | "mobile";
+  onNavigate?: () => void;
+}
+
 const navSections: NavSection[] = [
   // Overview
   {
@@ -120,7 +125,7 @@ const navSections: NavSection[] = [
   },
 ];
 
-export function WorkspaceSidebar() {
+export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -185,8 +190,11 @@ export function WorkspaceSidebar() {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250 h-screen",
-        collapsed ? "w-16" : "w-60"
+        mode === "desktop"
+          ? "hidden md:flex h-screen"
+          : "flex h-full w-72 max-w-[85vw]",
+        "flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250",
+        mode === "desktop" && (collapsed ? "w-16" : "w-60")
       )}
     >
       {/* Sidebar Header */}
@@ -194,6 +202,7 @@ export function WorkspaceSidebar() {
         <Link
           href="/app"
           className="flex items-center gap-3 transition-all hover:brightness-95"
+          onClick={onNavigate}
         >
           <Image
             src="/assets/logo.png"
@@ -258,6 +267,7 @@ export function WorkspaceSidebar() {
                       <Link
                         key={item.href}
                         href={item.href}
+                        onClick={onNavigate}
                         className={cn(
                           "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all relative",
                           "hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",

@@ -15,7 +15,12 @@ import { toast } from "sonner";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspaceStore } from "@/store/workspace";
 
-export function ChatSidebar() {
+export interface ChatSidebarProps {
+  mode?: "desktop" | "mobile";
+  onNavigate?: () => void;
+}
+
+export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
@@ -107,8 +112,11 @@ export function ChatSidebar() {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250 h-screen",
-        collapsed ? "w-16" : "w-60"
+        mode === "desktop"
+          ? "hidden md:flex h-screen"
+          : "flex h-full w-72 max-w-[85vw]",
+        "flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250",
+        mode === "desktop" && (collapsed ? "w-16" : "w-60")
       )}
     >
       {/* Sidebar Header */}
@@ -116,6 +124,7 @@ export function ChatSidebar() {
         <Link
           href="/app"
           className="flex items-center gap-3 transition-all hover:brightness-95"
+          onClick={onNavigate}
         >
           <Image
             src="/assets/logo.png"

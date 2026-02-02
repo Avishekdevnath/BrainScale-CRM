@@ -181,8 +181,31 @@ export default function GroupCallListsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full max-w-md md:max-w-none space-y-4 md:space-y-6 pb-24 md:pb-0">
+      {/* Header (Mobile) */}
+      <div className="md:hidden px-1 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--groups1-text)] leading-tight">
+              {groupName} Call Lists
+            </h1>
+            <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+              Manage call lists for this group.
+            </p>
+          </div>
+          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
+        </div>
+        <Button
+          onClick={handleCreate}
+          className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create Call List
+        </Button>
+      </div>
+
+      {/* Header (Desktop) */}
+      <div className="hidden md:flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">
             {groupName} - Call Lists
@@ -238,7 +261,93 @@ export default function GroupCallListsPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-3">
+                {filteredCallLists.map((callList) => {
+                  const detailUrl = `/app/call-lists/${callList.id}?groupId=${groupId}`;
+                  const itemsCount = callList._count?.items ?? 0;
+                  return (
+                    <div
+                      key={callList.id}
+                      className="rounded-2xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] overflow-hidden"
+                    >
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Link href={detailUrl} className="text-base font-semibold text-[var(--groups1-text)] hover:underline truncate block">
+                              {callList.name}
+                            </Link>
+                            <div className="mt-1 text-xs text-[var(--groups1-text-secondary)] truncate">
+                              {callList.group?.batch?.name || "No batch"}
+                            </div>
+                          </div>
+                          <span className="text-[10px] bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] px-2 py-1 rounded-md font-semibold uppercase tracking-wide">
+                            {String(callList.source).toLowerCase()}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                              Items
+                            </div>
+                            <div className="text-[13px] font-semibold text-[var(--groups1-text)]">{itemsCount}</div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                              Created
+                            </div>
+                            <div className="text-[13px] font-semibold text-[var(--groups1-text)]">
+                              {new Date(callList.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex flex-wrap gap-2">
+                        <Button asChild variant="outline" size="sm" className="flex-1 h-9">
+                          <Link href={detailUrl}>Open</Link>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-10 p-0"
+                          onClick={() => handleViewDetails(callList)}
+                          aria-label="View details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {isAdmin ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 w-10 p-0"
+                              onClick={() => handleEdit(callList)}
+                              aria-label="Edit call list"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-9 w-10 p-0 text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => handleDelete(callList)}
+                              aria-label="Delete call list"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full divide-y divide-[var(--groups1-card-border-inner)]">
                 <thead>
                   <tr>
@@ -317,7 +426,8 @@ export default function GroupCallListsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

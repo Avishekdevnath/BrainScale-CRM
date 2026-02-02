@@ -3,6 +3,7 @@ import { z } from 'zod';
 // Question schema for call list questions
 export const QuestionSchema = z.object({
   id: z.string(),
+  shortLabel: z.string().max(32).optional(),
   question: z.string().min(1, 'Question text is required'),
   type: z.enum(['text', 'yes_no', 'multiple_choice', 'number', 'date']),
   options: z.array(z.string()).optional(),

@@ -34,6 +34,7 @@ function CallListDetailPageContent() {
   const [isAddStudentsDialogOpen, setIsAddStudentsDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [selectionMeta, setSelectionMeta] = useState<{ assignedToMe: number; unassigned: number; assignedToOthers: number } | null>(null);
   const [clearSelectionKey, setClearSelectionKey] = useState(0);
 
   const { data: callList, error, isLoading, mutate: mutateCallList } = useCallList(listId);
@@ -115,8 +116,8 @@ function CallListDetailPageContent() {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 pb-24 md:pb-0">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div>
           <Button
             variant="ghost"
@@ -164,23 +165,25 @@ function CallListDetailPageContent() {
           </div>
         </div>
         {isAdmin && (
-          <CallListActionsMenu
-            onEdit={handleEdit}
-            onAddStudents={() => setIsAddStudentsDialogOpen(true)}
-            onViewFollowups={() => router.push(`/app/followups?callListId=${listId}`)}
-            onViewDetails={() => {
-              // Details are now inline, scroll to them
-              const detailsElement = document.getElementById("call-list-details");
-              if (detailsElement) {
-                detailsElement.scrollIntoView({ behavior: "smooth", block: "start" });
-                // Expand all sections
-                const buttons = detailsElement.querySelectorAll("button");
-                buttons.forEach((btn) => btn.click());
-              }
-            }}
-            onDelete={handleDelete}
-            isAdmin={isAdmin}
-          />
+          <div className="self-start">
+            <CallListActionsMenu
+              onEdit={handleEdit}
+              onAddStudents={() => setIsAddStudentsDialogOpen(true)}
+              onViewFollowups={() => router.push(`/app/followups?callListId=${listId}`)}
+              onViewDetails={() => {
+                // Details are now inline, scroll to them
+                const detailsElement = document.getElementById("call-list-details");
+                if (detailsElement) {
+                  detailsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                  // Expand all sections
+                  const buttons = detailsElement.querySelectorAll("button");
+                  buttons.forEach((btn) => btn.click());
+                }
+              }}
+              onDelete={handleDelete}
+              isAdmin={isAdmin}
+            />
+          </div>
         )}
       </div>
 
@@ -202,6 +205,7 @@ function CallListDetailPageContent() {
       <CallListBulkActionsToolbar
         listId={listId}
         selectedItemIds={selectedItemIds}
+        selectionMeta={selectionMeta || undefined}
         onItemsUpdated={handleItemsUpdated}
         onClearSelection={() => {
           setSelectedItemIds([]);
@@ -215,6 +219,7 @@ function CallListDetailPageContent() {
         listId={listId}
         onItemsUpdated={handleItemsUpdated}
         onSelectionChange={setSelectedItemIds}
+        onSelectionMetaChange={setSelectionMeta}
         isAdmin={isAdmin}
         clearSelectionKey={clearSelectionKey}
       />

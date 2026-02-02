@@ -11,7 +11,7 @@ import { FollowUpList } from "@/components/dashboard/FollowUpList";
 import { LeaderboardTable } from "@/components/dashboard/LeaderboardTable";
 import { CallListsSection } from "@/components/dashboard/CallListsSection";
 import { Button } from "@/components/ui/button";
-import { UserPlus, Users, RefreshCw, AlertCircle, Phone } from "lucide-react";
+import { UserPlus, Users, RefreshCw, AlertCircle, Phone, Filter } from "lucide-react";
 import { WorkspaceCallListCreator } from "@/components/call-lists/WorkspaceCallListCreator";
 import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { useDashboardSummary, useStudentsByGroup } from "@/hooks/useDashboard";
@@ -23,6 +23,7 @@ import type { DashboardFilters } from "@/types/dashboard.types";
 import { useGroupStore } from "@/store/group";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import Link from "next/link";
 
 // Skeleton loader for KPI cards
 function KPISkeleton() {
@@ -72,6 +73,7 @@ export default function WorkspaceDashboardPage() {
   const [isCallListCreatorOpen, setIsCallListCreatorOpen] = useState(false);
   const [editingCallListId, setEditingCallListId] = useState<string | null>(null);
   const [deletingCallListId, setDeletingCallListId] = useState<string | null>(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   usePageTitle("Dashboard");
 
   // Fetch dashboard data
@@ -217,57 +219,76 @@ export default function WorkspaceDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header with Groups Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Dashboard</h1>
-          <p className="text-sm text-[var(--groups1-text-secondary)]">
+    <div className="mx-auto w-full max-w-md md:max-w-none space-y-4 md:space-y-6 pb-24 md:pb-0">
+      {/* Page Header */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-bold text-[var(--groups1-text)]">Dashboard</h1>
+            <span className="text-xs md:text-sm font-medium text-[var(--groups1-text-secondary)] bg-[var(--groups1-secondary)] px-2 py-1 rounded-md">
+              {filters.period ?? "month"}
+            </span>
+          </div>
+          <p className="text-xs md:text-sm text-[var(--groups1-text-secondary)]">
             Overview of your workspace
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Mobile: icon actions */}
           <Button
             onClick={handleRefresh}
             variant="outline"
             size="sm"
             disabled={isDashboardLoading}
-            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            className="h-10 w-10 p-0 md:h-auto md:w-auto md:px-3 md:py-2 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            aria-label="Refresh dashboard"
           >
-            <RefreshCw
-              className={cn("w-4 h-4", isDashboardLoading && "animate-spin")}
-            />
+            <RefreshCw className={cn("w-4 h-4", isDashboardLoading && "animate-spin")} />
+            <span className="hidden md:inline ml-2">Refresh</span>
+          </Button>
+          <Button
+            onClick={() => setShowMobileFilters((v) => !v)}
+            variant="outline"
+            size="sm"
+            className="h-10 w-10 p-0 md:hidden bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            aria-label="Toggle filters"
+          >
+            <Filter className="w-4 h-4" />
           </Button>
           <Button
             onClick={() => setIsCallListCreatorOpen(true)}
-            className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            className="h-10 px-3 md:h-auto md:px-4 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            aria-label="Create call list"
           >
-            <Phone className="w-4 h-4 mr-2" />
-            Create Call List
+            <Phone className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Create Call List</span>
           </Button>
           <Button
             onClick={() => router.push("/app/group-management")}
-            className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            className="h-10 px-3 md:h-auto md:px-4 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            aria-label="Groups"
           >
-            <Users className="w-4 h-4 mr-2" />
-            Groups
+            <Users className="w-4 h-4 md:mr-2" />
+            <span className="hidden md:inline">Groups</span>
           </Button>
         </div>
       </div>
 
       {/* Filter Strip */}
-      <FilterStrip
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-        groups={groups}
-        batches={batches}
-        selectedStatuses={selectedStatuses}
-        onStatusToggle={handleStatusToggle}
-        onExport={handleExport}
-      />
+      <div className={cn("md:block", showMobileFilters ? "block" : "hidden md:block")}>
+        <FilterStrip
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          groups={groups}
+          batches={batches}
+          selectedStatuses={selectedStatuses}
+          onStatusToggle={handleStatusToggle}
+          onExport={handleExport}
+        />
+      </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         {isDashboardLoading ? (
           <>
             <KPISkeleton />
@@ -288,13 +309,96 @@ export default function WorkspaceDashboardPage() {
       </div>
 
       {/* Call Lists Section */}
-      <CallListsSection
-        callLists={callLists}
-        onCreateNew={() => setIsCallListCreatorOpen(true)}
-        onEdit={handleCallListEdit}
-        onDelete={handleCallListDelete}
-        isAdmin={true}
-      />
+      {/* Mobile: compact call list cards */}
+      <div className="md:hidden">
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
+            <div className="flex items-center justify-between">
+              <CardTitle>Recent Call Lists</CardTitle>
+              <Button
+                onClick={() => setIsCallListCreatorOpen(true)}
+                size="sm"
+                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+              >
+                <Phone className="w-4 h-4 mr-2" />
+                Create
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent variant="groups1" className="pb-6">
+            {callLists.length === 0 ? (
+              <div className="py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
+                No call lists yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {callLists.map((list) => {
+                  const detailUrl = `/app/call-lists/${list.id}`;
+                  const subtitle = list.group
+                    ? `${list.group.name}${list.group.batch ? ` • ${list.group.batch.name}` : ""}`
+                    : "Workspace-wide";
+                  return (
+                    <div
+                      key={list.id}
+                      className="rounded-2xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            href={detailUrl}
+                            className="text-base font-semibold text-[var(--groups1-text)] hover:underline truncate block"
+                          >
+                            {list.name}
+                          </Link>
+                          <div className="mt-1 text-xs text-[var(--groups1-text-secondary)] truncate">
+                            {subtitle}
+                          </div>
+                        </div>
+                        <span className="text-[10px] bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] px-2 py-1 rounded-md font-semibold uppercase tracking-wide">
+                          {String(list.source).toLowerCase()}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between pt-3 border-t border-[var(--groups1-border)]">
+                        <div className="flex items-center gap-4">
+                          <div className="text-[10px] flex flex-col">
+                            <span className="text-[var(--groups1-text-secondary)] uppercase font-semibold">
+                              Students
+                            </span>
+                            <span className="text-[var(--groups1-text)] font-bold">{list.itemCount}</span>
+                          </div>
+                          <div className="text-[10px] flex flex-col">
+                            <span className="text-[var(--groups1-text-secondary)] uppercase font-semibold">
+                              Created
+                            </span>
+                            <span className="text-[var(--groups1-text)] font-bold">
+                              {new Date(list.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                        <Button asChild size="sm" variant="outline" className="h-8 px-3">
+                          <Link href={detailUrl}>Open</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Desktop: existing call lists section */}
+      <div className="hidden md:block">
+        <CallListsSection
+          callLists={callLists}
+          onCreateNew={() => setIsCallListCreatorOpen(true)}
+          onEdit={handleCallListEdit}
+          onDelete={handleCallListDelete}
+          isAdmin={true}
+        />
+      </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

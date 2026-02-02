@@ -11,6 +11,7 @@ export type CallLogStatus = "completed" | "missed" | "busy" | "no_answer" | "voi
 // Question interface for call lists
 export interface Question {
   id: string; // Unique identifier within call list
+  shortLabel?: string; // Short label for column headings / compact views
   question: string; // Question text (min 1 character)
   type: QuestionType;
   options?: string[]; // Required for multiple_choice, min 2 items

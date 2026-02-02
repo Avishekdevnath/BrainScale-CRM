@@ -181,6 +181,25 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
                     />
                   </div>
 
+                  <div>
+                    <Label className="text-sm font-medium text-[var(--groups1-text)] mb-1 block">
+                      Column Heading (Short)
+                      <span className="text-gray-400 text-xs font-normal ml-1">(Optional)</span>
+                    </Label>
+                    <Input
+                      value={question.shortLabel || ""}
+                      onChange={(e) =>
+                        updateQuestion(question.id, { shortLabel: e.target.value })
+                      }
+                      placeholder="e.g., Status"
+                      className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                      disabled={disabled}
+                    />
+                    <p className="mt-1 text-xs text-[var(--groups1-text-secondary)]">
+                      Used for compact table headings (Calls Manager). If empty, the full question text is used.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-sm font-medium text-[var(--groups1-text)] mb-1 block">
@@ -293,4 +312,3 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
     </div>
   );
 }
-

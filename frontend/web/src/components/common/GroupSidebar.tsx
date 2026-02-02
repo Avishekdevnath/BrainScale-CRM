@@ -16,6 +16,11 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+export interface GroupSidebarProps {
+  mode?: "desktop" | "mobile";
+  onNavigate?: () => void;
+}
+
 const groupNavItems: NavItem[] = [
   { href: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "students", label: "Students", icon: Users },
@@ -25,7 +30,7 @@ const groupNavItems: NavItem[] = [
   { href: "settings", label: "Settings", icon: Settings },
 ];
 
-export function GroupSidebar() {
+export function GroupSidebar({ mode = "desktop", onNavigate }: GroupSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { current: currentGroup } = useGroupStore();
@@ -64,8 +69,11 @@ export function GroupSidebar() {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250 h-screen",
-        collapsed ? "w-16" : "w-60"
+        mode === "desktop"
+          ? "hidden md:flex h-screen"
+          : "flex h-full w-72 max-w-[85vw]",
+        "flex-col border-r bg-[var(--groups1-surface)] border-[var(--groups1-border)] transition-all duration-250",
+        mode === "desktop" && (collapsed ? "w-16" : "w-60")
       )}
     >
       {/* Sidebar Header */}
@@ -73,6 +81,7 @@ export function GroupSidebar() {
         <Link
           href="/"
           className="flex items-center gap-3 transition-all hover:brightness-95"
+          onClick={onNavigate}
         >
           <Image
             src="/assets/logo.png"
@@ -120,6 +129,7 @@ export function GroupSidebar() {
             <Link
               key={item.href}
               href={href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all mb-1",
                 "hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
@@ -187,4 +197,3 @@ export function GroupSidebar() {
     </aside>
   );
 }
-

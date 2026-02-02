@@ -17,7 +17,7 @@ export function UserMenu() {
     setMounted(true);
   }, []);
 
-  const initials = getUserInitials(user);
+  const initials = getUserInitials(user) || "U";
   const displayName = user?.name || user?.email || "User";
 
   if (!mounted) {
@@ -25,7 +25,7 @@ export function UserMenu() {
     return (
       <button
         type="button"
-        className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+        className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary,#4f46e5)] text-[var(--groups1-btn-primary-text,#ffffff)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring,#a5b4fc)]"
         aria-label="User menu"
       >
         U
@@ -38,7 +38,7 @@ export function UserMenu() {
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--groups1-primary,#4f46e5)] text-[var(--groups1-btn-primary-text,#ffffff)] font-semibold text-sm transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring,#a5b4fc)]"
           aria-label="User menu"
           title={displayName}
         >
@@ -97,4 +97,3 @@ export function UserMenu() {
     </DropdownMenu.Root>
   );
 }
-

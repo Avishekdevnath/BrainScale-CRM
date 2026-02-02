@@ -1,15 +1,17 @@
 "use client";
 
-import { Search, Bell, Building2, Users, Brain, Menu } from "lucide-react";
+import { Search, Bell, Building2, Users, Brain, Menu, Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
 import { useGroups } from "@/hooks/useGroups";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 interface TopbarProps {
   showWorkspaceName?: boolean;
@@ -21,8 +23,12 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   const router = useRouter();
   const pathname = usePathname();
   const workspaceName = useWorkspaceStore((state) => state.getCurrentName());
+  const currentWorkspaceId = useWorkspaceStore((state) => state.getCurrentId());
+  const setCurrentWorkspaceFromApi = useWorkspaceStore((state) => state.setCurrentFromApi);
   const { current: currentGroup, setCurrent } = useGroupStore();
   const { data: groups, isLoading: groupsLoading } = useGroups();
+  const { data: workspaces, isLoading: workspacesLoading } = useWorkspaces();
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
   
   // Extract groupId from URL if on group detail page
   const urlGroupId = pathname?.match(/^\/app\/groups\/([^/]+)$/)?.[1];
@@ -33,46 +39,11 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   
   // Use real groups data or fallback to current group
   const availableGroups = groups || [];
-  const currentGroupIsValid = !!(currentGroup?.id && availableGroups.some((g) => g.id === currentGroup.id));
-  const safeCurrentGroupId = currentGroupIsValid ? currentGroup!.id : undefined;
-  const initialGroupId = urlGroupId || currentGroup?.id || (availableGroups[0]?.id);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId || "");
-
-  useEffect(() => {
-    // If a stored group doesn't exist in the current workspace's groups list, reset it.
-    if (!groupsLoading && availableGroups.length > 0 && currentGroup && !currentGroupIsValid && !urlGroupId) {
-      const firstActive = availableGroups.find((g) => g.isActive) || availableGroups[0];
-      if (firstActive) {
-        setCurrent({ id: firstActive.id, name: firstActive.name });
-        setSelectedGroupId(firstActive.id);
-      }
-    }
-
-    // Update selected group from URL or store
-    if (urlGroupId && availableGroups.length > 0) {
-      const group = availableGroups.find((g) => g.id === urlGroupId);
-      if (group && currentGroup?.id !== group.id) {
-        setCurrent({ id: group.id, name: group.name });
-      }
-      setSelectedGroupId(urlGroupId);
-    } else if (currentGroup) {
-      setSelectedGroupId(currentGroup.id);
-    } else if (showGroupSelector && !urlGroupId && availableGroups.length > 0) {
-      // If no group selected and on groups page, default to first active group
-      const defaultGroup = availableGroups.find((g) => g.isActive) || availableGroups[0];
-      if (defaultGroup) {
-        setCurrent({ id: defaultGroup.id, name: defaultGroup.name });
-        setSelectedGroupId(defaultGroup.id);
-        router.push(`/app/groups/${defaultGroup.id}`);
-      }
-    }
-  }, [urlGroupId, currentGroup, currentGroupIsValid, groupsLoading, setCurrent, showGroupSelector, availableGroups, router]);
 
   const handleGroupChange = (groupId: string) => {
     const group = availableGroups.find((g) => g.id === groupId);
     if (group) {
       setCurrent({ id: group.id, name: group.name });
-      setSelectedGroupId(groupId);
       router.push(`/app/groups/${groupId}`);
     }
   };
@@ -83,34 +54,36 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   // Get the groups link - use current group if available, otherwise use first group or group-management
   const preferredGroupId =
     urlGroupId ||
-    safeCurrentGroupId ||
     currentGroup?.id ||
     availableGroups.find((g) => g.isActive)?.id ||
     availableGroups[0]?.id;
 
   const groupsLink = preferredGroupId ? `/app/groups/${preferredGroupId}` : "/app/group-management";
 
+  const activeContext: "Workspace" | "Groups" | "Brain" = isChatRoute ? "Brain" : showGroupSelector ? "Groups" : "Workspace";
+  const ActiveIcon = activeContext === "Brain" ? Brain : activeContext === "Groups" ? Users : Building2;
+
   return (
-    <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] flex items-center px-4 gap-4 flex-shrink-0">
-      {/* Mobile: Menu + Brand */}
-      <div className="flex items-center gap-3 md:hidden">
+    <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] sticky top-0 z-40 shadow-sm flex items-center justify-between md:justify-start px-4 gap-4 flex-shrink-0">
+      {/* Mobile: Menu + Brand (from guides/ui/mobile_tobbar.jsx) */}
+      <div className="flex items-center gap-3 md:hidden min-w-0 flex-1">
         <button
           type="button"
           onClick={onMenuClick}
           className={cn(
             "w-10 h-10 flex items-center justify-center rounded-lg",
-            "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
+            "text-[var(--groups1-text,#0f172a)] hover:bg-[var(--groups1-secondary,#eef2ff)] transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring,#a5b4fc)]"
           )}
           aria-label="Open menu"
         >
           <Menu className="w-5 h-5" />
         </button>
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-[var(--groups1-text)] truncate">
-            BrainScale CRM
+          <div className="text-base font-bold tracking-tight text-[var(--groups1-text,#0f172a)] whitespace-nowrap pr-1">
+            BrainScale
           </div>
-          <div className="text-xs text-[var(--groups1-text-secondary)] truncate" suppressHydrationWarning>
+          <div className="text-[11px] text-[var(--groups1-text-secondary,#475569)] truncate" suppressHydrationWarning>
             {workspaceName}
           </div>
         </div>
@@ -226,46 +199,156 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        {/* Mobile: Route toggles */}
-        <div className="md:hidden flex items-center gap-1">
-          <Link
-            href="/app"
-            aria-label="Workspace"
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-              isWorkspaceRoute
-                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
-                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-            )}
-          >
-            <Building2 className="w-5 h-5" />
-          </Link>
-          <Link
-            href={groupsLink}
-            aria-label="Groups"
-            aria-disabled={groupsLoading ? "true" : undefined}
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-              isGroupsRoute
-                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
-                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]",
-              groupsLoading && "opacity-60 pointer-events-none"
-            )}
-          >
-            <Users className="w-5 h-5" />
-          </Link>
-          <Link
-            href="/app/ai-chat"
-            aria-label="Brain"
-            className={cn(
-              "w-10 h-10 flex items-center justify-center rounded-lg transition-colors",
-              isChatRoute
-                ? "bg-[var(--groups1-secondary)] text-[var(--groups1-primary)]"
-                : "text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-            )}
-          >
-            <Brain className="w-5 h-5" />
-          </Link>
+        {/* Mobile: Logo on the right */}
+        <div className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center shadow-sm bg-[var(--groups1-primary,#4f46e5)] flex-shrink-0">
+          <span className="text-[var(--groups1-btn-primary-text,#ffffff)] font-bold text-xs italic">BS</span>
+        </div>
+
+        {/* Mobile: Single context toggle (Workspace / Groups / Brain) */}
+        <div className="md:hidden flex items-center gap-2">
+          <DropdownMenu.Root open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
+            <DropdownMenu.Trigger asChild>
+              <button
+                type="button"
+                aria-label="Context menu"
+                suppressHydrationWarning
+                className={cn(
+                  "flex items-center gap-1 p-2 rounded-lg transition-all border",
+                  "bg-[var(--groups1-secondary,#eef2ff)] text-[var(--groups1-primary,#4f46e5)] border-[var(--groups1-border,#e5e7eb)]",
+                  "active:bg-[var(--groups1-secondary,#eef2ff)]"
+                )}
+              >
+                <ActiveIcon className="w-5 h-5" />
+                <ChevronDown
+                  className={cn(
+                    "w-3.5 h-3.5 transition-transform duration-200",
+                    contextMenuOpen && "rotate-180"
+                  )}
+                />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                sideOffset={8}
+                align="end"
+                className="min-w-[240px] rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-xl z-[70]"
+              >
+                <DropdownMenu.Sub>
+                  <DropdownMenu.SubTrigger
+                    className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                    suppressHydrationWarning
+                  >
+                    <Building2 className="w-4 h-4" />
+                    Workspace
+                    <span className="ml-auto text-xs text-[var(--groups1-text-secondary)] truncate max-w-[120px]" suppressHydrationWarning>
+                      {workspaceName || "Select"}
+                    </span>
+                  </DropdownMenu.SubTrigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.SubContent
+                      sideOffset={6}
+                      alignOffset={-6}
+                      className="min-w-[260px] rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-xl z-[80]"
+                    >
+                      <div className="px-3 py-2">
+                        <div className="text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                          Workspaces
+                        </div>
+                      </div>
+                      <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                      {(workspaces || []).map((ws) => (
+                        <DropdownMenu.Item
+                          key={ws.id}
+                          className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        setCurrentWorkspaceFromApi({
+                          id: ws.id,
+                          name: ws.name,
+                          plan: ws.plan,
+                          logo: ws.logo,
+                          timezone: ws.timezone,
+                        });
+                        setCurrent(null);
+                        setContextMenuOpen(false);
+                        router.push("/app");
+                      }}
+                    >
+                          <span className="w-4 h-4 flex items-center justify-center">
+                            {currentWorkspaceId === ws.id ? <Check className="w-4 h-4" /> : null}
+                          </span>
+                          <span className="flex-1 min-w-0 truncate">{ws.name}</span>
+                        </DropdownMenu.Item>
+                      ))}
+                      {(!workspaces || workspaces.length === 0) && !workspacesLoading && (
+                        <div className="px-3 py-2 text-sm text-[var(--groups1-text-secondary)]">No workspaces</div>
+                      )}
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Sub>
+
+                <DropdownMenu.Sub>
+                  <DropdownMenu.SubTrigger
+                    className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                    suppressHydrationWarning
+                  >
+                    <Users className="w-4 h-4" />
+                    Groups
+                    <span className="ml-auto text-xs text-[var(--groups1-text-secondary)] truncate max-w-[120px]" suppressHydrationWarning>
+                      {currentGroup?.name || "Select"}
+                    </span>
+                  </DropdownMenu.SubTrigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.SubContent
+                      sideOffset={6}
+                      alignOffset={-6}
+                      className="min-w-[260px] rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-xl z-[80]"
+                    >
+                      <div className="px-3 py-2">
+                        <div className="text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                          Groups
+                        </div>
+                      </div>
+                      <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                      {(availableGroups || []).map((group) => (
+                        <DropdownMenu.Item
+                          key={group.id}
+                          className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            setCurrent({ id: group.id, name: group.name });
+                            setContextMenuOpen(false);
+                            router.push(`/app/groups/${group.id}`);
+                          }}
+                        >
+                          <span className="w-4 h-4 flex items-center justify-center">
+                            {currentGroup?.id === group.id ? <Check className="w-4 h-4" /> : null}
+                          </span>
+                          <span className="flex-1 min-w-0 truncate">{group.name}</span>
+                        </DropdownMenu.Item>
+                      ))}
+                      {(!availableGroups || availableGroups.length === 0) && !groupsLoading && (
+                        <div className="px-3 py-2 text-sm text-[var(--groups1-text-secondary)]">No groups</div>
+                      )}
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Sub>
+
+                <DropdownMenu.Item
+                  className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    setContextMenuOpen(false);
+                    router.push("/app/ai-chat");
+                  }}
+                >
+                  <Brain className="w-4 h-4" />
+                  Brain
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+
           <div className="w-px h-6 bg-[var(--groups1-border)] mx-1" />
         </div>
 

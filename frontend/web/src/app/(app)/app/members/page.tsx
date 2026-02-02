@@ -18,12 +18,17 @@ import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2 } fr
 import { Loader2 } from "lucide-react";
 
 export default function MembersPage() {
+  const [mounted, setMounted] = React.useState(false);
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember, isLoading: isLoadingCurrentMember } = useCurrentMember(
     workspaceId || ""
   );
   const { members, isLoading, mutate } = useWorkspaceMembers(workspaceId);
   const [mobileSearch, setMobileSearch] = React.useState("");
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
@@ -85,6 +90,18 @@ export default function MembersPage() {
     );
   }, [members, mobileSearch]);
 
+  // Avoid hydration mismatches: workspaceId and auth state are client-only.
+  if (!mounted) {
+    return (
+      <div className="space-y-6" suppressHydrationWarning>
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Members & Roles</h1>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!workspaceId) {
     return (
       <div className="space-y-6">
@@ -109,7 +126,7 @@ export default function MembersPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Members & Roles</h1>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
-            You don't have permission to access this page. Only workspace admins can manage
+            You don&apos;t have permission to access this page. Only workspace admins can manage
             members.
           </p>
         </div>

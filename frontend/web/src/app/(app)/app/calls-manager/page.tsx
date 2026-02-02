@@ -1359,11 +1359,6 @@ export default function CallsManagerPage() {
                         </td>
                         <td className="py-2 px-4 text-right">
                           <div className="inline-flex items-center gap-2">
-                            {student?.id ? (
-                              <Button asChild variant="outline" size="sm" className="h-6 px-2 text-xs">
-                                <Link href={`/app/students/${student.id}`}>Profile</Link>
-                              </Button>
-                            ) : null}
                             <Button
                               variant="default"
                               size="sm"

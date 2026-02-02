@@ -20,10 +20,11 @@ import { useBatches } from "@/hooks/useBatches";
 import { BatchFilter } from "@/components/batches/BatchFilter";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { apiClient } from "@/lib/api-client";
 import { saveStudentExportFromCSV, type StudentExportFormat } from "@/lib/student-export";
 import { toast } from "sonner";
-import { Search, Upload, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Upload, ChevronLeft, ChevronRight, Loader2, Phone } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { StudentsBulkActionsToolbar } from "@/components/students/StudentsBulkActionsToolbar";
@@ -66,6 +67,7 @@ function StudentsPageContent() {
   const [isExportColumnSelectorOpen, setIsExportColumnSelectorOpen] = useState(false);
   const [exportScope, setExportScope] = useState<"all" | "selected">("all");
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isFixingPhones, setIsFixingPhones] = useState(false);
 
   const { data: groups } = useGroups();
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useCourses();
@@ -88,6 +90,7 @@ function StudentsPageContent() {
   );
 
   const { data, error, isLoading, mutate } = useStudents(params);
+  const canFixPhones = useHasPermission("students", "update");
 
   const formatNumber = (value?: number) => (typeof value === "number" ? value.toLocaleString() : "-");
   const formatPercent = (value?: number) => (typeof value === "number" ? `${value.toFixed(1)}%` : "-");
@@ -194,6 +197,35 @@ function StudentsPageContent() {
     [handleExport, pendingExportFormat, exportScope, selectedStudentIds]
   );
 
+  const handleFixBangladeshPhones = useCallback(async () => {
+    if (!canFixPhones || isFixingPhones) return;
+
+    const confirmed = window.confirm(
+      "Fix Bangladesh phone numbers across this workspace?\n\nThis will convert numbers like 88018... / +88018... into 018... (only when safe)."
+    );
+    if (!confirmed) return;
+
+    setIsFixingPhones(true);
+    try {
+      const result = await apiClient.fixBangladeshStudentPhones();
+
+      const messageParts = [
+        `${result.updated} updated`,
+        `${result.duplicatesRemoved} duplicates removed`,
+        result.conflicts > 0 ? `${result.conflicts} conflicts skipped` : null,
+      ].filter(Boolean);
+
+      if (result.conflicts > 0) toast.warning(`Phone fix done: ${messageParts.join(", ")}.`);
+      else toast.success(`Phone fix done: ${messageParts.join(", ")}.`);
+
+      await mutate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to fix phone numbers");
+    } finally {
+      setIsFixingPhones(false);
+    }
+  }, [canFixPhones, isFixingPhones, mutate]);
+
   const handleImportSuccess = useCallback(() => {
     mutate();
   }, [mutate]);
@@ -292,6 +324,21 @@ function StudentsPageContent() {
             pendingFormat={pendingExportFormat}
             triggerLabel="Export"
           />
+          {canFixPhones && (
+            <Button
+              onClick={handleFixBangladeshPhones}
+              disabled={isFixingPhones}
+              className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+              title="Fix Bangladesh phone numbers imported without '+' (880...)"
+            >
+              {isFixingPhones ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Phone className="w-4 h-4 mr-2" />
+              )}
+              Fix Phones
+            </Button>
+          )}
         </div>
       </div>
 

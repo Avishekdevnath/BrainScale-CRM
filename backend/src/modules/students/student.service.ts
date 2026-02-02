@@ -674,6 +674,147 @@ export const removePhone = async (
   return { message: 'Phone removed successfully' };
 };
 
+type FixBangladeshPhonesResult = {
+  message: string;
+  scanned: number;
+  updated: number;
+  duplicatesRemoved: number;
+  skipped: number;
+  conflicts: number;
+  conflictExamples: Array<{
+    phoneId: string;
+    from: string;
+    to: string;
+    existingStudentId: string;
+  }>;
+};
+
+/**
+ * Fix Bangladesh phone numbers imported without the '+' sign.
+ * Examples:
+ * - 8801812345678 -> 01812345678
+ * - +8801712345678 -> 01712345678
+ *
+ * Only removes a leading "88" if (after removal) the remaining string starts with "0".
+ */
+export const fixBangladeshPhones = async (
+  workspaceId: string
+): Promise<FixBangladeshPhonesResult> => {
+  const candidates = await prisma.studentPhone.findMany({
+    where: {
+      workspaceId,
+      OR: [{ phone: { startsWith: '88' } }, { phone: { startsWith: '+88' } }],
+      student: { isDeleted: false },
+    },
+    select: {
+      id: true,
+      studentId: true,
+      phone: true,
+      isPrimary: true,
+    },
+  });
+
+  let scanned = candidates.length;
+  let updated = 0;
+  let duplicatesRemoved = 0;
+  let skipped = 0;
+  let conflicts = 0;
+  const conflictExamples: FixBangladeshPhonesResult['conflictExamples'] = [];
+
+  const normalize = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    let working = trimmed;
+    if (working.startsWith('+')) working = working.slice(1);
+    if (!working.startsWith('88')) return null;
+
+    const next = working.slice(2);
+    if (!next.startsWith('0')) return null;
+    if (next === trimmed) return null;
+
+    return next;
+  };
+
+  await prisma.$transaction(async (tx) => {
+    for (const phoneRow of candidates) {
+      const to = normalize(phoneRow.phone);
+      if (!to) {
+        skipped += 1;
+        continue;
+      }
+
+      const existing = await tx.studentPhone.findFirst({
+        where: { workspaceId, phone: to },
+        select: { id: true, studentId: true, isPrimary: true },
+      });
+
+      // Same student already has the normalized number: remove duplicate and preserve primary.
+      if (existing && existing.studentId === phoneRow.studentId) {
+        if (phoneRow.isPrimary && !existing.isPrimary) {
+          await tx.studentPhone.updateMany({
+            where: { studentId: phoneRow.studentId, isPrimary: true },
+            data: { isPrimary: false },
+          });
+          await tx.studentPhone.update({
+            where: { id: existing.id },
+            data: { isPrimary: true },
+          });
+        }
+
+        await tx.studentPhone.delete({ where: { id: phoneRow.id } });
+        duplicatesRemoved += 1;
+        continue;
+      }
+
+      // Another student already has the normalized number: skip and report conflict.
+      if (existing && existing.studentId !== phoneRow.studentId) {
+        conflicts += 1;
+        if (conflictExamples.length < 25) {
+          conflictExamples.push({
+            phoneId: phoneRow.id,
+            from: phoneRow.phone,
+            to,
+            existingStudentId: existing.studentId,
+          });
+        }
+        continue;
+      }
+
+      try {
+        await tx.studentPhone.update({
+          where: { id: phoneRow.id },
+          data: { phone: to },
+        });
+        updated += 1;
+      } catch (err: any) {
+        // Unique constraint race (workspaceId+phone) or other concurrent updates.
+        if (err?.code === 'P2002') {
+          conflicts += 1;
+          if (conflictExamples.length < 25) {
+            conflictExamples.push({
+              phoneId: phoneRow.id,
+              from: phoneRow.phone,
+              to,
+              existingStudentId: 'unknown',
+            });
+          }
+          continue;
+        }
+        throw err;
+      }
+    }
+  });
+
+  return {
+    message: 'Bangladesh phone numbers normalized successfully',
+    scanned,
+    updated,
+    duplicatesRemoved,
+    skipped,
+    conflicts,
+    conflictExamples,
+  };
+};
+
 /**
  * Simple bulk import for students from pasted CSV data.
  *

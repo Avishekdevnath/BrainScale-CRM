@@ -116,6 +116,15 @@ router.get(
   studentController.listStudents
 );
 
+// Fix Bangladesh phone numbers imported without '+' (e.g. 88018... -> 018...)
+router.post(
+  '/fix-bd-phones',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
+  studentController.fixBangladeshPhones
+);
+
 router.post(
   '/bulk-delete',
   authGuard,

@@ -165,3 +165,7 @@ export const getStudentStats = asyncHandler(async (req: AuthRequest, res: Respon
   res.json(stats);
 });
 
+export const fixBangladeshPhones = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await studentService.fixBangladeshPhones(req.user!.workspaceId!);
+  res.json(result);
+});

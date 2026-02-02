@@ -1865,6 +1865,25 @@ export class ApiClient {
     });
   }
 
+  fixBangladeshStudentPhones(): Promise<{
+    message: string;
+    scanned: number;
+    updated: number;
+    duplicatesRemoved: number;
+    skipped: number;
+    conflicts: number;
+    conflictExamples: Array<{
+      phoneId: string;
+      from: string;
+      to: string;
+      existingStudentId: string;
+    }>;
+  }> {
+    return this.request("/students/fix-bd-phones", {
+      method: "POST",
+    });
+  }
+
   bulkDeleteStudents(payload: BulkDeleteStudentsPayload) {
     return this.request<BulkDeleteStudentsResponse>("/students/bulk-delete", {
       method: "POST",

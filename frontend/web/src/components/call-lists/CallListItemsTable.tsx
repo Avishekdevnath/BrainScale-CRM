@@ -42,6 +42,7 @@ export function CallListItemsTable({
   listId,
   onItemsUpdated,
   onSelectionChange,
+  onSelectionMetaChange,
   isAdmin = false,
   clearSelectionKey,
 }: CallListItemsTableProps) {

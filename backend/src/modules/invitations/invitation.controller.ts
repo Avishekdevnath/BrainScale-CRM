@@ -32,3 +32,13 @@ export const cancelInvitation = asyncHandler(async (req: AuthRequest, res: Respo
   res.json(result);
 });
 
+export const resendInvitation = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { invitationId } = req.params;
+  const result = await invitationService.resendInvitation(
+    invitationId,
+    req.user!.workspaceId!,
+    req.user!.sub
+  );
+  res.json(result);
+});
+

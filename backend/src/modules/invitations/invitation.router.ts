@@ -76,6 +76,37 @@ router.get(
   invitationController.listInvitations
 );
 
+/**
+ * @openapi
+ * /workspaces/{workspaceId}/invitations/{invitationId}/resend:
+ *   post:
+ *     summary: Resend an invitation email (reinvite)
+ *     tags: [Invitations]
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: invitationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Invitation resent
+ *       404:
+ *         description: Invitation not found
+ */
+router.post(
+  '/:workspaceId/invitations/:invitationId/resend',
+  authGuard,
+  tenantGuard,
+  requirePermission('members', 'invite'),
+  invitationController.resendInvitation
+);
+
 export default router;
 
 // Separate router for public invitation endpoint (no auth required)

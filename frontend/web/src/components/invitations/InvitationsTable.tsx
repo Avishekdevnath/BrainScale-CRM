@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { Invitation } from "@/types/members.types";
 import { getStatusLabel, getStatusColor, formatInvitationExpiry } from "@/lib/member-utils";
-import { Mail, Calendar, User, X, Copy, Loader2 } from "lucide-react";
+import { Mail, Calendar, User, X, Copy, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export interface InvitationsTableProps {
   invitations: Invitation[];
   onCancel: (invitationId: string) => void;
+  onResend?: (invitationId: string) => void;
   onCopyLink: (token: string) => void;
   isLoading?: boolean;
   statusFilter?: string | null;
@@ -21,6 +22,7 @@ export interface InvitationsTableProps {
 export function InvitationsTable({
   invitations,
   onCancel,
+  onResend,
   onCopyLink,
   isLoading = false,
   statusFilter,
@@ -192,6 +194,11 @@ export function InvitationsTable({
                 filteredInvitations.map((invitation) => {
                   const statusColor = getStatusColor(invitation.status);
                   const isPending = invitation.status === "PENDING";
+                  const canResend =
+                    !!onResend &&
+                    (invitation.status === "PENDING" ||
+                      invitation.status === "EXPIRED" ||
+                      invitation.status === "CANCELLED");
 
                   return (
                     <tr
@@ -253,25 +260,38 @@ export function InvitationsTable({
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {canResend && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onResend?.(invitation.id)}
+                              className="h-8"
+                              title="Resend invitation"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </Button>
+                          )}
                           {isPending && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleCopyLink(invitation.token)}
-                                className="h-8"
-                              >
-                                <Copy className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onCancel(invitation.id)}
-                                className="h-8 text-red-600 hover:text-red-700"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopyLink(invitation.token)}
+                              className="h-8"
+                              title="Copy invite link"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {isPending && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onCancel(invitation.id)}
+                              className="h-8 text-red-600 hover:text-red-700"
+                              title="Cancel invitation"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
                           )}
                         </div>
                       </td>

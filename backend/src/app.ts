@@ -273,6 +273,7 @@ import dashboardRouter from './modules/dashboard/dashboard.router';
 import emailRouter from './modules/emails/email.router';
 import revenueRouter from './modules/revenue/revenue.router';
 import aiChatRouter from './modules/ai-chat/ai-chat.router';
+import userRouter from './modules/users/user.router';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/workspaces', workspaceRouter);
@@ -305,6 +306,7 @@ app.use('/api/v1/dashboard', dashboardRouter); // Dashboard routes
 app.use('/api/v1/emails', emailRouter); // Email routes
 app.use('/api/v1/revenue', revenueRouter); // Revenue routes
 app.use('/api/v1/ai-chat', aiChatRouter); // AI Chat routes
+app.use('/api/v1/users', userRouter); // User account routes
 
 // 404 handler
 app.use((req, res) => {

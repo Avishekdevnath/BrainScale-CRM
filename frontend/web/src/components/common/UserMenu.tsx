@@ -6,11 +6,13 @@ import { User, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout } from "@/hooks/useLogout";
 import { useAuthStore, getUserInitials } from "@/store/auth";
+import { useRouter } from "next/navigation";
 
 export function UserMenu() {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const logout = useLogout();
+  const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
   React.useEffect(() => {
@@ -65,6 +67,10 @@ export function UserMenu() {
               "flex items-center gap-2 px-3 py-2 text-sm text-[var(--groups1-text)] rounded-md cursor-pointer",
               "hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)] outline-none"
             )}
+            onSelect={(event) => {
+              event.preventDefault();
+              router.push("/profile");
+            }}
           >
             <User className="w-4 h-4" />
             Profile
@@ -74,6 +80,10 @@ export function UserMenu() {
               "flex items-center gap-2 px-3 py-2 text-sm text-[var(--groups1-text)] rounded-md cursor-pointer",
               "hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)] outline-none"
             )}
+            onSelect={(event) => {
+              event.preventDefault();
+              router.push("/app/settings");
+            }}
           >
             <Settings className="w-4 h-4" />
             Preferences

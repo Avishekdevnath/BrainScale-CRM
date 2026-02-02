@@ -163,27 +163,29 @@ export const deleteWorkspace = async (workspaceId: string) => {
     await prisma.rolePermission.deleteMany({ where: { customRoleId: { in: customRoleIds } } });
   }
 
-  // Workspace-scoped collections
-  await Promise.all([
-    prisma.chatMessage.deleteMany({ where: { workspaceId } }),
-    prisma.chat.deleteMany({ where: { workspaceId } }),
-    prisma.callLog.deleteMany({ where: { workspaceId } }),
-    prisma.followup.deleteMany({ where: { workspaceId } }),
-    prisma.callListItem.deleteMany({ where: { workspaceId } }),
-    prisma.callList.deleteMany({ where: { workspaceId } }),
-    prisma.call.deleteMany({ where: { workspaceId } }),
-    prisma.payment.deleteMany({ where: { workspaceId } }),
-    prisma.import.deleteMany({ where: { workspaceId } }),
-    prisma.auditLog.deleteMany({ where: { workspaceId } }),
-    prisma.invitation.deleteMany({ where: { workspaceId } }),
-    prisma.studentPhone.deleteMany({ where: { workspaceId } }),
-    prisma.workspaceMember.deleteMany({ where: { workspaceId } }),
-    prisma.customRole.deleteMany({ where: { workspaceId } }),
-    prisma.group.deleteMany({ where: { workspaceId } }),
-    prisma.batch.deleteMany({ where: { workspaceId } }),
-    prisma.course.deleteMany({ where: { workspaceId } }),
-    prisma.student.deleteMany({ where: { workspaceId } }),
-  ]);
+  // Workspace-scoped collections (delete sequentially to avoid occasional referential-action races)
+  await prisma.chatMessage.deleteMany({ where: { workspaceId } });
+  await prisma.chat.deleteMany({ where: { workspaceId } });
+
+  // CallLog.assignedTo is required -> delete logs before deleting members
+  await prisma.callLog.deleteMany({ where: { workspaceId } });
+  await prisma.followup.deleteMany({ where: { workspaceId } });
+  await prisma.callListItem.deleteMany({ where: { workspaceId } });
+  await prisma.callList.deleteMany({ where: { workspaceId } });
+  await prisma.call.deleteMany({ where: { workspaceId } });
+
+  await prisma.payment.deleteMany({ where: { workspaceId } });
+  await prisma.import.deleteMany({ where: { workspaceId } });
+  await prisma.auditLog.deleteMany({ where: { workspaceId } });
+  await prisma.invitation.deleteMany({ where: { workspaceId } });
+  await prisma.studentPhone.deleteMany({ where: { workspaceId } });
+
+  await prisma.workspaceMember.deleteMany({ where: { workspaceId } });
+  await prisma.customRole.deleteMany({ where: { workspaceId } });
+  await prisma.group.deleteMany({ where: { workspaceId } });
+  await prisma.batch.deleteMany({ where: { workspaceId } });
+  await prisma.course.deleteMany({ where: { workspaceId } });
+  await prisma.student.deleteMany({ where: { workspaceId } });
 
   await prisma.workspace.delete({ where: { id: workspaceId } });
 
@@ -645,7 +647,17 @@ export const removeMember = async (memberId: string) => {
     throw new AppError(404, 'Workspace not found');
   }
 
-  // Prevent removing the last admin
+  const totalMembers = await prisma.workspaceMember.count({
+    where: { workspaceId: member.workspaceId },
+  });
+
+  // If the last member leaves, delete the workspace entirely.
+  if (totalMembers <= 1) {
+    await deleteWorkspace(member.workspaceId);
+    return { message: 'Workspace deleted' };
+  }
+
+  // If the member being removed is the only admin, auto-promote someone else.
   if (member.role === 'ADMIN') {
     const adminCount = await prisma.workspaceMember.count({
       where: {
@@ -655,17 +667,48 @@ export const removeMember = async (memberId: string) => {
     });
 
     if (adminCount <= 1) {
-      throw new AppError(
-        400,
-        'Cannot remove the last admin. Please promote another member to admin first.'
-      );
+      const nextAdmin = await prisma.workspaceMember.findFirst({
+        where: { workspaceId: member.workspaceId, id: { not: memberId } },
+        select: { id: true, role: true },
+      });
+
+      if (!nextAdmin) {
+        await deleteWorkspace(member.workspaceId);
+        return { message: 'Workspace deleted' };
+      }
+
+      if (nextAdmin.role !== 'ADMIN') {
+        await prisma.workspaceMember.update({
+          where: { id: nextAdmin.id },
+          data: { role: 'ADMIN' },
+        });
+      }
     }
   }
 
-  // Delete member (cascade will remove group access)
-  await prisma.workspaceMember.delete({
-    where: { id: memberId },
+  // Clean up references before deleting the member record.
+  await Promise.all([
+    prisma.groupAccess.deleteMany({ where: { memberId } }),
+    prisma.callListItem.updateMany({ where: { workspaceId: member.workspaceId, assignedTo: memberId }, data: { assignedTo: null } }),
+    prisma.followup.updateMany({ where: { workspaceId: member.workspaceId, assignedTo: memberId }, data: { assignedTo: null } }),
+    // CallLog.assignedTo is required; delete logs to avoid dangling required relations.
+    prisma.callLog.deleteMany({ where: { workspaceId: member.workspaceId, assignedTo: memberId } }),
+  ]);
+
+  await prisma.workspaceMember.delete({ where: { id: memberId } });
+
+  // If only one member remains, ensure they are admin.
+  const remaining = await prisma.workspaceMember.findMany({
+    where: { workspaceId: member.workspaceId },
+    select: { id: true, role: true },
   });
+
+  if (remaining.length === 1 && remaining[0].role !== 'ADMIN') {
+    await prisma.workspaceMember.update({
+      where: { id: remaining[0].id },
+      data: { role: 'ADMIN' },
+    });
+  }
 
   return { message: 'Member removed successfully' };
 };
@@ -862,6 +905,62 @@ export const createMemberWithAccount = async (
     member,
     temporaryPassword, // Return for admin to display/share
     message: 'Member account created successfully. Temporary password sent via email.',
+  };
+};
+
+export const reinviteMemberWithAccount = async (workspaceId: string, memberId: string) => {
+  const member = await prisma.workspaceMember.findFirst({
+    where: { id: memberId, workspaceId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+        },
+      },
+      workspace: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!member) {
+    throw new AppError(404, 'Member not found');
+  }
+
+  if (member.setupCompleted) {
+    throw new AppError(400, 'This member has already completed setup');
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await hashPassword(temporaryPassword);
+
+  await prisma.user.update({
+    where: { id: member.userId },
+    data: {
+      passwordHash,
+      mustChangePassword: true,
+      temporaryPassword: true,
+    },
+  });
+
+  try {
+    await sendTemporaryPasswordEmail(
+      member.user.email,
+      member.user.name || 'User',
+      member.workspace.name,
+      temporaryPassword
+    );
+  } catch (error) {
+    console.error('Failed to send temporary password email:', error);
+  }
+
+  return {
+    message: 'Re-invitation sent. Temporary password reset and emailed to the member.',
+    temporaryPassword,
   };
 };
 

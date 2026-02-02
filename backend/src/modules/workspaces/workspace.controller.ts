@@ -79,6 +79,14 @@ export const createMemberWithAccount = asyncHandler(async (req: AuthRequest, res
   res.status(201).json(result);
 });
 
+export const reinviteMemberWithAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await workspaceService.reinviteMemberWithAccount(
+    req.params.workspaceId,
+    req.params.memberId
+  );
+  res.json(result);
+});
+
 export const getCurrentMember = asyncHandler(async (req: AuthRequest, res: Response) => {
   const member = await workspaceService.getCurrentMember(
     req.params.workspaceId,

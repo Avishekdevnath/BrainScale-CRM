@@ -78,3 +78,21 @@ export function useCancelInvitation(workspaceId: string) {
   };
 }
 
+/**
+ * Hook to resend invitation (reinvite)
+ */
+export function useResendInvitation(workspaceId: string) {
+  return async (invitationId: string) => {
+    try {
+      const result = await apiClient.resendInvitation(workspaceId, invitationId);
+      toast.success(result.message || "Invitation resent successfully");
+      await mutate(`workspace-invitations-${workspaceId}`);
+      return result;
+    } catch (error: any) {
+      console.error("Failed to resend invitation:", error);
+      toast.error(error?.message || "Failed to resend invitation");
+      throw error;
+    }
+  };
+}
+

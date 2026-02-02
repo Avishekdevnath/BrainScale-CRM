@@ -340,3 +340,124 @@ export const cancelInvitation = async (invitationId: string, workspaceId: string
 
   return { message: 'Invitation cancelled successfully' };
 };
+
+/**
+ * Resend an invitation (reinvite)
+ * - Works for PENDING (even if expired), EXPIRED, or CANCELLED
+ * - Generates a new token and extends expiry
+ */
+export const resendInvitation = async (
+  invitationId: string,
+  workspaceId: string,
+  inviterUserId: string
+) => {
+  const invitation = await prisma.invitation.findFirst({
+    where: { id: invitationId, workspaceId },
+    include: {
+      workspace: { select: { name: true, plan: true, members: true } },
+      customRole: { select: { id: true, name: true, description: true } },
+    },
+  });
+
+  if (!invitation) {
+    throw new AppError(404, 'Invitation not found');
+  }
+
+  if (invitation.status === 'ACCEPTED') {
+    throw new AppError(400, 'Invitation has already been accepted');
+  }
+
+  // If the invited user already joined since this invite was created, block resending.
+  const existingUser = await prisma.user.findUnique({
+    where: { email: invitation.email },
+    include: {
+      memberships: {
+        where: { workspaceId },
+        select: { id: true },
+      },
+    },
+  });
+
+  if (existingUser && existingUser.memberships.length > 0) {
+    throw new AppError(409, 'User is already a member of this workspace');
+  }
+
+  // Plan enforcement is disabled unless BILLING_ENABLED=true.
+  if (env.BILLING_ENABLED && invitation.workspace.plan === 'FREE') {
+    const currentMemberCount = invitation.workspace.members.length;
+    if (currentMemberCount >= 5) {
+      throw new AppError(
+        403,
+        'Free plan allows a maximum of 5 members. Please upgrade to add more members.'
+      );
+    }
+  }
+
+  // Ensure custom role still exists; if not, fall back to enum role only.
+  let customRoleId: string | null = invitation.customRoleId ?? null;
+  if (customRoleId) {
+    const exists = await prisma.customRole.findFirst({
+      where: { id: customRoleId, workspaceId },
+      select: { id: true },
+    });
+    if (!exists) {
+      customRoleId = null;
+    }
+  }
+
+  // Filter groupIds in meta to active groups only (avoid broken group access on accept).
+  const meta = invitation.meta as { groupIds?: string[] } | null;
+  const groupIds = meta?.groupIds ?? [];
+  let nextMeta: { groupIds?: string[] } | null = meta ?? null;
+  if (groupIds.length > 0) {
+    const groups = await prisma.group.findMany({
+      where: { id: { in: groupIds }, workspaceId, isActive: true },
+      select: { id: true },
+    });
+    const activeIds = groups.map((g) => g.id);
+    nextMeta = activeIds.length ? { groupIds: activeIds } : null;
+  }
+
+  const token = generateInvitationToken();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 7);
+
+  const updated = await prisma.invitation.update({
+    where: { id: invitation.id },
+    data: {
+      token,
+      expiresAt,
+      status: 'PENDING',
+      invitedBy: inviterUserId,
+      customRoleId,
+      meta: (nextMeta as any) ?? null,
+    },
+    include: {
+      workspace: { select: { name: true } },
+    },
+  });
+
+  const inviter = await prisma.user.findUnique({
+    where: { id: inviterUserId },
+    select: { name: true },
+  });
+
+  try {
+    await sendInvitationEmail(
+      updated.email,
+      updated.workspace.name,
+      token,
+      inviter?.name || 'A team member'
+    );
+  } catch (error) {
+    logger.error({ error, invitationId: updated.id }, 'Failed to resend invitation email');
+  }
+
+  return {
+    id: updated.id,
+    email: updated.email,
+    expiresAt: updated.expiresAt,
+    status: updated.status,
+    message: 'Invitation resent successfully',
+  };
+};

@@ -155,3 +155,24 @@ export function useCreateMemberWithAccount(workspaceId: string) {
   };
 }
 
+/**
+ * Hook to re-invite an existing member (resets temporary password and re-sends email)
+ */
+export function useReinviteMemberWithAccount(workspaceId: string) {
+  return async (memberId: string) => {
+    try {
+      const result = await apiClient.reinviteMemberWithAccount(workspaceId, memberId);
+      toast.success(result.message || "Re-invitation sent");
+
+      // Members list may change (setup flags, etc.)
+      await mutate(`workspace-members-${workspaceId}`);
+
+      return result;
+    } catch (error: any) {
+      console.error("Failed to re-invite member:", error);
+      toast.error(error?.message || "Failed to re-invite member");
+      throw error;
+    }
+  };
+}
+

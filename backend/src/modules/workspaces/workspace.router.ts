@@ -281,6 +281,39 @@ router.post(
 
 /**
  * @openapi
+ * /workspaces/{workspaceId}/members/{memberId}/reinvite:
+ *   post:
+ *     summary: Re-send temporary password email for an existing member (resets password)
+ *     tags: [Workspaces]
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: memberId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Re-invitation email sent
+ *       400:
+ *         description: Member already completed setup
+ *       404:
+ *         description: Member not found
+ */
+router.post(
+  '/:workspaceId/members/:memberId/reinvite',
+  authGuard,
+  tenantGuard,
+  requirePermission('members', 'invite'),
+  workspaceController.reinviteMemberWithAccount
+);
+
+/**
+ * @openapi
  * /workspaces/{workspaceId}/members:
  *   get:
  *     summary: Get all members of workspace

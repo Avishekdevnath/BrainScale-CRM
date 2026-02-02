@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { WorkspaceMember } from "@/types/members.types";
 import { formatMemberName, getRoleLabel, formatDate } from "@/lib/member-utils";
-import { MoreVertical, User, Mail, Calendar, Shield, Users } from "lucide-react";
+import { MoreVertical, User, Mail, Calendar, Shield, Users, Send } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2 } from "lucide-react";
 
@@ -15,6 +15,7 @@ export interface MembersTableProps {
   onUpdateRole: (memberId: string) => void;
   onGrantAccess: (memberId: string) => void;
   onRemove: (memberId: string) => void;
+  onReinvite?: (memberId: string) => void;
   isLoading?: boolean;
   currentUserId?: string;
 }
@@ -24,6 +25,7 @@ export function MembersTable({
   onUpdateRole,
   onGrantAccess,
   onRemove,
+  onReinvite,
   isLoading = false,
   currentUserId,
 }: MembersTableProps) {
@@ -118,6 +120,7 @@ export function MembersTable({
                   const groupAccess = member.groupAccess || [];
                   const visibleGroups = groupAccess.slice(0, 3);
                   const remainingGroups = groupAccess.length - 3;
+                  const canReinvite = !!onReinvite && !isCurrentUser && !member.setupCompleted;
 
                   return (
                     <tr
@@ -197,6 +200,15 @@ export function MembersTable({
                               className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
                               align="end"
                             >
+                              {canReinvite ? (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={() => onReinvite(member.id)}
+                                >
+                                  <Send className="w-4 h-4 mr-2" />
+                                  Re-invite (reset password)
+                                </DropdownMenu.Item>
+                              ) : null}
                               <DropdownMenu.Item
                                 className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                                 onSelect={() => onUpdateRole(member.id)}

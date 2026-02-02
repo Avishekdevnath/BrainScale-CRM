@@ -3,7 +3,7 @@
 import * as React from "react";
 import { InvitationsTable } from "@/components/invitations/InvitationsTable";
 import { SendInvitationDialog } from "@/components/invitations/SendInvitationDialog";
-import { useInvitations, useCancelInvitation } from "@/hooks/useInvitations";
+import { useInvitations, useCancelInvitation, useResendInvitation } from "@/hooks/useInvitations";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export default function InvitationsPage() {
   );
   const { invitations, isLoading, mutate } = useInvitations(workspaceId);
   const cancelInvitation = useCancelInvitation(workspaceId || "");
+  const resendInvitation = useResendInvitation(workspaceId || "");
 
   const [isSendDialogOpen, setIsSendDialogOpen] = React.useState(false);
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
@@ -32,6 +33,15 @@ export default function InvitationsPage() {
 
   const handleCopyLink = (token: string) => {
     // Handled in InvitationsTable component
+  };
+
+  const handleResend = async (invitationId: string) => {
+    try {
+      await resendInvitation(invitationId);
+      mutate();
+    } catch (error) {
+      // Error handled by hook
+    }
   };
 
   const handleSuccess = () => {
@@ -189,6 +199,7 @@ export default function InvitationsPage() {
       <InvitationsTable
         invitations={invitations}
         onCancel={handleCancel}
+        onResend={handleResend}
         onCopyLink={handleCopyLink}
         isLoading={isLoading}
         statusFilter={statusFilter}

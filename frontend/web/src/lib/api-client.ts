@@ -307,6 +307,19 @@ export class ApiClient {
     });
   }
 
+  getMe() {
+    return this.request<{
+      id: string;
+      email: string;
+      name: string | null;
+      createdAt: string;
+      memberships?: Array<{
+        workspace: { id: string; name: string; logo: string | null };
+        role: string;
+      }>;
+    }>("/auth/me", { method: "GET" });
+  }
+
   resendVerificationEmail(email: string) {
     return this.request<{ message: string; canRetryAfter: number }>("/auth/resend-verification", {
       method: "POST",
@@ -583,9 +596,19 @@ export class ApiClient {
     return this.request<{
       member: WorkspaceMember;
       message: string;
+      temporaryPassword: string;
     }>(`/workspaces/${workspaceId}/members/create`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  }
+
+  reinviteMemberWithAccount(workspaceId: string, memberId: string) {
+    return this.request<{
+      message: string;
+      temporaryPassword: string;
+    }>(`/workspaces/${workspaceId}/members/${memberId}/reinvite`, {
+      method: "POST",
     });
   }
 
@@ -641,6 +664,26 @@ export class ApiClient {
         method: "DELETE",
       }
     );
+  }
+
+  resendInvitation(workspaceId: string, invitationId: string) {
+    return this.request<{
+      id: string;
+      email: string;
+      expiresAt: string;
+      status: string;
+      message: string;
+    }>(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {
+      method: "POST",
+    });
+  }
+
+  exportMyAccountXlsx() {
+    return this.requestBlob("/users/me/export", { method: "GET" });
+  }
+
+  deleteMyAccount() {
+    return this.request<{ message: string }>("/users/me", { method: "DELETE" });
   }
 
   getInvitationByToken(token: string) {

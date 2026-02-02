@@ -7,10 +7,12 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserMenu } from "@/components/common/UserMenu";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 
 export function PublicNavbar() {
   const [mounted, setMounted] = useState(false);
   const accessToken = useAuthStore((state) => state.accessToken);
+  const currentWorkspaceId = useWorkspaceStore((state) => state.getCurrentId());
 
   useEffect(() => {
     setMounted(true);
@@ -25,6 +27,7 @@ export function PublicNavbar() {
   }, [accessToken]);
 
   const isLoggedIn = mounted && (accessToken || (typeof window !== "undefined" && localStorage.getItem("accessToken")));
+  const hasWorkspace = mounted && !!currentWorkspaceId;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] backdrop-blur-md supports-[backdrop-filter]:backdrop-blur-md">
@@ -61,15 +64,27 @@ export function PublicNavbar() {
           <ThemeToggle />
           {isLoggedIn ? (
             <>
-              <Link href="/app">
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="inline-flex border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                >
-                  Dashboard
-                </Button>
-              </Link>
+              {hasWorkspace ? (
+                <Link href="/app">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="inline-flex border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                  >
+                    Dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/create-workspace">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="inline-flex border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                  >
+                    Create workspace
+                  </Button>
+                </Link>
+              )}
               <UserMenu />
             </>
           ) : (

@@ -6,7 +6,7 @@ import { InviteMemberDialog } from "@/components/members/InviteMemberDialog";
 import { UpdateMemberRoleDialog } from "@/components/members/UpdateMemberRoleDialog";
 import { GrantGroupAccessDialog } from "@/components/members/GrantGroupAccessDialog";
 import { RemoveMemberDialog } from "@/components/members/RemoveMemberDialog";
-import { useWorkspaceMembers } from "@/hooks/useMembers";
+import { useReinviteMemberWithAccount, useWorkspaceMembers } from "@/hooks/useMembers";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatMemberName, getRoleLabel } from "@/lib/member-utils";
-import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2 } from "lucide-react";
+import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 export default function MembersPage() {
   const [mounted, setMounted] = React.useState(false);
@@ -24,7 +26,9 @@ export default function MembersPage() {
     workspaceId || ""
   );
   const { members, isLoading, mutate } = useWorkspaceMembers(workspaceId);
+  const reinvite = useReinviteMemberWithAccount(workspaceId || "");
   const [mobileSearch, setMobileSearch] = React.useState("");
+  const [reinviteInfo, setReinviteInfo] = React.useState<{ email: string; temporaryPassword: string } | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
@@ -54,6 +58,24 @@ export default function MembersPage() {
   const handleRemove = (memberId: string) => {
     setSelectedMemberId(memberId);
     setActionType("remove");
+  };
+
+  const handleReinvite = async (memberId: string) => {
+    if (!workspaceId) return;
+    const member = members.find((m) => m.id === memberId);
+    if (!member) return;
+
+    const ok = window.confirm(
+      `Re-invite ${member.user.email}?\n\nThis will reset their password and email a new temporary password.`
+    );
+    if (!ok) return;
+
+    try {
+      const result = await reinvite(memberId);
+      setReinviteInfo({ email: member.user.email, temporaryPassword: result.temporaryPassword });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to re-invite member");
+    }
   };
 
   const handleDialogClose = () => {
@@ -296,6 +318,7 @@ export default function MembersPage() {
                   const visibleGroups = groupAccess.slice(0, 2);
                   const remainingGroups = groupAccess.length - visibleGroups.length;
                   const roleLabel = m.customRole?.name ? m.customRole.name : getRoleLabel(m.role);
+                  const canReinvite = !isYou && !m.setupCompleted;
 
                   return (
                     <div
@@ -320,12 +343,22 @@ export default function MembersPage() {
                               <span className="truncate">{m.user.email}</span>
                             </div>
                           </div>
-                          <StatusBadge
-                            variant={m.role === "ADMIN" ? "success" : "info"}
-                            size="sm"
-                          >
-                            {roleLabel}
-                          </StatusBadge>
+                          <div className="flex items-center gap-2">
+                            {canReinvite ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => handleReinvite(m.id)}
+                                aria-label="Re-invite member"
+                              >
+                                <Send className="w-4 h-4" />
+                              </Button>
+                            ) : null}
+                            <StatusBadge variant={m.role === "ADMIN" ? "success" : "info"} size="sm">
+                              {roleLabel}
+                            </StatusBadge>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs">
@@ -413,6 +446,7 @@ export default function MembersPage() {
           onUpdateRole={handleUpdateRole}
           onGrantAccess={handleGrantAccess}
           onRemove={handleRemove}
+          onReinvite={handleReinvite}
           isLoading={isLoading}
           currentUserId={currentMember?.userId}
         />
@@ -457,6 +491,46 @@ export default function MembersPage() {
         currentUserId={currentMember?.userId}
         onSuccess={handleSuccess}
       />
+
+      <Dialog
+        open={!!reinviteInfo}
+        onOpenChange={(open) => {
+          if (!open) setReinviteInfo(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Re-invite sent</DialogTitle>
+            <DialogClose onClose={() => setReinviteInfo(null)} />
+          </DialogHeader>
+          {reinviteInfo ? (
+            <div className="space-y-3">
+              <div className="text-sm text-[var(--groups1-text-secondary)]">
+                A new temporary password was generated for <span className="font-semibold">{reinviteInfo.email}</span>.
+              </div>
+              <div className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-3 py-2 text-sm font-mono flex items-center justify-between gap-2">
+                <span className="truncate">{reinviteInfo.temporaryPassword}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(reinviteInfo.temporaryPassword);
+                    toast.success("Copied");
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-xs text-[var(--groups1-text-secondary)]">
+                The member should check their email. They must change the temporary password on first login.
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => setReinviteInfo(null)}>Done</Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -104,7 +104,8 @@ export function useInviteMember(workspaceId: string) {
   return async (data: InviteMemberPayload) => {
     try {
       const result = await apiClient.inviteMember(workspaceId, data);
-      toast.success("Invitation sent successfully");
+      const message = (result as any)?.message || "Member invited successfully";
+      toast.success(message);
       
       // Invalidate members and invitations lists
       await mutate(`workspace-members-${workspaceId}`);

@@ -28,7 +28,7 @@ export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
   
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(10);
   const [state, setState] = useState<CallListItemState | null>("QUEUED"); // Default to pending
   const [showFollowUps, setShowFollowUps] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -111,6 +111,11 @@ export default function CallsManagerPage() {
   const { data, isLoading, error, mutate: mutateCalls } = useMyCalls(apiParams);
 
   const items = data?.items || [];
+  const pagination = data?.pagination;
+  const totalItems = pagination?.total ?? items.length;
+  const totalPages = pagination?.totalPages ?? 1;
+  const fromItem = items.length > 0 ? (page - 1) * pageSize + 1 : 0;
+  const toItem = Math.min(page * pageSize, totalItems);
   const pageItemIds = useMemo(() => items.map((item) => item.id), [items]);
 
   const tableQuestions = useMemo(() => {
@@ -786,7 +791,7 @@ export default function CallsManagerPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="text-base font-semibold text-[var(--groups1-text)]">
-                {viewLabel} ({items.length})
+                {viewLabel} ({totalItems})
               </CardTitle>
               <p className="mt-1 text-sm text-[var(--groups1-text-secondary)]">
                 {showFollowUps
@@ -873,7 +878,9 @@ export default function CallsManagerPage() {
                     />
                     Select all on page
                   </label>
-                  <span className="text-xs text-[var(--groups1-text-secondary)]">{items.length} calls</span>
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">
+                    Showing {fromItem}-{toItem} of {totalItems}
+                  </span>
                 </div>
                 {items.map((item) => {
                   const student = item.student;
@@ -1389,6 +1396,56 @@ export default function CallsManagerPage() {
               </div>
             </>
           )}
+
+          {/* Pagination */}
+          {totalPages > 1 ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-[var(--groups1-border)] bg-[var(--groups1-background)]">
+              <div className="text-sm text-[var(--groups1-text-secondary)]">
+                Showing {fromItem} to {toItem} of {totalItems} calls
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    const next = parseInt(e.target.value, 10);
+                    setPageSize(next);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "h-9 px-2 text-sm rounded-md border border-[var(--groups1-border)]",
+                    "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                    "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                  )}
+                  aria-label="Page size"
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1 || isLoading}
+                >
+                  Previous
+                </Button>
+                <div className="text-sm text-[var(--groups1-text-secondary)]">
+                  Page {page} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

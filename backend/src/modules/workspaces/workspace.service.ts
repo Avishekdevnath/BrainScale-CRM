@@ -339,12 +339,44 @@ export const inviteMember = async (
   }
 
   // Check if user exists
-  const user = await prisma.user.findUnique({
+  let user = await prisma.user.findUnique({
     where: { email: data.email },
   });
 
+  // If user doesn't exist yet, create an account on first invite and email a temporary password.
+  // This removes the need for the user to signup before being invited.
+  let temporaryPassword: string | null = null;
   if (!user) {
-    throw new AppError(404, 'User with this email not found. They need to signup first.');
+    // Generate a secure random temporary password (base64url, no '+' so it is email-friendly)
+    temporaryPassword = crypto.randomBytes(12).toString('base64url');
+    const passwordHash = await hashPassword(temporaryPassword);
+
+    user = await prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        name: null,
+        phone: null,
+        emailVerified: true,
+        mustChangePassword: true,
+        temporaryPassword: true,
+        // Avoid null-unique conflicts on MongoDB unique index.
+        verificationToken: crypto.randomBytes(32).toString('hex'),
+        verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    try {
+      await sendTemporaryPasswordEmail(
+        user.email,
+        user.name || 'User',
+        workspace.name,
+        temporaryPassword
+      );
+    } catch (error) {
+      console.error('Failed to send temporary password email:', error);
+      // Don't fail the invite if email sending fails; admin can share the password manually.
+    }
   }
 
   // Check if already a member
@@ -367,6 +399,8 @@ export const inviteMember = async (
       userId: user.id,
       workspaceId,
       role: data.role,
+      setupCompleted: false,
+      agreementAccepted: false,
       groupAccess: data.groupIds
         ? {
             create: data.groupIds.map((groupId) => ({
@@ -396,7 +430,10 @@ export const inviteMember = async (
     },
   });
 
-  return member;
+  // Backward compatible: return member as before, with optional extra fields for new-user invites.
+  return temporaryPassword
+    ? ({ ...member, temporaryPassword, message: 'Member invited and account created. Temporary password emailed.' } as any)
+    : member;
 };
 
 export const getMembers = async (workspaceId: string) => {

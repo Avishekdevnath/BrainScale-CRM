@@ -170,6 +170,7 @@ export const tenantGuard = async (
         { resource: 'modules', action: 'read' },
         { resource: 'enrollments', action: 'read' },
         { resource: 'followups', action: 'read' },
+        { resource: 'calls', action: 'create' },
         { resource: 'calls', action: 'read' },
         { resource: 'call_lists', action: 'read' },
       ],

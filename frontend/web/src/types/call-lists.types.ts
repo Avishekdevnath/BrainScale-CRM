@@ -190,6 +190,7 @@ export interface CallListItemsListParams {
   size?: number;
   state?: CallListItemState;
   assignedTo?: string;
+  assignment?: "assigned" | "unassigned";
   callLogStatus?: CallLogStatus;
   followUpRequired?: boolean;
 }

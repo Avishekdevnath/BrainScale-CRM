@@ -16,7 +16,7 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, ChevronLeft, ChevronRight, Trash2, MoreVertical } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
@@ -82,9 +82,19 @@ export function CallListItemsTable({
       ...prev,
       page: 1, // Reset to page 1 when filter or page size changes
       size: pageSize,
-      state: activeFilter === "all" ? undefined : activeFilter === "success" ? "DONE" : activeFilter === "skipped" ? "SKIPPED" : undefined,
+      // Use server-side filtering so pagination is consistent (no client-side "holes")
+      state:
+        activeFilter === "all" || activeFilter === "follow_up"
+          ? undefined
+          : activeFilter === "success"
+          ? "DONE"
+          : activeFilter === "skipped"
+          ? "SKIPPED"
+          : undefined,
+      followUpRequired: activeFilter === "follow_up" ? true : undefined,
+      assignment: assignmentFilter === "all" ? undefined : assignmentFilter,
     }));
-  }, [pageSize, activeFilter]);
+  }, [pageSize, activeFilter, assignmentFilter]);
 
   const { data, isLoading, error, mutate } = useCallListItems(listId, filters);
 
@@ -127,140 +137,9 @@ export function CallListItemsTable({
   }, [data?.items, isAdmin]);
 
   // Fetch call logs for follow-up filter
-  const [callLogsMap, setCallLogsMap] = React.useState<Map<string, any>>(new Map());
-  
-  React.useEffect(() => {
-    if (!data?.items || activeFilter !== "follow_up") return;
-
-    const fetchCallLogs = async () => {
-      const itemsWithCallLogs = data.items.filter((item) => item.callLogId && !callLogsMap.has(item.callLogId));
-      if (itemsWithCallLogs.length === 0) return;
-
-      const promises = itemsWithCallLogs.map(async (item) => {
-        if (!item.callLogId) return null;
-        try {
-          const callLog = await apiClient.getCallLog(item.callLogId);
-          return { itemId: item.id, callLogId: item.callLogId, callLog };
-        } catch (error) {
-          console.error(`Failed to fetch call log ${item.callLogId}:`, error);
-          return null;
-        }
-      });
-
-      const results = await Promise.all(promises);
-      const newMap = new Map(callLogsMap);
-      results.forEach((result) => {
-        if (result) {
-          newMap.set(result.callLogId, result.callLog);
-        }
-      });
-      setCallLogsMap(newMap);
-    };
-
-    fetchCallLogs();
-  }, [data?.items, activeFilter]);
-
-  // Get items for current page (filter for follow_up and assignment if needed)
-  const currentPageItems = React.useMemo(() => {
-    if (!data?.items) return [];
-
-    let filtered = data.items;
-
-    // Apply follow-up filter
-    if (activeFilter === "follow_up") {
-      filtered = filtered.filter((item) => {
-        if (!item.callLogId) return false;
-        const callLog = callLogsMap.get(item.callLogId);
-        return callLog?.followUpRequired === true;
-      });
-    }
-
-    // Apply assignment filter
-    if (assignmentFilter === "assigned") {
-      filtered = filtered.filter((item) => item.assignedTo !== null);
-    } else if (assignmentFilter === "unassigned") {
-      filtered = filtered.filter((item) => item.assignedTo === null);
-    }
-
-    return filtered;
-  }, [data?.items, activeFilter, assignmentFilter, callLogsMap]);
-
-  // Get all items for follow-up filter (needed for pagination count)
-  const [allFollowUpItems, setAllFollowUpItems] = React.useState<CallListItem[]>([]);
-  
-  React.useEffect(() => {
-    if (activeFilter !== "follow_up") {
-      setAllFollowUpItems([]);
-      return;
-    }
-
-    // Fetch all items for follow-up filter
-    const fetchAllForFollowUp = async () => {
-      try {
-        const response = await apiClient.getCallListItems(listId, { page: 1, size: 1000 });
-        const itemsWithCallLogs = response.items.filter((item) => item.callLogId);
-        
-        const promises = itemsWithCallLogs.map(async (item) => {
-          if (!item.callLogId) return null;
-          try {
-            const callLog = await apiClient.getCallLog(item.callLogId);
-            return { item, callLog };
-          } catch {
-            return null;
-          }
-        });
-
-        const results = await Promise.all(promises);
-        const followUpItems = results
-          .filter((r) => r && r.callLog?.followUpRequired === true)
-          .map((r) => r!.item);
-
-        setAllFollowUpItems(followUpItems);
-      } catch (error) {
-        console.error("Failed to fetch all follow-up items:", error);
-      }
-    };
-
-    fetchAllForFollowUp();
-  }, [activeFilter, listId]);
-
-  // Calculate pagination for follow-up filter
-  const paginatedItems = React.useMemo(() => {
-    if (activeFilter === "follow_up") {
-      // Apply assignment filter to follow-up items
-      let filtered = allFollowUpItems;
-      if (assignmentFilter === "assigned") {
-        filtered = filtered.filter((item) => item.assignedTo !== null);
-      } else if (assignmentFilter === "unassigned") {
-        filtered = filtered.filter((item) => item.assignedTo === null);
-      }
-      const start = (filters.page! - 1) * pageSize;
-      const end = start + pageSize;
-      return filtered.slice(start, end);
-    }
-    return currentPageItems;
-  }, [activeFilter, currentPageItems, allFollowUpItems, assignmentFilter, filters.page, pageSize]);
-
-  const totalItems = React.useMemo(() => {
-    if (activeFilter === "follow_up") {
-      // Apply assignment filter to follow-up items
-      let filtered = allFollowUpItems;
-      if (assignmentFilter === "assigned") {
-        filtered = filtered.filter((item) => item.assignedTo !== null);
-      } else if (assignmentFilter === "unassigned") {
-        filtered = filtered.filter((item) => item.assignedTo === null);
-      }
-      return filtered.length;
-    }
-    // For other filters, we need to apply assignment filter to the total
-    // Since assignment filter is client-side, we'll use currentPageItems length as approximation
-    // or we could fetch all items, but that's expensive. For now, use pagination total
-    // and let the client-side filtering handle it
-    const baseTotal = data?.pagination?.total || 0;
-    // Note: This is an approximation. For accurate counts with assignment filter,
-    // we'd need to fetch all items or add server-side filtering
-    return baseTotal;
-  }, [activeFilter, allFollowUpItems, assignmentFilter, data?.pagination?.total]);
+  // Server already returns paginated + filtered items.
+  const paginatedItems = React.useMemo(() => data?.items ?? [], [data?.items]);
+  const totalItems = data?.pagination?.total ?? 0;
 
   const totalPages = Math.ceil(totalItems / pageSize);
 
@@ -344,14 +223,34 @@ export function CallListItemsTable({
       try {
         await apiClient.assignCallListItems(listId, {
           itemIds: [itemId],
+          // When memberId is null, backend assigns to current user.
           assignedTo: memberId || undefined,
         });
-        toast.success(memberId ? "Item assigned" : "Item unassigned");
+        toast.success(memberId ? "Item assigned" : "Item assigned to you");
         await mutate();
         onItemsUpdated?.();
       } catch (error: any) {
         console.error("Failed to assign item:", error);
         toast.error(error?.message || "Failed to assign item");
+        await mutate();
+      } finally {
+        setUpdatingItemId(null);
+      }
+    },
+    [listId, mutate, onItemsUpdated]
+  );
+
+  const handleUnassignItem = React.useCallback(
+    async (itemId: string) => {
+      setUpdatingItemId(itemId);
+      try {
+        await apiClient.unassignCallListItems(listId, { itemIds: [itemId] });
+        toast.success("Item unassigned");
+        await mutate();
+        onItemsUpdated?.();
+      } catch (error: any) {
+        console.error("Failed to unassign item:", error);
+        toast.error(error?.message || "Failed to unassign item");
         await mutate();
       } finally {
         setUpdatingItemId(null);
@@ -435,7 +334,6 @@ export function CallListItemsTable({
     setSelectedItem(null);
     await mutate();
     onItemsUpdated?.();
-    setCallLogsMap(new Map());
     // Invalidate dashboard cache to refresh stats
     globalMutate(
       (key: any) => typeof key === "string" && key.startsWith("dashboard/"),
@@ -452,7 +350,6 @@ export function CallListItemsTable({
   const handleDetailsUpdated = async () => {
     await mutate();
     onItemsUpdated?.();
-    setCallLogsMap(new Map());
   };
 
   const handleDeleteItem = React.useCallback(
@@ -489,8 +386,7 @@ export function CallListItemsTable({
   }, [mutate, onItemsUpdated, removeTarget]);
 
   const getCallLogData = (item: CallListItem) => {
-    if (!item.callLogId) return null;
-    return callLogsMap.get(item.callLogId) || null;
+    return item.callLog || null;
   };
 
   const isAllSelectedOnCurrentPage = React.useMemo(() => {
@@ -696,6 +592,18 @@ export function CallListItemsTable({
                                   >
                                     <UserPlus className="h-4 w-4" />
                                     Assign to Me
+                                  </DropdownMenu.Item>
+                                )}
+                                {!!item.assignedTo && (isAdmin || (currentMember?.id && item.assignedTo === currentMember.id)) && (
+                                  <DropdownMenu.Item
+                                    className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      handleUnassignItem(item.id);
+                                    }}
+                                  >
+                                    <UserMinus className="h-4 w-4" />
+                                    Unassign
                                   </DropdownMenu.Item>
                                 )}
                                 {item.state !== "DONE" &&
@@ -956,6 +864,18 @@ export function CallListItemsTable({
                                     >
                                       <UserPlus className="h-4 w-4" />
                                       Assign to Me
+                                    </DropdownMenu.Item>
+                                  )}
+                                  {!!item.assignedTo && (isAdmin || (currentMember?.id && item.assignedTo === currentMember.id)) && (
+                                    <DropdownMenu.Item
+                                      className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                      onSelect={(event) => {
+                                        event.preventDefault();
+                                        handleUnassignItem(item.id);
+                                      }}
+                                    >
+                                      <UserMinus className="h-4 w-4" />
+                                      Unassign
                                     </DropdownMenu.Item>
                                   )}
                                   {item.state !== "DONE" && item.assignedTo && currentMember?.id === item.assignedTo && (

@@ -82,8 +82,8 @@ const navSections: NavSection[] = [
     label: "Engagement",
     icon: Phone,
     items: [
-      { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
-      { href: "/app/calls-manager", label: "Calls Manager", icon: Phone },
+      // { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
+      { href: "/app/calls-manager", label: "My Calls", icon: Phone },
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
@@ -263,7 +263,7 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
                     const Icon = item.icon;
                     const active = isActive(item.href);
                     const showBadge =
-                      (item.href === "/app/calls-manager" || item.href === "/app/my-calls") &&
+                      item.href === "/app/calls-manager" &&
                       pendingCallsCount > 0;
                     return (
                       <Link

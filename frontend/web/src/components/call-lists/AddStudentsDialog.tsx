@@ -5,12 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { Button } from "@/components/ui/button";
 import { StudentSelector } from "./StudentSelector";
 import { BulkEmailPasteTab } from "./BulkEmailPasteTab";
-import { CallListImportWizard } from "./CallListImportWizard";
+import { CallListImportFromFile } from "./CallListImportFromFile";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, UserPlus, Upload } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 import { useCallList } from "@/hooks/useCallLists";
 import { cn } from "@/lib/utils";
+import { useAddStudentsDialogStore, type AddStudentsTab } from "@/store/add-students-dialog";
 
 export interface AddStudentsDialogProps {
   open: boolean;
@@ -19,18 +20,18 @@ export interface AddStudentsDialogProps {
   onSuccess?: () => void;
 }
 
-type TabType = 'select' | 'paste' | 'import';
-
 export function AddStudentsDialog({
   open,
   onOpenChange,
   callListId,
   onSuccess,
 }: AddStudentsDialogProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('select');
+  const activeTab = useAddStudentsDialogStore((s) => s.byCallListId[callListId]?.activeTab ?? "select");
+  const setActiveTab = useAddStudentsDialogStore((s) => s.setActiveTab);
+  const clearDialogState = useAddStudentsDialogStore((s) => s.clear);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
-  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+  const [lockClose, setLockClose] = useState(false);
 
   // Fetch call list to get groupId and batchId
   const { data: callList } = useCallList(callListId);
@@ -50,6 +51,7 @@ export function AddStudentsDialog({
       });
       toast.success(`Added ${result.added} ${result.added === 1 ? "student" : "students"} to call list`);
       setSelectedStudentIds([]);
+      clearDialogState(callListId);
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
@@ -60,31 +62,45 @@ export function AddStudentsDialog({
     }
   };
 
-  const handleClose = () => {
-    if (!adding) {
-      setSelectedStudentIds([]);
-      setActiveTab('select');
-      onOpenChange(false);
+  const resetState = () => {
+    setSelectedStudentIds([]);
+    setLockClose(false);
+    clearDialogState(callListId);
+  };
+
+  const forceClose = () => {
+    if (adding) return;
+    resetState();
+    onOpenChange(false);
+  };
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    // Radix may call onOpenChange(true) during lifecycle; don't treat that as a close event.
+    if (nextOpen) {
+      onOpenChange(true);
+      return;
     }
+    // Ignore non-user close events while an import session is active.
+    if (lockClose) return;
+    forceClose();
   };
 
   const handleSuccess = () => {
-    setSelectedStudentIds([]);
-    setActiveTab('select');
+    resetState();
     onOpenChange(false);
     onSuccess?.();
   };
 
-  const tabs: Array<{ id: TabType; label: string; icon?: React.ReactNode }> = [
-    { id: 'select', label: 'Select from List' },
-    { id: 'paste', label: 'Paste Emails' },
-    { id: 'import', label: 'Import from File' },
+  const tabs: Array<{ id: AddStudentsTab; label: string }> = [
+    { id: "select", label: "Select from List" },
+    { id: "paste", label: "Paste Emails" },
+    { id: "import", label: "Import from File" },
   ];
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange} closeOnBackdropClick={false}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogClose onClose={handleClose} />
+        <DialogClose onClose={forceClose} />
         <DialogHeader>
           <DialogTitle>Add Students to Call List</DialogTitle>
         </DialogHeader>
@@ -96,7 +112,7 @@ export function AddStudentsDialog({
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setActiveTab(callListId, tab.id)}
                   className={cn(
                     "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
                     activeTab === tab.id
@@ -113,7 +129,7 @@ export function AddStudentsDialog({
 
           {/* Tab Content */}
           <div className="min-h-[400px]">
-            {activeTab === 'select' && (
+            {activeTab === "select" && (
               <div className="space-y-4">
                 <p className="text-sm text-[var(--groups1-text-secondary)]">
                   Select students to add to this call list. Only students not already in the list will be shown.
@@ -129,7 +145,7 @@ export function AddStudentsDialog({
                 <div className="flex justify-end gap-3 pt-4 border-t border-[var(--groups1-border)]">
                   <Button
                     variant="outline"
-                    onClick={handleClose}
+                    onClick={forceClose}
                     disabled={adding}
                     className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                   >
@@ -156,42 +172,26 @@ export function AddStudentsDialog({
               </div>
             )}
 
-            {activeTab === 'paste' && (
+            {activeTab === "paste" && (
               <BulkEmailPasteTab
                 callListId={callListId}
                 groupId={groupId}
                 batchId={batchId}
                 onSuccess={handleSuccess}
-                onCancel={handleClose}
+                onCancel={forceClose}
               />
             )}
 
-            {activeTab === 'import' && (
-              <div className="space-y-4">
-                <p className="text-sm text-[var(--groups1-text-secondary)]">
-                  Import students from a CSV or XLSX file. The import wizard will guide you through column mapping and settings.
-                </p>
-                <Button
-                  onClick={() => setIsImportWizardOpen(true)}
-                  className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Start Import Wizard
-                </Button>
-              </div>
+            {activeTab === "import" && (
+              <CallListImportFromFile
+                callListId={callListId}
+                onCancel={forceClose}
+                onSuccess={handleSuccess}
+                onLockChange={setLockClose}
+              />
             )}
           </div>
         </div>
-
-        <CallListImportWizard
-          callListId={callListId}
-          isOpen={isImportWizardOpen}
-          onClose={() => setIsImportWizardOpen(false)}
-          onSuccess={() => {
-            setIsImportWizardOpen(false);
-            handleSuccess();
-          }}
-        />
       </DialogContent>
     </Dialog>
   );

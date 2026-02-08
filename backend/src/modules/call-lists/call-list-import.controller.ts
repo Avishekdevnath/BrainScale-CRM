@@ -15,6 +15,16 @@ export const previewCallListImport = asyncHandler(async (req: AuthRequest, res: 
   }
 
   try {
+    const startedAt = Date.now();
+    console.info('[callListImport.preview] start', {
+      listId,
+      workspaceId: req.user!.workspaceId,
+      userId: req.user!.sub,
+      fileName: file.originalname,
+      fileSizeBytes: file.size,
+    });
+
+    const parsedAt = Date.now();
     const result = await callListImportService.previewCallListImport(
       listId,
       req.user!.workspaceId!,
@@ -22,8 +32,14 @@ export const previewCallListImport = asyncHandler(async (req: AuthRequest, res: 
       file.buffer,
       file.originalname
     );
+    console.info('[callListImport.preview] parsed', {
+      ms: Date.now() - parsedAt,
+      totalRows: result.totalRows,
+      headersCount: result.headers.length,
+    });
 
     // Store parsed data in database for commit
+    const dbAt = Date.now();
     const importRecord = await prisma.import.create({
       data: {
         workspaceId: req.user!.workspaceId!,
@@ -37,6 +53,11 @@ export const previewCallListImport = asyncHandler(async (req: AuthRequest, res: 
           createdAt: new Date().toISOString(),
         },
       },
+    });
+    console.info('[callListImport.preview] stored', {
+      ms: Date.now() - dbAt,
+      importId: importRecord.id,
+      totalMs: Date.now() - startedAt,
     });
 
     // Remove parsedData from response (don't send all rows to client)

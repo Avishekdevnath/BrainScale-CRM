@@ -1518,6 +1518,7 @@ export class ApiClient {
       size: params?.size,
       state: params?.state,
       assignedTo: params?.assignedTo,
+      assignment: (params as any)?.assignment,
       callLogStatus: params?.callLogStatus,
       followUpRequired: params?.followUpRequired,
     });
@@ -1530,7 +1531,7 @@ export class ApiClient {
   }
 
   // Preview import file
-  async previewCallListImport(callListId: string, file: File): Promise<ImportPreviewResponse> {
+  async previewCallListImport(callListId: string, file: File, signal?: AbortSignal): Promise<ImportPreviewResponse> {
     const formData = new FormData();
     formData.append('file', file);
     
@@ -1539,6 +1540,7 @@ export class ApiClient {
       {
         method: 'POST',
         body: formData,
+        signal,
         // Note: Don't set Content-Type header, browser will set it with boundary
       }
     );
@@ -1880,6 +1882,17 @@ export class ApiClient {
     }>;
   }> {
     return this.request("/students/fix-bd-phones", {
+      method: "POST",
+    });
+  }
+
+  fixDuplicateStudents(): Promise<{
+    message: string;
+    scanned: number;
+    duplicateGroups: number;
+    mergedStudents: number;
+  }> {
+    return this.request("/students/fix-duplicates", {
       method: "POST",
     });
   }

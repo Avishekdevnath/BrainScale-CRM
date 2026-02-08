@@ -125,6 +125,15 @@ router.post(
   studentController.fixBangladeshPhones
 );
 
+// Merge duplicate students (by email) in this workspace
+router.post(
+  '/fix-duplicates',
+  authGuard,
+  tenantGuard,
+  requirePermission('students', 'update'),
+  studentController.fixDuplicateStudents
+);
+
 router.post(
   '/bulk-delete',
   authGuard,

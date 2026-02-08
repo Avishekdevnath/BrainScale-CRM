@@ -53,6 +53,14 @@ export const previewCallListImport = async (
   fileBuffer: Buffer,
   filename: string
 ) => {
+  const startedAt = Date.now();
+  console.info('[callListImport.preview] service:start', {
+    listId,
+    workspaceId,
+    userId,
+    filename,
+    fileBytes: fileBuffer?.length ?? 0,
+  });
   // Verify call list exists and get details
   const callList = await prisma.callList.findFirst({
     where: {
@@ -74,6 +82,8 @@ export const previewCallListImport = async (
     throw new AppError(404, 'Call list not found');
   }
 
+  console.info('[callListImport.preview] service:callList', { ms: Date.now() - startedAt });
+
   // Verify user has access
   const membership = await prisma.workspaceMember.findFirst({
     where: {
@@ -88,6 +98,8 @@ export const previewCallListImport = async (
   if (!membership) {
     throw new AppError(403, 'Access denied');
   }
+
+  console.info('[callListImport.preview] service:membership', { ms: Date.now() - startedAt });
 
   // If call list has a group, verify user has access
   if (callList.groupId) {
@@ -109,7 +121,13 @@ export const previewCallListImport = async (
   // Parse file
   let parsed: ParseResult;
   try {
+    const parseAt = Date.now();
     parsed = await parseFile(fileBuffer, filename);
+    console.info('[callListImport.preview] service:parsed', {
+      ms: Date.now() - parseAt,
+      totalRows: parsed.totalRows,
+      headers: parsed.headers.length,
+    });
   } catch (error: any) {
     // Provide more context for parsing errors
     if (error.message) {
@@ -145,13 +163,6 @@ export const previewCallListImport = async (
 
   // Get batchId from call list meta
   const batchId = (callList.meta as any)?.batchId || callList.group?.batchId || null;
-
-  // Get existing student IDs in call list
-  const existingItems = await prisma.callListItem.findMany({
-    where: { callListId: listId },
-    select: { studentId: true },
-  });
-  const existingStudentIds = new Set(existingItems.map(item => item.studentId));
 
   // Calculate matching statistics for ALL rows (not just preview)
   // For performance, we'll process all rows up to 1000, then scale the results
@@ -205,6 +216,23 @@ export const previewCallListImport = async (
     phoneToStudentId.set(studentPhone.phone, studentPhone.student.id);
   });
 
+  console.info('[callListImport.preview] service:matched', { ms: Date.now() - startedAt });
+
+  // Only check duplicates-in-call-list for students that appear in the preview sample.
+  // Loading all callListItem rows for large call lists makes preview feel "stuck".
+  const candidateMatchedStudentIds = Array.from(
+    new Set<string>([...emailToStudentId.values(), ...phoneToStudentId.values()])
+  );
+  const existingMatchedIds = candidateMatchedStudentIds.length
+    ? await prisma.callListItem.findMany({
+        where: { callListId: listId, studentId: { in: candidateMatchedStudentIds } },
+        select: { studentId: true },
+      })
+    : [];
+  const existingMatchedStudentIds = new Set(existingMatchedIds.map((i) => i.studentId));
+
+  console.info('[callListImport.preview] service:dedupeCheck', { ms: Date.now() - startedAt });
+
   for (const row of rowsToProcess) {
     const name = row[suggestions.name || '']?.toString().trim();
     if (!name) {
@@ -217,7 +245,7 @@ export const previewCallListImport = async (
 
     const matchedStudentId = (email ? emailToStudentId.get(email) : undefined) ?? (phone ? phoneToStudentId.get(phone) : undefined);
     if (matchedStudentId) {
-      if (existingStudentIds.has(matchedStudentId)) willSkip++;
+      if (existingMatchedStudentIds.has(matchedStudentId)) willSkip++;
       else willMatch++;
       continue;
     }
@@ -236,6 +264,7 @@ export const previewCallListImport = async (
   // Return preview data (first 10 rows for preview display only)
   const previewRows = parsed.rows.slice(0, 10);
   
+  console.info('[callListImport.preview] service:done', { ms: Date.now() - startedAt });
   return {
     headers,
     previewRows,

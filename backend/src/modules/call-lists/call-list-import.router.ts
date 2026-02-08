@@ -95,7 +95,17 @@ router.post(
   requirePermission('call_lists', 'update'),
   /* uploadLimiter, */
   (req, res, next) => {
+    const startedAt = Date.now();
+    console.info('[callListImport.preview] multer:start', {
+      contentLength: req.headers['content-length'],
+      contentType: req.headers['content-type'],
+    });
     upload.single('file')(req, res, (err) => {
+      console.info('[callListImport.preview] multer:done', {
+        ms: Date.now() - startedAt,
+        hasFile: !!(req as any).file,
+        err: err ? { message: err.message, code: (err as any).code } : null,
+      });
       if (err) {
         // Handle multer errors
         if (err.code === 'LIMIT_FILE_SIZE') {

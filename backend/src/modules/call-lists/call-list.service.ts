@@ -1107,7 +1107,25 @@ export const listCallListItems = async (
     where.state = options.state;
   }
 
-  if (options.assignedTo) {
+  // Assignment filtering must happen before pagination (DB-level)
+  // Note: for MongoDB + optional fields, unassigned may be stored as:
+  // - null
+  // - empty string (legacy)
+  // - field not set at all
+  if ((options as any).assignment === 'unassigned') {
+    where.AND = [
+      ...(where.AND ?? []),
+      { OR: [{ assignedTo: null }, { assignedTo: '' }, { assignedTo: { isSet: false } }] },
+    ];
+  } else if ((options as any).assignment === 'assigned') {
+    where.AND = [
+      ...(where.AND ?? []),
+      { assignedTo: { isSet: true } },
+      { NOT: { assignedTo: null } },
+      { NOT: { assignedTo: '' } },
+    ];
+  } else if (options.assignedTo) {
+    // Filter for a specific assignee (WorkspaceMember ID)
     where.assignedTo = options.assignedTo;
   }
 
@@ -1279,30 +1297,18 @@ export const getAvailableStudents = async (
     }
   }
 
-  // Get student IDs already in the call list
-  const existingItems = await prisma.callListItem.findMany({
-    where: {
-      callListId: listId,
-    },
-    select: {
-      studentId: true,
-    },
-  });
-
-  const existingStudentIds = existingItems.map((item) => item.studentId);
-
   // Build student where clause
   const where: any = {
     workspaceId,
     isDeleted: false,
+    // Exclude students already in the call list without loading all IDs into memory.
+    // Using notIn with large call lists can become very slow and can exceed query limits.
+    callListItems: {
+      none: {
+        callListId: listId,
+      },
+    },
   };
-
-  // Exclude students already in the call list
-  if (existingStudentIds.length > 0) {
-    where.id = {
-      notIn: existingStudentIds,
-    };
-  }
 
   // Search query (name, email, or phone)
   if (options.q) {
@@ -1657,6 +1663,7 @@ export const markCallListActive = async (
 export const unassignCallListItems = async (
   listId: string,
   workspaceId: string,
+  userId: string,
   itemIds: string[]
 ) => {
   // Verify call list exists
@@ -1671,16 +1678,34 @@ export const unassignCallListItems = async (
     throw new AppError(404, 'Call list not found');
   }
 
+  const membership = await prisma.workspaceMember.findFirst({
+    where: { userId, workspaceId },
+    select: { id: true, role: true },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
   // Verify all items belong to this call list
   const items = await prisma.callListItem.findMany({
     where: {
       id: { in: itemIds },
       callListId: listId,
     },
+    select: { id: true, assignedTo: true },
   });
 
   if (items.length !== itemIds.length) {
     throw new AppError(400, 'One or more items not found in this call list');
+  }
+
+  // Non-admin users may only unassign items assigned to themselves (or already unassigned).
+  if (membership.role !== 'ADMIN') {
+    const forbidden = items.find((i) => i.assignedTo && i.assignedTo !== membership.id);
+    if (forbidden) {
+      throw new AppError(403, 'You can only unassign items assigned to you');
+    }
   }
 
   // Unassign items (set assignedTo to null)
@@ -1688,44 +1713,18 @@ export const unassignCallListItems = async (
     where: {
       id: { in: itemIds },
       callListId: listId,
+      // For non-admin, only affect items assigned to the user (or already unassigned).
+      ...(membership.role !== 'ADMIN'
+        ? {
+            OR: [{ assignedTo: membership.id }, { assignedTo: null }, { assignedTo: '' }, { assignedTo: { isSet: false } }],
+          }
+        : {}),
     },
     data: {
       assignedTo: null,
     },
   });
-
-  // Get updated items
-  const updatedItems = await prisma.callListItem.findMany({
-    where: {
-      id: { in: itemIds },
-      callListId: listId,
-    },
-    include: {
-      student: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      assignee: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  return {
-    updated: result.count,
-    items: updatedItems,
-  };
+  return { unassignedCount: result.count };
 };
 
 /**

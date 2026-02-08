@@ -98,9 +98,10 @@ export const unassignCallListItems = asyncHandler(async (req: AuthRequest, res: 
   const result = await callListService.unassignCallListItems(
     listId,
     req.user!.workspaceId!,
+    req.user!.sub,
     (req.validatedData as any).itemIds
   );
-  res.json(result);
+  res.json({ message: 'Items unassigned', ...result });
 });
 
 export const removeCallListItems = asyncHandler(async (req: AuthRequest, res: Response) => {

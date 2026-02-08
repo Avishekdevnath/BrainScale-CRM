@@ -815,6 +815,197 @@ export const fixBangladeshPhones = async (
   };
 };
 
+type FixDuplicateStudentsResult = {
+  message: string;
+  scanned: number;
+  duplicateGroups: number;
+  mergedStudents: number;
+};
+
+/**
+ * Merge duplicate students in a workspace.
+ *
+ * Current strategy (safe + deterministic):
+ * - Only considers students with a non-empty email.
+ * - Groups by normalized email (trim + lowercase).
+ * - Keeps the earliest created student as the canonical record.
+ * - Re-links related records to the canonical student and marks duplicates as deleted.
+ *
+ * Notes:
+ * - StudentPhone has a unique constraint on (workspaceId, phone), so phone duplicates across students
+ *   should not exist. We still move phone records to the canonical student.
+ */
+export const fixDuplicateStudents = async (
+  workspaceId: string,
+  userId: string
+): Promise<FixDuplicateStudentsResult> => {
+  const membership = await prisma.workspaceMember.findFirst({
+    where: { workspaceId, userId },
+    select: { role: true },
+  });
+
+  if (!membership || membership.role !== 'ADMIN') {
+    throw new AppError(403, 'Only admins can fix duplicate students');
+  }
+
+  const students = await prisma.student.findMany({
+    where: {
+      workspaceId,
+      isDeleted: false,
+      email: { not: null },
+    },
+    select: {
+      id: true,
+      email: true,
+      tags: true,
+      notes: true,
+      discordId: true,
+      createdAt: true,
+    },
+  });
+
+  const normalizeEmail = (email: string | null): string | null => {
+    if (!email) return null;
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return null;
+    return trimmed;
+  };
+
+  const groups = new Map<string, typeof students>();
+  for (const s of students) {
+    const key = normalizeEmail(s.email ?? null);
+    if (!key) continue;
+    const existing = groups.get(key);
+    if (existing) existing.push(s);
+    else groups.set(key, [s]);
+  }
+
+  let duplicateGroups = 0;
+  let mergedStudents = 0;
+
+  const safeUpdateUnique = async <T extends { id: string }>(
+    tx: any,
+    model: any,
+    record: T,
+    data: Record<string, any>
+  ) => {
+    try {
+      await model.update({ where: { id: record.id }, data });
+      return true;
+    } catch (err: any) {
+      // If a unique constraint would be violated after merge, keep the canonical one and delete the duplicate record.
+      if (err?.code === 'P2002') {
+        await model.delete({ where: { id: record.id } });
+        return false;
+      }
+      throw err;
+    }
+  };
+
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+    duplicateGroups += 1;
+
+    const sorted = [...group].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const keep = sorted[0];
+    const duplicates = sorted.slice(1);
+
+    await prisma.$transaction(async (tx) => {
+      const keepHasPrimary = await tx.studentPhone.findFirst({
+        where: { workspaceId, studentId: keep.id, isPrimary: true },
+        select: { id: true },
+      });
+
+      for (const dup of duplicates) {
+        // Merge student fields (only when canonical is missing values)
+        const mergedTags = Array.from(new Set([...(keep.tags ?? []), ...(dup.tags ?? [])]));
+        const mergedNotes =
+          keep.notes && keep.notes.trim().length > 0 ? keep.notes : dup.notes ?? keep.notes ?? null;
+        const mergedDiscordId =
+          keep.discordId && keep.discordId.trim().length > 0
+            ? keep.discordId
+            : dup.discordId ?? keep.discordId ?? null;
+
+        await tx.student.update({
+          where: { id: keep.id },
+          data: {
+            tags: mergedTags,
+            notes: mergedNotes,
+            discordId: mergedDiscordId,
+          },
+        });
+
+        // Move phones to canonical. If canonical already has a primary phone, demote moved primaries.
+        if (keepHasPrimary) {
+          await tx.studentPhone.updateMany({
+            where: { workspaceId, studentId: dup.id },
+            data: { isPrimary: false },
+          });
+        }
+        await tx.studentPhone.updateMany({
+          where: { workspaceId, studentId: dup.id },
+          data: { studentId: keep.id },
+        });
+
+        // Tables with unique constraints on studentId + other columns: update per-record and delete conflicts.
+        const dupBatches = await tx.studentBatch.findMany({
+          where: { studentId: dup.id },
+          select: { id: true },
+        });
+        for (const r of dupBatches) {
+          await safeUpdateUnique(tx, tx.studentBatch, r, { studentId: keep.id });
+        }
+
+        const dupEnrollments = await tx.enrollment.findMany({
+          where: { studentId: dup.id },
+          select: { id: true },
+        });
+        for (const r of dupEnrollments) {
+          await safeUpdateUnique(tx, tx.enrollment, r, { studentId: keep.id });
+        }
+
+        const dupStatuses = await tx.studentGroupStatus.findMany({
+          where: { studentId: dup.id },
+          select: { id: true },
+        });
+        for (const r of dupStatuses) {
+          await safeUpdateUnique(tx, tx.studentGroupStatus, r, { studentId: keep.id });
+        }
+
+        const dupProgress = await tx.moduleProgress.findMany({
+          where: { studentId: dup.id },
+          select: { id: true },
+        });
+        for (const r of dupProgress) {
+          await safeUpdateUnique(tx, tx.moduleProgress, r, { studentId: keep.id });
+        }
+
+        // Other relations: can be updated in bulk.
+        await tx.call.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
+        await tx.followup.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
+        await tx.callListItem.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
+        await tx.callLog.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
+        await tx.payment.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
+
+        // Finally mark duplicate student as deleted so it doesn't show up again.
+        await tx.student.update({
+          where: { id: dup.id },
+          data: { isDeleted: true },
+        });
+
+        mergedStudents += 1;
+      }
+    });
+  }
+
+  return {
+    message: 'Duplicate students merged successfully',
+    scanned: students.length,
+    duplicateGroups,
+    mergedStudents,
+  };
+};
+
 /**
  * Simple bulk import for students from pasted CSV data.
  *

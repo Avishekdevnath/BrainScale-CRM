@@ -120,6 +120,8 @@ export function CallListBulkActionsToolbar({
 
   const shouldShowUnassignInCollapsed =
     !!selectionMeta && selectionMeta.assignedToMe === selectedItemIds.length;
+  const shouldShowMemberUnassignInCollapsed =
+    !isAdmin && !!selectionMeta && selectionMeta.assignedToMe > 0 && selectionMeta.assignedToOthers === 0;
 
   return (
     <>
@@ -174,6 +176,33 @@ export function CallListBulkActionsToolbar({
                   <UserPlus className="w-4 h-4 mr-2" />
                 ) : null}
                 {shouldShowUnassignInCollapsed ? "Unassign" : "Assign to Me"}
+              </Button>
+            )}
+            {!isAdmin && shouldShowMemberUnassignInCollapsed && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!hasSelection || isUpdating || disabled) return;
+                  setIsUpdating(true);
+                  try {
+                    await apiClient.unassignCallListItems(listId, { itemIds: selectedItemIds });
+                    toast.success(
+                      `Unassigned ${selectionMeta?.assignedToMe ?? selectedItemIds.length} item(s) from you`
+                    );
+                    onItemsUpdated?.();
+                  } catch (error: any) {
+                    console.error("Failed to unassign items:", error);
+                    toast.error(error?.message || "Failed to unassign items");
+                  } finally {
+                    setIsUpdating(false);
+                  }
+                }}
+                disabled={isUpdating || disabled}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Unassign from Me
               </Button>
             )}
           </div>

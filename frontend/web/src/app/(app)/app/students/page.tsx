@@ -24,7 +24,7 @@ import { useHasPermission } from "@/hooks/useHasPermission";
 import { apiClient } from "@/lib/api-client";
 import { saveStudentExportFromCSV, type StudentExportFormat } from "@/lib/student-export";
 import { toast } from "sonner";
-import { Search, Upload, ChevronLeft, ChevronRight, Loader2, Phone } from "lucide-react";
+import { Search, Upload, ChevronLeft, ChevronRight, Loader2, Phone, CopyX } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { StudentsBulkActionsToolbar } from "@/components/students/StudentsBulkActionsToolbar";
@@ -68,6 +68,7 @@ function StudentsPageContent() {
   const [exportScope, setExportScope] = useState<"all" | "selected">("all");
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [isFixingPhones, setIsFixingPhones] = useState(false);
+  const [isFixingDuplicates, setIsFixingDuplicates] = useState(false);
 
   const { data: groups } = useGroups();
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useCourses();
@@ -226,6 +227,28 @@ function StudentsPageContent() {
     }
   }, [canFixPhones, isFixingPhones, mutate]);
 
+  const handleFixDuplicateStudents = useCallback(async () => {
+    if (!canFixPhones || isFixingDuplicates) return;
+
+    const confirmed = window.confirm(
+      "Fix duplicate students by email across this workspace?\n\nThis will merge duplicate students (same email) into one profile and keep all related history."
+    );
+    if (!confirmed) return;
+
+    setIsFixingDuplicates(true);
+    try {
+      const result = await apiClient.fixDuplicateStudents();
+      toast.success(
+        `Duplicates fixed: ${result.mergedStudents} merged in ${result.duplicateGroups} group(s).`
+      );
+      await mutate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to fix duplicates");
+    } finally {
+      setIsFixingDuplicates(false);
+    }
+  }, [canFixPhones, isFixingDuplicates, mutate]);
+
   const handleImportSuccess = useCallback(() => {
     mutate();
   }, [mutate]);
@@ -337,6 +360,21 @@ function StudentsPageContent() {
                 <Phone className="w-4 h-4 mr-2" />
               )}
               Fix Phones
+            </Button>
+          )}
+          {canFixPhones && (
+            <Button
+              onClick={handleFixDuplicateStudents}
+              disabled={isFixingDuplicates}
+              className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+              title="Merge duplicate students by email"
+            >
+              {isFixingDuplicates ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CopyX className="w-4 h-4 mr-2" />
+              )}
+              Fix Duplicates
             </Button>
           )}
         </div>

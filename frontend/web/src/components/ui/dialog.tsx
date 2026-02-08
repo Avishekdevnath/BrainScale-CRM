@@ -8,6 +8,7 @@ import { Button } from "./button";
 interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  closeOnBackdropClick?: boolean;
   children: React.ReactNode;
 }
 
@@ -23,17 +24,15 @@ interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
   children: React.ReactNode;
 }
 
-export function Dialog({ open, onOpenChange, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, closeOnBackdropClick = true, children }: DialogProps) {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      onClick={() => onOpenChange(false)}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         aria-hidden="true"
+        onClick={closeOnBackdropClick ? () => onOpenChange(false) : undefined}
       />
       <div onClick={(e) => e.stopPropagation()}>{children}</div>
     </div>

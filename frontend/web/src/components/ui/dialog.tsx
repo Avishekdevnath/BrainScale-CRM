@@ -34,7 +34,12 @@ export function Dialog({ open, onOpenChange, closeOnBackdropClick = true, childr
         aria-hidden="true"
         onClick={closeOnBackdropClick ? () => onOpenChange(false) : undefined}
       />
-      <div onClick={(e) => e.stopPropagation()}>{children}</div>
+      <div
+        className="relative z-50 flex w-full justify-center px-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
   );
 }

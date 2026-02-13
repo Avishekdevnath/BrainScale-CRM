@@ -236,10 +236,7 @@ export default function CallsManagerPage() {
     }
 
     const callerNote = callerNotes[item.id]?.trim() || "";
-    if (!callerNote) {
-      toast.error("Caller note is required before marking as done");
-      return;
-    }
+    // Caller note is now optional
 
     setSubmittingItemId(item.id);
     try {
@@ -465,10 +462,7 @@ export default function CallsManagerPage() {
 
   const openBulkDialog = (type: "done" | "unassign") => {
     if (!hasSelection) return;
-    if (type === "done" && hasMissingNotesInSelection) {
-      toast.error("Add caller notes for all selected rows before bulk Done");
-      return;
-    }
+    // Caller notes are now optional for bulk actions
     setBulkActionDialog({ open: true, type, working: false });
   };
 
@@ -512,10 +506,7 @@ export default function CallsManagerPage() {
 
   const runBulkDone = async () => {
     if (!hasSelection) return;
-    if (hasMissingNotesInSelection) {
-      toast.error("Add caller notes for all selected rows before bulk Done");
-      return;
-    }
+    // Caller notes are now optional
 
     setBulkActionDialog((prev) => ({ ...prev, working: true }));
     try {
@@ -596,7 +587,7 @@ export default function CallsManagerPage() {
               <Phone className="w-6 h-6 text-[var(--groups1-text)]" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-[var(--groups1-text)]">Calls Manager</h1>
+              <h1 className="text-2xl font-bold text-[var(--groups1-text)]">My Calls</h1>
               <p className="text-sm text-[var(--groups1-text-secondary)] mt-1">Manage assigned calls and mark them done.</p>
             </div>
           </div>
@@ -824,8 +815,7 @@ export default function CallsManagerPage() {
                   <Button
                     size="sm"
                     onClick={() => openBulkDialog("done")}
-                    disabled={hasMissingNotesInSelection}
-                    title={hasMissingNotesInSelection ? "Add caller notes for all selected rows" : undefined}
+                    disabled={!hasSelection}
                     className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
                   >
                     <CheckCheck className="w-4 h-4 mr-2" />
@@ -891,7 +881,7 @@ export default function CallsManagerPage() {
                   const hasExistingFollowUp = item.callLog?.followUpRequired || false;
                   const hasPendingFollowUp = followUp?.followUpRequired || false;
                   const isSubmitting = submittingItemId === item.id;
-                  const isDoneDisabled = isSubmitting || callerNoteTrimmed.length === 0;
+                  const isDoneDisabled = isSubmitting;
                   const followUpDate = item.callLog?.followUpDate ?? followUp?.followUpDate ?? null;
                   const callListName = item.callList?.name ?? null;
                   const groupName = item.callList?.group?.name ?? null;
@@ -1001,35 +991,6 @@ export default function CallsManagerPage() {
                           </div>
                         ) : null}
 
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
-                            Caller Note <span className="text-red-500">*</span>
-                          </label>
-                          <textarea
-                            rows={2}
-                            value={callerNote}
-                            onChange={(e) => handleCallerNoteChange(item.id, e.target.value)}
-                            disabled={isSubmitting}
-                            placeholder="Add caller note..."
-                            className={cn(
-                              "w-full resize-none rounded-lg border border-[var(--groups1-border)]",
-                              "bg-[var(--groups1-surface)] p-3 text-[13px] text-[var(--groups1-text)]",
-                              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                              "disabled:opacity-50 disabled:cursor-not-allowed"
-                            )}
-                          />
-                          <div className="flex justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={isSubmitting}
-                              onClick={() => openCallerNoteEditor(item.id)}
-                            >
-                              Edit in modal
-                            </Button>
-                          </div>
-                        </div>
                       </div>
 
                       <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
@@ -1051,7 +1012,7 @@ export default function CallsManagerPage() {
                           className="flex-1 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
                           onClick={() => handleDone(item)}
                           disabled={isDoneDisabled}
-                          title={callerNoteTrimmed.length === 0 ? "Add caller note to enable Done" : undefined}
+                          title={undefined}
                         >
                           {isSubmitting ? (
                             <>
@@ -1092,9 +1053,6 @@ export default function CallsManagerPage() {
                       Phone
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Caller Note
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
                       Call Status
                     </th>
                     {showQuestionColumns &&
@@ -1128,7 +1086,7 @@ export default function CallsManagerPage() {
                     const hasExistingFollowUp = item.callLog?.followUpRequired || false;
                     const hasPendingFollowUp = followUp?.followUpRequired || false;
                     const isSubmitting = submittingItemId === item.id;
-                    const isDoneDisabled = isSubmitting || callerNoteTrimmed.length === 0;
+                    const isDoneDisabled = isSubmitting;
                     const followUpDate = item.callLog?.followUpDate ?? followUp?.followUpDate ?? null;
                     const callListName = item.callList?.name ?? null;
                     const groupName = item.callList?.group?.name ?? null;
@@ -1191,36 +1149,6 @@ export default function CallsManagerPage() {
                           )}
                         </td>
                         <td className="py-2 px-4">
-                          <button
-                            type="button"
-                            disabled={isSubmitting}
-                            onClick={() => openCallerNoteEditor(item.id)}
-                            onKeyDown={(event) => {
-                              if (event.metaKey || event.ctrlKey || event.altKey) return;
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                openCallerNoteEditor(item.id);
-                                return;
-                              }
-                              if (event.key.length === 1) {
-                                event.preventDefault();
-                                openCallerNoteEditor(item.id, event.key);
-                              }
-                            }}
-                            className={cn(
-                              "w-full max-w-xs text-left rounded-md border border-[var(--groups1-border)]",
-                              "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
-                              "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                              "disabled:opacity-50 disabled:cursor-not-allowed"
-                            )}
-                            aria-label="Edit caller note"
-                          >
-                            <span className={cn("block truncate", callerNoteTrimmed ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
-                              {callerNoteTrimmed ? callerNoteTrimmed : "Add caller note..."}
-                            </span>
-                          </button>
-                        </td>
-                        <td className="py-2 px-4">
                           {item.callLog ? (
                             <StatusBadge variant={displayedStatus === "completed" ? "success" : "info"} size="sm">
                               {displayedStatus.replaceAll("_", " ")}
@@ -1262,7 +1190,7 @@ export default function CallsManagerPage() {
                                 {isReadOnly ? (
                                   <div
                                     title={q.question}
-                                    className="max-w-[220px] text-[13px] text-[var(--groups1-text)] truncate"
+                                    className="max-w-xs text-[13px] text-[var(--groups1-text)] truncate"
                                   >
                                     {(() => {
                                       const existingAnswer = item.callLog?.answers?.find((a) => a.questionId === q.id);
@@ -1275,7 +1203,7 @@ export default function CallsManagerPage() {
                                     value={String(value || "")}
                                     onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
                                     disabled={isSubmitting}
-                                    className={cn(cellBaseClass, "max-w-[220px]")}
+                                    className={cn(cellBaseClass, "max-w-xs")}
                                   >
                                     <option value="">—</option>
                                     {(q.options || []).map((opt) => (
@@ -1328,7 +1256,7 @@ export default function CallsManagerPage() {
                                       })
                                     }
                                     className={cn(
-                                      "w-full max-w-[220px] text-left rounded-md border border-[var(--groups1-border)]",
+                                      "w-full max-w-xs text-left rounded-md border border-[var(--groups1-border)]",
                                       "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
                                       "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
                                       "disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1372,7 +1300,7 @@ export default function CallsManagerPage() {
                               onClick={() => handleDone(item)}
                               disabled={isDoneDisabled}
                               className="h-6 px-2.5 text-xs font-semibold"
-                              title={callerNoteTrimmed.length === 0 ? "Add caller note to enable Done" : undefined}
+                              title={undefined}
                             >
                               {isSubmitting ? (
                                 <>
@@ -1554,12 +1482,6 @@ export default function CallsManagerPage() {
               </p>
             ) : null}
 
-            {bulkActionDialog.type === "done" && hasMissingNotesInSelection ? (
-              <p className="text-sm text-red-600 dark:text-red-400">
-                Caller note is required for all selected rows.
-              </p>
-            ) : null}
-
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={closeBulkDialog} disabled={bulkActionDialog.working}>
                 Cancel
@@ -1590,4 +1512,3 @@ export default function CallsManagerPage() {
     </div>
   );
 }
-

@@ -37,6 +37,7 @@ export interface CallListItemsTableProps {
 }
 
 type FilterType = "all" | "success" | "skipped" | "follow_up";
+type AssignmentFilterType = "all" | "assigned" | "unassigned" | "member";
 
 export function CallListItemsTable({
   listId,
@@ -54,7 +55,8 @@ export function CallListItemsTable({
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = React.useState(false);
   const [removeTarget, setRemoveTarget] = React.useState<{ itemId: string; studentName?: string } | null>(null);
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
-  const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
+  const [assignmentFilter, setAssignmentFilter] = React.useState<AssignmentFilterType>("all");
+  const [memberFilterId, setMemberFilterId] = React.useState<string | null>(null);
   const [pageSize, setPageSize] = React.useState<number>(25);
   const [isAssigningToMe, setIsAssigningToMe] = React.useState(false);
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
@@ -92,9 +94,10 @@ export function CallListItemsTable({
           ? "SKIPPED"
           : undefined,
       followUpRequired: activeFilter === "follow_up" ? true : undefined,
-      assignment: assignmentFilter === "all" ? undefined : assignmentFilter,
+      assignment: assignmentFilter === "all" || assignmentFilter === "member" ? undefined : assignmentFilter,
+      assignedTo: assignmentFilter === "member" ? memberFilterId || undefined : undefined,
     }));
-  }, [pageSize, activeFilter, assignmentFilter]);
+  }, [pageSize, activeFilter, assignmentFilter, memberFilterId]);
 
   const { data, isLoading, error, mutate } = useCallListItems(listId, filters);
 
@@ -436,15 +439,24 @@ export function CallListItemsTable({
             <CallListFilters
               activeFilter={activeFilter}
               assignmentFilter={assignmentFilter}
+              memberFilterId={memberFilterId}
               onFilterChange={(filter) => {
                 setActiveFilter(filter);
               }}
               onAssignmentFilterChange={(filter) => {
                 setAssignmentFilter(filter);
+                // Reset member filter when switching away from "member" filter
+                if (filter !== "member") {
+                  setMemberFilterId(null);
+                }
+              }}
+              onMemberFilterChange={(memberId) => {
+                setMemberFilterId(memberId);
               }}
               onClearFilters={() => {
                 setActiveFilter("all");
                 setAssignmentFilter("all");
+                setMemberFilterId(null);
               }}
             />
           </CollapsibleFilters>

@@ -1190,6 +1190,19 @@ export const listCallListItems = async (
           },
         },
       },
+      callList: {
+        select: {
+          id: true,
+          name: true,
+          meta: true,
+          group: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
     } as any,
     orderBy: [
       { priority: 'desc' },

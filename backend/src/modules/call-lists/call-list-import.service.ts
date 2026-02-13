@@ -386,6 +386,20 @@ export const processCallListImportCommitChunk = async (
       where: { id: importId },
       data: { status: 'COMPLETED', successCount: stats.added, duplicateCount: stats.duplicates, errorCount: stats.errors, meta: { ...meta, progress: completedProgress, resultMessage: meta.resultMessage ?? 'Import completed' } },
     });
+    
+    // Update call list meta with includeCallerNotes setting if provided
+    const commitSettings = meta.commitSettings as CommitCallListImportInput | undefined;
+    if (commitSettings?.includeCallerNotes !== undefined && listId) {
+      const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId } });
+      if (callList) {
+        const currentMeta = (callList.meta as Record<string, any>) || {};
+        await prisma.callList.update({
+          where: { id: listId },
+          data: { meta: { ...currentMeta, includeCallerNotes: commitSettings.includeCallerNotes } },
+        });
+      }
+    }
+    
     return {
       importId,
       status: 'COMPLETED',
@@ -698,6 +712,19 @@ export const processCallListImportCommitChunk = async (
   });
 
   if (nextStatus === 'COMPLETED') {
+    // Update call list meta with includeCallerNotes setting if provided
+    const commitSettings = meta.commitSettings as CommitCallListImportInput | undefined;
+    if (commitSettings?.includeCallerNotes !== undefined && listId) {
+      const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId } });
+      if (callList) {
+        const currentMeta = (callList.meta as Record<string, any>) || {};
+        await prisma.callList.update({
+          where: { id: listId },
+          data: { meta: { ...currentMeta, includeCallerNotes: commitSettings.includeCallerNotes } },
+        });
+      }
+    }
+    
     return {
       importId,
       status: 'COMPLETED',

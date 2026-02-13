@@ -110,6 +110,7 @@ export interface CallListItem {
     description: string | null;
     messages: string[];
     questions?: Question[];
+    meta?: Record<string, any>;
     group?: {
       id: string;
       name: string;
@@ -190,7 +191,7 @@ export interface CallListItemsListParams {
   size?: number;
   state?: CallListItemState;
   assignedTo?: string;
-  assignment?: "assigned" | "unassigned";
+  assignment?: "assigned" | "unassigned" | "member";
   callLogStatus?: CallLogStatus;
   followUpRequired?: boolean;
 }
@@ -258,6 +259,7 @@ export interface CallLog {
     description: string | null;
     messages: string[];
     questions?: Question[];
+    meta?: Record<string, any>;
     group?: {
       id: string;
       name: string;
@@ -417,6 +419,7 @@ export interface CommitImportRequest {
   matchBy?: 'email' | 'phone' | 'name' | 'email_or_phone';
   createNewStudents?: boolean;
   skipDuplicates?: boolean;
+  includeCallerNotes?: boolean;
 }
 
 export interface CommitImportResponse {

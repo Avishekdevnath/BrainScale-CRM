@@ -3,7 +3,7 @@ import { create } from "zustand";
 export type AddStudentsTab = "select" | "paste" | "import";
 
 export type CallListImportSession = {
-  step: "upload" | "map" | "importing" | "done";
+  step: "upload" | "map" | "caller_notes_prompt" | "importing" | "done";
   preview: {
     importId: string;
     headers: string[];
@@ -31,6 +31,7 @@ export type CallListImportSession = {
     errors?: string[];
   } | null;
   error: string | null;
+  includeCallerNotes: boolean;
 };
 
 type State = {

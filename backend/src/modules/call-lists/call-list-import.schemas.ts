@@ -10,6 +10,7 @@ export const CommitCallListImportSchema = z.object({
   matchBy: z.enum(['email', 'phone', 'name', 'email_or_phone']).default('email_or_phone'),
   createNewStudents: z.boolean().default(true),
   skipDuplicates: z.boolean().default(true),
+  includeCallerNotes: z.boolean().default(false), // Whether to enable caller notes for imported students
 });
 
 export const ProcessCallListImportSchema = z.object({

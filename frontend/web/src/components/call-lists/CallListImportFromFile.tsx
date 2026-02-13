@@ -10,7 +10,7 @@ import type { CommitImportRequest, ImportPreviewResponse, ImportProgress, Proces
 import { cn } from "@/lib/utils";
 import { useAddStudentsDialogStore, type CallListImportSession } from "@/store/add-students-dialog";
 
-type Step = "upload" | "map" | "importing" | "done";
+type Step = "upload" | "map" | "caller_notes_prompt" | "importing" | "done";
 
 export interface CallListImportFromFileProps {
   callListId: string;
@@ -45,6 +45,7 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
     skipDuplicates: storedSession?.options?.skipDuplicates ?? true,
   }));
   const [loading, setLoading] = useState(false);
+  const [includeCallerNotes, setIncludeCallerNotes] = useState<boolean>(() => (storedSession?.includeCallerNotes ?? false));
   const [error, setError] = useState<string | null>(() => storedSession?.error ?? null);
   const [progress, setProgress] = useState<ImportProgress | null>(() => (storedSession?.progress as any) ?? null);
   const [commitResult, setCommitResult] = useState<ProcessImportCommitResponse["result"] | null>(() => (storedSession?.commitResult as any) ?? null);
@@ -105,12 +106,13 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
         progress,
         commitResult: commitResult as any,
         error,
+        includeCallerNotes,
       };
 
       const merged = mode === "replace" ? (partial as CallListImportSession) : { ...next, ...(partial ?? {}) };
       setImportSession(callListId, merged);
     },
-    [callListId, commitResult, error, mapping, options.createNewStudents, options.matchBy, options.skipDuplicates, preview, progress, setImportSession, step]
+    [callListId, commitResult, error, includeCallerNotes, mapping, options.createNewStudents, options.matchBy, options.skipDuplicates, preview, progress, setImportSession, step]
   );
 
   // Persist important state changes so an unexpected remount doesn't lose the session.
@@ -186,6 +188,7 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
           progress: p ? { phase: "READY", totalRows: p.totalRows, processedRows: 0, matched: 0, created: 0, added: 0, duplicates: 0, errors: 0, updatedAt: new Date().toISOString() } : null,
           commitResult: null,
           error: null,
+          includeCallerNotes: false,
         });
         toast.success("File uploaded. Please confirm the columns.");
       } catch (e: any) {
@@ -207,6 +210,7 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
   const canNext = useMemo(() => {
     if (step === "upload") return !!file && !loading;
     if (step === "map") return !!mapping.name && !loading;
+    if (step === "caller_notes_prompt") return false; // User makes choice via buttons
     if (step === "importing") return false;
     if (step === "done") return true;
     return false;
@@ -230,12 +234,17 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
       setImportSession(callListId, undefined);
       return;
     }
+    if (step === "caller_notes_prompt") {
+      setStep("map");
+      persistSession({ step: "map" });
+      return;
+    }
     if (step === "done") {
       onLockChange?.(false);
       onCancel();
       return;
     }
-  }, [callListId, loading, onCancel, onLockChange, setImportSession, step]);
+  }, [callListId, loading, onCancel, onLockChange, persistSession, setImportSession, step]);
 
   const runCommit = useCallback(async () => {
     if (!preview) return;
@@ -262,6 +271,7 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
         matchBy: options.matchBy,
         createNewStudents: options.createNewStudents,
         skipDuplicates: options.skipDuplicates,
+        includeCallerNotes,
       };
 
       const started = await apiClient.startCallListImportCommit(callListId, req);
@@ -336,7 +346,9 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
   const handleNext = useCallback(() => {
     if (loading) return;
     if (step === "map") {
-      void runCommit();
+      // Go to caller notes prompt step first
+      setStep("caller_notes_prompt");
+      persistSession({ step: "caller_notes_prompt" });
       return;
     }
     if (step === "done") {
@@ -344,7 +356,7 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
       onLockChange?.(false);
       onCancel();
     }
-  }, [loading, onCancel, onLockChange, onSuccess, runCommit, step]);
+  }, [loading, onCancel, onLockChange, onSuccess, persistSession, step]);
 
   const headers = preview?.headers || [];
   const previewRows = preview?.previewRows || [];
@@ -378,170 +390,94 @@ export function CallListImportFromFile({ callListId, onCancel, onSuccess, onLock
         </div>
       )}
 
-      {step === "map" && preview && (
+      {step === "caller_notes_prompt" && (
         <div className="space-y-4">
           <div className="text-sm text-[var(--groups1-text-secondary)]">
-            Confirm which columns represent Name (required), Email, and Phone. Then we will import.
+            Would you like to include caller notes for each call? This allows callers to add manual notes during calls.
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--groups1-text)] mb-2">
-                Name <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={mapping.name}
-                onChange={(e) => setMapping((m) => ({ ...m, name: e.target.value }))}
-                className={cn(
-                  "w-full px-3 py-2 text-sm rounded-lg border bg-[var(--groups1-background)] text-[var(--groups1-text)]",
-                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                  "border-[var(--groups1-border)]"
-                )}
-              >
-                <option value="">Select column...</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                    {preview.suggestions?.name === h ? " (suggested)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[var(--groups1-text)] mb-2">
-                Email <span className="text-gray-400 text-xs">(Optional)</span>
-              </label>
-              <select
-                value={mapping.email || ""}
-                onChange={(e) => setMapping((m) => ({ ...m, email: e.target.value || "" }))}
-                className={cn(
-                  "w-full px-3 py-2 text-sm rounded-lg border bg-[var(--groups1-background)] text-[var(--groups1-text)]",
-                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                  "border-[var(--groups1-border)]"
-                )}
-              >
-                <option value="">Select column...</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                    {preview.suggestions?.email === h ? " (suggested)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[var(--groups1-text)] mb-2">
-                Phone <span className="text-gray-400 text-xs">(Optional)</span>
-              </label>
-              <select
-                value={mapping.phone || ""}
-                onChange={(e) => setMapping((m) => ({ ...m, phone: e.target.value || "" }))}
-                className={cn(
-                  "w-full px-3 py-2 text-sm rounded-lg border bg-[var(--groups1-background)] text-[var(--groups1-text)]",
-                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                  "border-[var(--groups1-border)]"
-                )}
-              >
-                <option value="">Select column...</option>
-                {headers.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                    {preview.suggestions?.phone === h ? " (suggested)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              onClick={() => {
+                setIncludeCallerNotes(true);
+                persistSession({ includeCallerNotes: true });
+                setStep("importing");
+                persistSession({ step: "importing" });
+                void runCommit();
+              }}
+              className="w-full"
+            >
+              Yes, include caller notes
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setIncludeCallerNotes(false);
+                persistSession({ includeCallerNotes: false });
+                setStep("importing");
+                persistSession({ step: "importing" });
+                void runCommit();
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              No, skip caller notes
+            </Button>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-[var(--groups1-text)] mb-2">Match by</label>
-              <select
-                value={options.matchBy || "name"}
-                onChange={(e) =>
-                  setOptions((o) => ({ ...o, matchBy: (e.target.value as CommitImportRequest["matchBy"]) || "name" }))
-                }
-                className={cn(
-                  "w-full px-3 py-2 text-sm rounded-lg border bg-[var(--groups1-background)] text-[var(--groups1-text)]",
-                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                  "border-[var(--groups1-border)]"
-                )}
-              >
-                <option value="name">Name</option>
-                {!!mapping.email && <option value="email">Email</option>}
-                {!!mapping.phone && <option value="phone">Phone</option>}
-                {!!mapping.email && !!mapping.phone && <option value="email_or_phone">Email or Phone</option>}
-              </select>
-            </div>
-
-            <div className="flex items-end gap-2">
-              <label className="flex items-center gap-2 text-sm text-[var(--groups1-text)]">
-                <input
-                  type="checkbox"
-                  checked={options.createNewStudents}
-                  onChange={(e) => setOptions((o) => ({ ...o, createNewStudents: e.target.checked }))}
-                />
-                Create new students
-              </label>
-            </div>
-
-            <div className="flex items-end gap-2">
-              <label className="flex items-center gap-2 text-sm text-[var(--groups1-text)]">
-                <input
-                  type="checkbox"
-                  checked={options.skipDuplicates}
-                  onChange={(e) => setOptions((o) => ({ ...o, skipDuplicates: e.target.checked }))}
-                />
-                Skip duplicates in call list
-              </label>
-            </div>
-          </div>
-
-          {mapping.name && previewRows.length > 0 && (
-            <div>
-              <div className="text-sm font-medium text-[var(--groups1-text)] mb-2">
-                Preview (first {previewRows.length} rows)
-              </div>
-              <div className="border border-[var(--groups1-border)] rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-[var(--groups1-secondary)]">
-                      <tr>
-                        <th className="px-4 py-2 text-left font-medium text-[var(--groups1-text)]">Name</th>
-                        {mapping.email && (
-                          <th className="px-4 py-2 text-left font-medium text-[var(--groups1-text)]">Email</th>
-                        )}
-                        {mapping.phone && (
-                          <th className="px-4 py-2 text-left font-medium text-[var(--groups1-text)]">Phone</th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewRows.map((row, idx) => (
-                        <tr key={idx} className="border-t border-[var(--groups1-border)]">
-                          <td className="px-4 py-2 text-[var(--groups1-text)]">{row[mapping.name] ?? "-"}</td>
-                          {mapping.email && (
-                            <td className="px-4 py-2 text-[var(--groups1-text)]">{row[mapping.email] ?? "-"}</td>
-                          )}
-                          {mapping.phone && (
-                            <td className="px-4 py-2 text-[var(--groups1-text)]">{row[mapping.phone] ?? "-"}</td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-[var(--groups1-text-secondary)]">
-                Expected: {preview.matchingStats.willMatch} matched, {preview.matchingStats.willCreate} created,{" "}
-                {preview.matchingStats.willSkip} skipped.
-              </div>
-            </div>
-          )}
         </div>
       )}
+      
+      {step === "importing" && (
+          <div className="space-y-4">
+            <div className="text-sm text-[var(--groups1-text-secondary)]">
+              Importing {progress?.processedRows || 0}/{progress?.totalRows || 0} rows...
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[var(--groups1-text-secondary)]">
+                  Phase: {progress?.phase || "Processing"}
+                </span>
+                <span className="text-sm font-medium text-[var(--groups1-text)]">
+                  {progress?.processedRows || 0}/{progress?.totalRows || 0}
+                </span>
+              </div>
+              
+              <div className="w-full bg-[var(--groups1-border)] rounded-full h-2">
+                <div
+                  className="h-2 bg-[var(--groups1-primary)] rounded-full transition-all duration-300"
+                  style={{
+                    width: (progress?.totalRows ?? 0) > 0
+                      ? `${Math.min(100, Math.round(((progress?.processedRows ?? 0) / (progress?.totalRows ?? 1)) * 100))}%`
+                      : "0%"
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 text-sm text-[var(--groups1-text-secondary)]">
+              <div>Matched: {progress?.matched || 0}</div>
+              <div>Created: {progress?.created || 0}</div>
+              <div>Added: {progress?.added || 0}</div>
+              <div>Duplicates: {progress?.duplicates || 0}</div>
+              <div>Errors: {progress?.errors || 0}</div>
+            </div>
+            
+            <div className="flex justify-center pt-4">
+              <Button
+                onClick={() => {
+                  cancelledRef.current = true;
+                  setStep("map");
+                  persistSession({ step: "map" });
+                }}
+                variant="outline"
+                className="w-full md:w-auto"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
       {step === "importing" && (
         <div className="space-y-4">

@@ -101,17 +101,7 @@ export const previewCallListImport = async (
 
   console.info('[callListImport.preview] service:membership', { ms: Date.now() - startedAt });
 
-  // If call list has a group, verify user has access
-  if (callList.groupId) {
-    if (membership.role !== 'ADMIN') {
-      const hasAccess = membership.groupAccess.some(
-        (access) => access.groupId === callList.groupId
-      );
-      if (!hasAccess) {
-        throw new AppError(403, 'Access denied to this call list');
-      }
-    }
-  }
+  // Workspace membership is sufficient for call list create/update operations.
 
   // Validate file buffer
   if (!fileBuffer || fileBuffer.length === 0) {
@@ -782,17 +772,7 @@ export const commitCallListImport = async (
     throw new AppError(403, 'Access denied');
   }
 
-  // If call list has a group, verify user has access
-  if (callList.groupId) {
-    if (membership.role !== 'ADMIN') {
-      const hasAccess = membership.groupAccess.some(
-        (access) => access.groupId === callList.groupId
-      );
-      if (!hasAccess) {
-        throw new AppError(403, 'Access denied to this call list');
-      }
-    }
-  }
+  // Workspace membership is sufficient for call list create/update operations.
 
   // Get batchId from call list meta or group
   const batchId = (callList.meta as any)?.batchId || callList.group?.batchId || null;
@@ -1247,4 +1227,3 @@ export const commitCallListImport = async (
     errors: errors.slice(0, 10),
   };
 };
-

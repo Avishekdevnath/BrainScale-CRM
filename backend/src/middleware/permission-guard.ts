@@ -18,6 +18,15 @@ export const requirePermission = (resource: string, action: string) => {
       return next();
     }
 
+    // Product rule: all workspace members can create/update call lists.
+    if (
+      req.user.role?.toUpperCase() === 'MEMBER' &&
+      resource === 'call_lists' &&
+      (action === 'create' || action === 'update')
+    ) {
+      return next();
+    }
+
     // Get user permissions (loaded by tenantGuard)
     const permissions = req.user.permissions || [];
 

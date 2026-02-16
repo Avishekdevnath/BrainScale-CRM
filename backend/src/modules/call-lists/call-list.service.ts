@@ -461,15 +461,7 @@ export const createCallList = async (
       throw new AppError(404, 'Group not found');
     }
 
-    // Verify user has access to this group
-    if (membership.role !== 'ADMIN') {
-      const hasAccess = membership.groupAccess.some(
-        (access) => access.groupId === data.groupId
-      );
-      if (!hasAccess) {
-    throw new AppError(403, 'Access denied to this group');
-  }
-    }
+    // Workspace membership is sufficient for call list create/update operations.
   }
 
   // If studentsData provided, match or create students
@@ -553,17 +545,6 @@ export const createCallList = async (
 
     // If groupIds provided, filter students by those groups
     if (data.groupIds && data.groupIds.length > 0) {
-      // Verify user has access to all specified groups
-      if (membership.role !== 'ADMIN') {
-        const accessibleGroupIds = membership.groupAccess.map((a) => a.groupId);
-        const hasAccessToAll = data.groupIds.every((gId) =>
-          accessibleGroupIds.includes(gId)
-        );
-        if (!hasAccessToAll) {
-          throw new AppError(403, 'Access denied to one or more groups');
-        }
-      }
-
       // Filter students by enrollments in specified groups
       studentWhere.enrollments = {
         some: {
@@ -835,7 +816,7 @@ export const updateCallList = async (
     throw new AppError(404, 'Call list not found');
   }
 
-  // If status is being changed, verify user is admin
+  // If status is being changed, verify user belongs to workspace
   if (data.status !== undefined && data.status !== callList.status) {
     const membership = await prisma.workspaceMember.findFirst({
       where: {
@@ -844,8 +825,8 @@ export const updateCallList = async (
       },
     });
 
-    if (!membership || membership.role !== 'ADMIN') {
-      throw new AppError(403, 'Only admins can change call list status');
+    if (!membership) {
+      throw new AppError(403, 'Access denied');
     }
   }
 
@@ -1298,17 +1279,7 @@ export const getAvailableStudents = async (
     throw new AppError(403, 'Access denied');
   }
 
-  // If call list has a group, verify user has access to that group
-  if (callList.groupId) {
-    if (membership.role !== 'ADMIN') {
-      const hasAccess = membership.groupAccess.some(
-        (access) => access.groupId === callList.groupId
-      );
-      if (!hasAccess) {
-        throw new AppError(403, 'Access denied to this group');
-      }
-    }
-  }
+  // Workspace membership is sufficient for call list create/update operations.
 
   // Build student where clause
   const where: any = {
@@ -1535,14 +1506,14 @@ export const deleteCallList = async (listId: string, workspaceId: string) => {
 };
 
 /**
- * Mark call list as complete (Admin only)
+ * Mark call list as complete
  */
 export const markCallListComplete = async (
   listId: string,
   workspaceId: string,
   userId: string
 ) => {
-  // Verify user is admin
+  // Verify user belongs to workspace
   const membership = await prisma.workspaceMember.findFirst({
     where: {
       userId,
@@ -1552,10 +1523,6 @@ export const markCallListComplete = async (
 
   if (!membership) {
     throw new AppError(403, 'Access denied');
-  }
-
-  if (membership.role !== 'ADMIN') {
-    throw new AppError(403, 'Only admins can mark call lists as complete');
   }
 
   // Verify call list exists and belongs to workspace
@@ -1603,14 +1570,14 @@ export const markCallListComplete = async (
 };
 
 /**
- * Mark call list as active (reopen) - Admin only
+ * Mark call list as active (reopen)
  */
 export const markCallListActive = async (
   listId: string,
   workspaceId: string,
   userId: string
 ) => {
-  // Verify user is admin
+  // Verify user belongs to workspace
   const membership = await prisma.workspaceMember.findFirst({
     where: {
       userId,
@@ -1620,10 +1587,6 @@ export const markCallListActive = async (
 
   if (!membership) {
     throw new AppError(403, 'Access denied');
-  }
-
-  if (membership.role !== 'ADMIN') {
-    throw new AppError(403, 'Only admins can reopen call lists');
   }
 
   // Verify call list exists and belongs to workspace

@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { sendEmailWithSendGrid } from './email-sendgrid';
+import { sendEmailWithResend } from './email-resend';
 import {
   emailVerificationTemplate,
   resendVerificationTemplate,
@@ -129,7 +130,12 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
   if (provider === 'sendgrid') {
     return sendEmailWithSendGrid(options, retryCount);
   }
-  
+
+  // Use Resend API when EMAIL_PROVIDER is 'resend'
+  if (provider === 'resend') {
+    return sendEmailWithResend(options, retryCount);
+  }
+
   // For 'sendgrid-smtp' or 'smtp', use SMTP (SendGrid SMTP is auto-configured in env.ts)
 
   // SMTP fallback

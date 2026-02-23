@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { Invitation } from "@/types/members.types";
 import { getStatusLabel, getStatusColor, formatInvitationExpiry } from "@/lib/member-utils";
-import { Mail, Calendar, User, X, Copy, Loader2, RefreshCw } from "lucide-react";
+import { Mail, Calendar, User, X, Copy, Loader2, RefreshCw, KeyRound, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export interface InvitationsTableProps {
@@ -29,6 +29,24 @@ export function InvitationsTable({
   onStatusFilterChange,
 }: InvitationsTableProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [visiblePasswords, setVisiblePasswords] = React.useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (invitationId: string) => {
+    setVisiblePasswords(prev => ({
+      ...prev,
+      [invitationId]: !prev[invitationId]
+    }));
+  };
+
+  const handleCopyPassword = (invitation: Invitation) => {
+    if (invitation.temporaryPassword) {
+      navigator.clipboard.writeText(invitation.temporaryPassword).then(() => {
+        toast.success("Password copied to clipboard");
+      }).catch(() => {
+        toast.error("Failed to copy password");
+      });
+    }
+  };
 
   const filteredInvitations = React.useMemo(() => {
     let filtered = invitations;
@@ -164,6 +182,9 @@ export function InvitationsTable({
                   Email
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                  Password
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wider">
@@ -186,7 +207,7 @@ export function InvitationsTable({
             <tbody>
               {filteredInvitations.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-[var(--groups1-text-secondary)]">
                     No invitations found matching your filters.
                   </td>
                 </tr>
@@ -212,6 +233,41 @@ export function InvitationsTable({
                             {invitation.email}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {invitation.temporaryPassword ? (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm text-[var(--groups1-text)]">
+                              {visiblePasswords[invitation.id] 
+                                ? invitation.temporaryPassword 
+                                : "••••••••••••"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => togglePasswordVisibility(invitation.id)}
+                              className="h-6 w-8 p-0"
+                              title={visiblePasswords[invitation.id] ? "Hide password" : "Show password"}
+                            >
+                              {visiblePasswords[invitation.id] ? (
+                                <EyeOff className="w-3 h-3" />
+                              ) : (
+                                <Eye className="w-3 h-3" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCopyPassword(invitation)}
+                              className="h-6 w-8 p-0"
+                              title="Copy password"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge

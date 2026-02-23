@@ -133,7 +133,7 @@ export function CallListBulkActionsToolbar({
       >
         <div className="flex items-center justify-between gap-2">
           {/* Collapsed view */}
-          <div className="flex items-center gap-2 flex-1">
+          <div className="flex items-center gap-2 flex-1 flex-wrap">
             <span className="text-sm font-medium text-[var(--groups1-text)]">
               {selectedItemIds.length} selected
             </span>
@@ -229,104 +229,105 @@ export function CallListBulkActionsToolbar({
 
         {/* Expanded view */}
         {isExpanded && (
-          <div className="mt-3 pt-3 border-t border-[var(--groups1-border)] flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleBulkStateChange("QUEUED")}
-            disabled={!hasSelection || isUpdating || disabled}
-            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          >
-            {isUpdating ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : null}
-            Mark as Queued
-          </Button>
+          <div className="mt-3 pt-3 border-t border-[var(--groups1-border)] flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkStateChange("QUEUED")}
+                disabled={!hasSelection || isUpdating || disabled}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Mark as Queued
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleBulkStateChange("DONE")}
-            disabled={!hasSelection || isUpdating || disabled}
-            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          >
-            {isUpdating ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : null}
-            Mark as Done
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkStateChange("DONE")}
+                disabled={!hasSelection || isUpdating || disabled}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Mark as Done
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleBulkStateChange("SKIPPED")}
-            disabled={!hasSelection || isUpdating || disabled}
-            className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          >
-            {isUpdating ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : null}
-            Skip
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkStateChange("SKIPPED")}
+                disabled={!hasSelection || isUpdating || disabled}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Skip
+              </Button>
 
-          <div className="flex items-center gap-2">
-            <MemberSelector
-              selectedMemberId={selectedMemberId}
-              onSelectMemberId={(memberId) => {
-                setSelectedMemberId(memberId);
-                if (memberId !== null) {
-                  handleBulkAssign(memberId);
-                }
-              }}
-              placeholder="Assign To..."
-              disabled={!hasSelection || isUpdating || disabled}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                if (!hasSelection || isUpdating || disabled) return;
-                setIsUpdating(true);
-                try {
-                  await apiClient.unassignCallListItems(listId, {
-                    itemIds: selectedItemIds,
-                  });
-                  toast.success(`${selectedItemIds.length} items unassigned`);
-                  onItemsUpdated?.();
-                } catch (error: any) {
-                  console.error("Failed to unassign items:", error);
-                  const errorMessage = error?.message || "Failed to unassign items";
-                  toast.error(errorMessage);
-                } finally {
-                  setIsUpdating(false);
-                }
-              }}
-              disabled={!hasSelection || isUpdating || disabled}
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-            >
-              {isUpdating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              Unassign
-            </Button>
+              <MemberSelector
+                selectedMemberId={selectedMemberId}
+                onSelectMemberId={(memberId) => {
+                  setSelectedMemberId(memberId);
+                  if (memberId !== null) {
+                    handleBulkAssign(memberId);
+                  }
+                }}
+                placeholder="Assign To..."
+                disabled={!hasSelection || isUpdating || disabled}
+              />
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!hasSelection || isUpdating || disabled) return;
+                  setIsUpdating(true);
+                  try {
+                    await apiClient.unassignCallListItems(listId, {
+                      itemIds: selectedItemIds,
+                    });
+                    toast.success(`${selectedItemIds.length} items unassigned`);
+                    onItemsUpdated?.();
+                  } catch (error: any) {
+                    console.error("Failed to unassign items:", error);
+                    const errorMessage = error?.message || "Failed to unassign items";
+                    toast.error(errorMessage);
+                  } finally {
+                    setIsUpdating(false);
+                  }
+                }}
+                disabled={!hasSelection || isUpdating || disabled}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Unassign
+              </Button>
+            </div>
+
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setIsRemoveDialogOpen(true)}
+                disabled={!hasSelection || isUpdating || disabled}
+              >
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
+                Remove from List
+              </Button>
+            )}
           </div>
-
-          {isAdmin && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setIsRemoveDialogOpen(true)}
-              disabled={!hasSelection || isUpdating || disabled}
-            >
-              {isUpdating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4 mr-2" />
-              )}
-              Remove from List
-            </Button>
-          )}
-        </div>
         )}
       </div>
 

@@ -170,6 +170,10 @@ export const GetMyCallsSchema = z.object({
   groupId: z.string().optional(),
   callListId: z.string().optional(),
   state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']).optional(),
+  // Comma-separated list of states e.g. "QUEUED,CALLING"
+  states: z.string().optional().transform((val) =>
+    val ? val.split(',').map((s) => s.trim()).filter(Boolean) : undefined
+  ),
   followUpRequired: z.coerce.boolean().optional(),
 });
 

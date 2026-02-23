@@ -157,6 +157,27 @@ export function useCreateMemberWithAccount(workspaceId: string) {
 }
 
 /**
+ * Hook to permanently delete a member user account (global)
+ */
+export function useDeleteMemberAccount(workspaceId: string) {
+  return async (memberId: string) => {
+    try {
+      const result = await apiClient.deleteMemberAccount(workspaceId, memberId);
+      toast.success(result.message || "User account deleted permanently");
+
+      // Invalidate members list
+      await mutate(`workspace-members-${workspaceId}`);
+
+      return result;
+    } catch (error: any) {
+      console.error("Failed to delete member account:", error);
+      toast.error(error?.message || "Failed to delete user account");
+      throw error;
+    }
+  };
+}
+
+/**
  * Hook to re-invite an existing member (resets temporary password and re-sends email)
  */
 export function useReinviteMemberWithAccount(workspaceId: string) {

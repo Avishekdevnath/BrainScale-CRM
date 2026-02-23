@@ -14,6 +14,33 @@ const generateInvitationToken = (): string => {
 };
 
 /**
+ * Generate a temporary password for manual sharing
+ */
+const generateTemporaryPassword = (): string => {
+  // Generate a 12-character password with uppercase, lowercase, numbers, and special chars
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const special = '!@#$%^&*';
+  const all = uppercase + lowercase + numbers + special;
+
+  let password = '';
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += special[Math.floor(Math.random() * special.length)];
+
+  for (let i = 4; i < 12; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+
+  return password
+    .split('')
+    .sort(() => Math.random() - 0.5)
+    .join('');
+};
+
+/**
  * Send invitation to a user
  */
 export const sendInvitation = async (
@@ -104,6 +131,7 @@ export const sendInvitation = async (
 
   // Create invitation
   const token = generateInvitationToken();
+  const temporaryPassword = generateTemporaryPassword();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
@@ -120,6 +148,8 @@ export const sendInvitation = async (
       invitedBy: inviterUserId,
       expiresAt,
       status: 'PENDING',
+      temporaryPassword,
+      emailSent: false, // Will be updated after email send attempt
       meta: meta as any,
     },
     include: {
@@ -138,7 +168,9 @@ export const sendInvitation = async (
     select: { name: true },
   });
 
-  // Send invitation email
+  // Try to send invitation email
+  let emailSent = false;
+  let emailError: string | null = null;
   try {
     await sendInvitationEmail(
       data.email,
@@ -146,10 +178,24 @@ export const sendInvitation = async (
       token,
       inviter?.name || 'A team member'
     );
-  } catch (error) {
-    // Log error but don't fail the invitation creation
-    logger.error({ error, invitationId: invitation.id }, 'Failed to send invitation email');
-    // You might want to queue this for retry in production
+    emailSent = true;
+  } catch (error: any) {
+    emailError = error?.message || 'Failed to send email';
+    logger.warn({ invitationId: invitation.id, error: emailError }, 'Email send failed, but invitation created successfully');
+    // Don't throw - invitation is already created, admin can see the password and share it manually
+  }
+
+  // Update invitation with email status
+  if (!emailSent) {
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { emailSent: false },
+    });
+  } else {
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { emailSent: true },
+    });
   }
 
   return {
@@ -159,7 +205,12 @@ export const sendInvitation = async (
     customRole: invitation.customRole,
     expiresAt: invitation.expiresAt,
     status: invitation.status,
-    message: 'Invitation sent successfully',
+    temporaryPassword, // Return temporary password for admin to see
+    emailSent, // Flag indicating if email was actually sent
+    emailError: emailError || undefined, // Return error message if email failed
+    message: emailSent
+      ? 'Invitation sent successfully'
+      : 'Invitation created but email could not be sent. Please share the temporary password with the user manually.',
   };
 };
 
@@ -314,7 +365,17 @@ export const listInvitations = async (workspaceId: string) => {
     orderBy: { createdAt: 'desc' },
   });
 
-  return invitations;
+  return invitations.map(inv => ({
+    id: inv.id,
+    email: inv.email,
+    role: inv.role,
+    customRole: inv.customRole,
+    status: inv.status,
+    expiresAt: inv.expiresAt,
+    temporaryPassword: inv.temporaryPassword, // Include for manual sharing
+    emailSent: inv.emailSent,
+    createdAt: inv.createdAt,
+  }));
 };
 
 /**
@@ -430,6 +491,7 @@ export const resendInvitation = async (
       status: 'PENDING',
       invitedBy: inviterUserId,
       customRoleId,
+      emailSent: false, // Reset email sent status
       meta: (nextMeta as any) ?? null,
     },
     include: {
@@ -442,6 +504,9 @@ export const resendInvitation = async (
     select: { name: true },
   });
 
+  // Try to send invitation email
+  let emailSent = false;
+  let emailError: string | null = null;
   try {
     await sendInvitationEmail(
       updated.email,
@@ -449,8 +514,18 @@ export const resendInvitation = async (
       token,
       inviter?.name || 'A team member'
     );
-  } catch (error) {
-    logger.error({ error, invitationId: updated.id }, 'Failed to resend invitation email');
+    emailSent = true;
+  } catch (error: any) {
+    emailError = error?.message || 'Failed to send email';
+    logger.warn({ invitationId: updated.id, error: emailError }, 'Email resend failed, but invitation updated successfully');
+  }
+
+  // Update email status
+  if (emailSent) {
+    await prisma.invitation.update({
+      where: { id: updated.id },
+      data: { emailSent: true },
+    });
   }
 
   return {
@@ -458,6 +533,11 @@ export const resendInvitation = async (
     email: updated.email,
     expiresAt: updated.expiresAt,
     status: updated.status,
-    message: 'Invitation resent successfully',
+    temporaryPassword: updated.temporaryPassword, // Return temp password if email fails
+    emailSent, // Flag indicating if email was actually sent
+    emailError: emailError || undefined, // Return error message if email failed
+    message: emailSent
+      ? 'Invitation resent successfully'
+      : 'Invitation updated but email could not be sent. Please share the temporary password with the user manually.',
   };
 };

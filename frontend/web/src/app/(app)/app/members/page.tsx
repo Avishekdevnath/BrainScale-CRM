@@ -6,6 +6,7 @@ import { InviteMemberDialog } from "@/components/members/InviteMemberDialog";
 import { UpdateMemberRoleDialog } from "@/components/members/UpdateMemberRoleDialog";
 import { GrantGroupAccessDialog } from "@/components/members/GrantGroupAccessDialog";
 import { RemoveMemberDialog } from "@/components/members/RemoveMemberDialog";
+import { DeleteMemberAccountDialog } from "@/components/members/DeleteMemberAccountDialog";
 import { useReinviteMemberWithAccount, useWorkspaceMembers } from "@/hooks/useMembers";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
@@ -14,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatMemberName, getRoleLabel } from "@/lib/member-utils";
-import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy } from "lucide-react";
+import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy, UserX } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -37,7 +38,7 @@ export default function MembersPage() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
   const [actionType, setActionType] = React.useState<
-    "updateRole" | "grantAccess" | "remove" | null
+    "updateRole" | "grantAccess" | "remove" | "deleteAccount" | null
   >(null);
 
   const selectedMember = React.useMemo(() => {
@@ -60,21 +61,27 @@ export default function MembersPage() {
     setActionType("remove");
   };
 
+  const handleDeleteAccount = (memberId: string) => {
+    setSelectedMemberId(memberId);
+    setActionType("deleteAccount");
+  };
+
   const handleReinvite = async (memberId: string) => {
     if (!workspaceId) return;
     const member = members.find((m) => m.id === memberId);
     if (!member) return;
 
     const ok = window.confirm(
-      `Re-invite ${member.user.email}?\n\nThis will reset their password and email a new temporary password.`
+      `Reset password for ${member.user.email}?\n\nThis will generate a new temporary password and require them to change it on next login.`
     );
     if (!ok) return;
 
     try {
       const result = await reinvite(memberId);
       setReinviteInfo({ email: member.user.email, temporaryPassword: result.temporaryPassword });
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to re-invite member");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to re-invite member";
+      toast.error(message);
     }
   };
 
@@ -318,7 +325,7 @@ export default function MembersPage() {
                   const visibleGroups = groupAccess.slice(0, 2);
                   const remainingGroups = groupAccess.length - visibleGroups.length;
                   const roleLabel = m.customRole?.name ? m.customRole.name : getRoleLabel(m.role);
-                  const canReinvite = !isYou && !m.setupCompleted;
+                  const canReinvite = !isYou;
 
                   return (
                     <div
@@ -350,7 +357,7 @@ export default function MembersPage() {
                                 size="sm"
                                 className="h-8 px-2"
                                 onClick={() => handleReinvite(m.id)}
-                                aria-label="Re-invite member"
+                                aria-label="Reset member password"
                               >
                                 <Send className="w-4 h-4" />
                               </Button>
@@ -429,6 +436,16 @@ export default function MembersPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-9 w-10 p-0 text-red-700 border-red-300 hover:bg-red-100"
+                          disabled={isYou}
+                          onClick={() => handleDeleteAccount(m.id)}
+                          aria-label="Delete user account"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   );
@@ -447,6 +464,7 @@ export default function MembersPage() {
           onGrantAccess={handleGrantAccess}
           onRemove={handleRemove}
           onReinvite={handleReinvite}
+          onDeleteAccount={handleDeleteAccount}
           isLoading={isLoading}
           currentUserId={currentMember?.userId}
         />
@@ -492,6 +510,17 @@ export default function MembersPage() {
         onSuccess={handleSuccess}
       />
 
+      <DeleteMemberAccountDialog
+        open={actionType === "deleteAccount"}
+        onOpenChange={(open) => {
+          if (!open) handleDialogClose();
+        }}
+        member={selectedMember}
+        workspaceId={workspaceId}
+        currentUserId={currentMember?.userId}
+        onSuccess={handleSuccess}
+      />
+
       <Dialog
         open={!!reinviteInfo}
         onOpenChange={(open) => {
@@ -500,7 +529,7 @@ export default function MembersPage() {
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Re-invite sent</DialogTitle>
+            <DialogTitle>Password reset</DialogTitle>
             <DialogClose onClose={() => setReinviteInfo(null)} />
           </DialogHeader>
           {reinviteInfo ? (
@@ -522,7 +551,7 @@ export default function MembersPage() {
                 </Button>
               </div>
               <div className="text-xs text-[var(--groups1-text-secondary)]">
-                The member should check their email. They must change the temporary password on first login.
+                Share this password manually with the member. They must change it on first login.
               </div>
               <div className="flex justify-end">
                 <Button onClick={() => setReinviteInfo(null)}>Done</Button>

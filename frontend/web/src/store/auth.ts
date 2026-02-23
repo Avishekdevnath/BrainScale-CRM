@@ -8,9 +8,8 @@ type User = {
 
 type AuthState = {
   accessToken: string | null;
-  refreshToken: string | null;
   user: User | null;
-  setTokens: (tokens: { accessToken: string; refreshToken: string; user?: User }) => void;
+  setTokens: (tokens: { accessToken: string; user?: User }) => void;
   setUser: (user: User) => void;
   clear: () => void;
 };
@@ -35,32 +34,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
   // Initialize from localStorage if available
   let initialUser: User | null = null;
   let initialAccessToken: string | null = null;
-  let initialRefreshToken: string | null = null;
-  
+
   if (typeof window !== "undefined") {
     try {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         initialUser = JSON.parse(storedUser);
       }
-      initialAccessToken = localStorage.getItem("accessToken");
-      initialRefreshToken = localStorage.getItem("refreshToken");
+      // accessToken is now kept in memory only (lost on refresh, will be re-fetched silently)
+      // refreshToken is now in httpOnly cookie (not accessible from JS)
     } catch {}
   }
 
   return {
     accessToken: initialAccessToken,
-    refreshToken: initialRefreshToken,
     user: initialUser,
-    setTokens: ({ accessToken, refreshToken, user }) => {
+    setTokens: ({ accessToken, user }) => {
       try {
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("refreshToken", refreshToken);
         if (user) {
           localStorage.setItem("user", JSON.stringify(user));
         }
       } catch {}
-      set({ accessToken, refreshToken, user: user || null });
+      // If no user provided, keep the existing user in state (don't overwrite with null)
+      set((state) => ({ accessToken, user: user ?? state.user }));
     },
     setUser: (user) => {
       try {
@@ -70,11 +66,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
     clear: () => {
       try {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
         localStorage.removeItem("user");
+        // accessToken and refreshToken don't exist in localStorage anymore
       } catch {}
-      set({ accessToken: null, refreshToken: null, user: null });
+      set({ accessToken: null, user: null });
     },
   };
 });

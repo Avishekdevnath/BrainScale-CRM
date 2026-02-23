@@ -32,7 +32,9 @@ export const getMyCalls = async (
   };
 
   // Apply filters
-  if (options.state) {
+  if (options.states && options.states.length > 0) {
+    where.state = options.states.length === 1 ? options.states[0] : { in: options.states };
+  } else if (options.state) {
     where.state = options.state;
   }
 
@@ -199,36 +201,110 @@ export const getMyCalls = async (
     };
   });
 
-  // Filter by follow-up status based on LATEST call log only
-  let filteredItems = itemsWithQuestions;
+  // When followUpRequired filter is active, we need to filter in-memory
+  // because we can't query by "latest call log's followUpRequired" in Prisma.
+  // In this case, skip DB-level pagination and do it all in-memory.
   if (options.followUpRequired !== undefined) {
-    filteredItems = itemsWithQuestions.filter((item) => {
+    // We already fetched a paginated subset — but for follow-up filtering
+    // we need ALL matching items. Re-fetch without pagination.
+    const allItems = await prisma.callListItem.findMany({
+      where,
+      include: {
+        callList: {
+          include: {
+            group: {
+              include: {
+                batch: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
+          },
+        },
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phones: {
+              select: { phone: true, isPrimary: true },
+            },
+          },
+        },
+        assignee: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+        callLogs: {
+          select: {
+            id: true,
+            status: true,
+            callDate: true,
+            callDuration: true,
+            assignedTo: true,
+            followUpRequired: true,
+            answers: true,
+            notes: true,
+            callerNote: true,
+            followUpDate: true,
+          },
+          orderBy: { callDate: 'desc' },
+          take: 1,
+        },
+      },
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    const allItemsWithQuestions = allItems.map((item) => {
+      const questions = (item.callList.meta as any)?.questions || [];
+      const messages = item.callList.messages || [];
+      const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
+      return {
+        ...item,
+        callList: { ...item.callList, questions, messages },
+        callLog: latestCallLog,
+      };
+    });
+
+    const filtered = allItemsWithQuestions.filter((item) => {
       const latestCallLog = item.callLog;
-      if (!latestCallLog) return false; // No call log = no follow-up
-      
-      // Check if latest call log matches the follow-up requirement
+      if (!latestCallLog) return false;
       if (options.followUpRequired) {
-        // Only show if latest call log requires follow-up AND was made by this user
-        return latestCallLog.followUpRequired === true && 
+        return latestCallLog.followUpRequired === true &&
                latestCallLog.assignedTo === member.id;
       } else {
-        // Show if latest call log does NOT require follow-up
         return latestCallLog.followUpRequired !== true;
       }
     });
+
+    const filteredTotal = filtered.length;
+    const paginatedItems = filtered.slice(skip, skip + size);
+
+    return {
+      items: paginatedItems,
+      pagination: {
+        page,
+        size,
+        total: filteredTotal,
+        totalPages: Math.ceil(filteredTotal / size),
+      },
+    };
   }
 
-  // Recalculate pagination after filtering
-  const filteredTotal = filteredItems.length;
-  const paginatedItems = filteredItems.slice(skip, skip + size);
-
+  // Non-follow-up path: DB already handled pagination correctly
   return {
-    items: paginatedItems,
+    items: itemsWithQuestions,
     pagination: {
       page,
       size,
-      total: filteredTotal, // Use filtered total
-      totalPages: Math.ceil(filteredTotal / size),
+      total,
+      totalPages: Math.ceil(total / size),
     },
   };
 };
@@ -487,7 +563,9 @@ export const getAllCalls = async (
   };
 
   // Apply filters
-  if (options.state) {
+  if (options.states && options.states.length > 0) {
+    where.state = options.states.length === 1 ? options.states[0] : { in: options.states };
+  } else if (options.state) {
     where.state = options.state;
   }
 

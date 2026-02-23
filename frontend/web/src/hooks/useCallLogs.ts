@@ -2,6 +2,8 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 import type {
   CallLog,
   CallLogsResponse,
@@ -9,10 +11,12 @@ import type {
 } from "@/types/call-lists.types";
 
 export function useCallLogs(params?: GetCallLogsParams) {
-  const key = params
-    ? `call-logs-${JSON.stringify(params)}`
-    : "call-logs";
-  
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken
+    ? `${workspaceId}:${params ? `call-logs-${JSON.stringify(params)}` : "call-logs"}`
+    : null;
+
   return useSWR<CallLogsResponse>(
     key,
     async () => apiClient.getCallLogs(params),

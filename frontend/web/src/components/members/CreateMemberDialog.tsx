@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateMemberWithAccount } from "@/hooks/useMembers";
 import type { CreateMemberWithAccountPayload } from "@/types/members.types";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Check, Mail, KeyRound } from "lucide-react";
 import { useGroups } from "@/hooks/useGroups";
+import { toast } from "sonner";
 
 export interface CreateMemberDialogProps {
   open: boolean;
@@ -30,9 +31,25 @@ export function CreateMemberDialog({
   const [selectedGroupIds, setSelectedGroupIds] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [showPasswordModal, setShowPasswordModal] = React.useState(false);
+  const [createdCredentials, setCreatedCredentials] = React.useState<{
+    email: string;
+    temporaryPassword: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = React.useState<string | null>(null);
 
   const createMember = useCreateMemberWithAccount(workspaceId);
   const { data: groups } = useGroups({ isActive: true });
+
+  const resetFormState = () => {
+    setEmail("");
+    setName("");
+    setPhone("");
+    setRole("MEMBER");
+    setSelectedGroupIds([]);
+    setErrors({});
+    setCopiedField(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,10 +81,15 @@ export function CreateMemberDialog({
 
     setIsSubmitting(true);
     try {
-      await createMember(payload);
-      onSuccess();
-      handleClose();
-    } catch (error) {
+      const result = await createMember(payload);
+      setCreatedCredentials({
+        email: result.member.user.email,
+        temporaryPassword: result.temporaryPassword,
+      });
+      setShowPasswordModal(true);
+      resetFormState();
+      onOpenChange(false);
+    } catch {
       // Error handled by hook
     } finally {
       setIsSubmitting(false);
@@ -75,12 +97,9 @@ export function CreateMemberDialog({
   };
 
   const handleClose = () => {
-    setEmail("");
-    setName("");
-    setPhone("");
-    setRole("MEMBER");
-    setSelectedGroupIds([]);
-    setErrors({});
+    resetFormState();
+    setShowPasswordModal(false);
+    setCreatedCredentials(null);
     onOpenChange(false);
   };
 
@@ -90,154 +109,248 @@ export function CreateMemberDialog({
     );
   };
 
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Failed to copy");
+    }
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setCreatedCredentials(null);
+    resetFormState();
+    onSuccess();
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl">
-        <DialogClose onClose={handleClose} />
-        <DialogHeader>
-          <DialogTitle>Create Member Account</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="max-w-xl">
+          <DialogClose onClose={handleClose} />
+          <DialogHeader>
+            <DialogTitle>Create Member Account</DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
-          <div>
-            <Label htmlFor="email">Email Address *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="member@example.com"
-              className="mt-1"
-              disabled={isSubmitting}
-            />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-            )}
-          </div>
-
-          {/* Name */}
-          <div>
-            <Label htmlFor="name">Name (Optional)</Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              className="mt-1"
-              disabled={isSubmitting}
-            />
-            {errors.name && (
-              <p className="mt-1 text-sm text-red-600">{errors.name}</p>
-            )}
-          </div>
-
-          {/* Phone */}
-          <div>
-            <Label htmlFor="phone">Phone (Optional)</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1234567890"
-              className="mt-1"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {/* Role Selection */}
-          <div>
-            <Label>Role *</Label>
-            <div className="mt-2 space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="MEMBER"
-                  checked={role === "MEMBER"}
-                  onChange={() => setRole("MEMBER")}
-                  disabled={isSubmitting}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-[var(--groups1-text)]">Member</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="role"
-                  value="ADMIN"
-                  checked={role === "ADMIN"}
-                  onChange={() => setRole("ADMIN")}
-                  disabled={isSubmitting}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-[var(--groups1-text)]">Admin</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Group Access */}
-          <div>
-            <Label>Group Access (Optional)</Label>
-            <div className="mt-2 max-h-48 overflow-y-auto border border-[var(--groups1-border)] rounded-md p-2 space-y-2">
-              {!groups || groups.length === 0 ? (
-                <p className="text-sm text-[var(--groups1-text-secondary)]">
-                  No groups available
-                </p>
-              ) : (
-                groups.map((group) => (
-                  <label
-                    key={group.id}
-                    className="flex items-center gap-2 cursor-pointer hover:bg-[var(--groups1-secondary)] p-2 rounded"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedGroupIds.includes(group.id)}
-                      onChange={() => toggleGroup(group.id)}
-                      disabled={isSubmitting}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm text-[var(--groups1-text)]">{group.name}</span>
-                  </label>
-                ))
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
+            <div>
+              <Label htmlFor="email">Email Address *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="member@example.com"
+                className="mt-1"
+                disabled={isSubmitting}
+              />
+              {errors.email && (
+                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
               )}
             </div>
-          </div>
 
-          {/* Info */}
-          <div className="p-3 bg-[var(--groups1-secondary)] rounded-md">
-            <p className="text-xs text-[var(--groups1-text-secondary)]">
-              A temporary password will be sent to the member's email. They must complete setup
-              (change password and accept agreement) before gaining full workspace access.
+            {/* Name */}
+            <div>
+              <Label htmlFor="name">Name (Optional)</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                className="mt-1"
+                disabled={isSubmitting}
+              />
+              {errors.name && (
+                <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+              )}
+            </div>
+
+            {/* Phone */}
+            <div>
+              <Label htmlFor="phone">Phone (Optional)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1234567890"
+                className="mt-1"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* Role Selection */}
+            <div>
+              <Label>Role *</Label>
+              <div className="mt-2 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="MEMBER"
+                    checked={role === "MEMBER"}
+                    onChange={() => setRole("MEMBER")}
+                    disabled={isSubmitting}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-[var(--groups1-text)]">Member</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="ADMIN"
+                    checked={role === "ADMIN"}
+                    onChange={() => setRole("ADMIN")}
+                    disabled={isSubmitting}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-[var(--groups1-text)]">Admin</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Group Access */}
+            <div>
+              <Label>Group Access (Optional)</Label>
+              <div className="mt-2 max-h-48 overflow-y-auto border border-[var(--groups1-border)] rounded-md p-2 space-y-2">
+                {!groups || groups.length === 0 ? (
+                  <p className="text-sm text-[var(--groups1-text-secondary)]">
+                    No groups available
+                  </p>
+                ) : (
+                  groups.map((group) => (
+                    <label
+                      key={group.id}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-[var(--groups1-secondary)] p-2 rounded"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedGroupIds.includes(group.id)}
+                        onChange={() => toggleGroup(group.id)}
+                        disabled={isSubmitting}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm text-[var(--groups1-text)]">{group.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="p-3 bg-[var(--groups1-secondary)] rounded-md">
+              <p className="text-xs text-[var(--groups1-text-secondary)]">
+                A temporary password will be generated. Copy it from the next popup and share it manually
+                with the member.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Account"
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPasswordModal} onOpenChange={(open) => !open && closePasswordModal()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-green-600 flex items-center gap-2">
+              <Check className="w-5 h-5" />
+              Account Created Successfully
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--groups1-text-secondary)]">
+              Email service is disabled. Copy these credentials and send them to the member manually.
             </p>
-          </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Account"
-              )}
-            </Button>
+            <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
+              <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email Address
+              </Label>
+              <div className="flex items-center justify-between mt-1">
+                <span className="font-medium text-[var(--groups1-text)]">
+                  {createdCredentials?.email}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => copyToClipboard(createdCredentials?.email || "", "email")}
+                  className="h-8"
+                >
+                  {copiedField === "email" ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
+              <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+                <KeyRound className="w-3 h-3" /> Temporary Password
+              </Label>
+              <div className="flex items-center justify-between mt-1">
+                <span className="font-mono font-medium text-[var(--groups1-text)]">
+                  {createdCredentials?.temporaryPassword}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => copyToClipboard(createdCredentials?.temporaryPassword || "", "password")}
+                  className="h-8"
+                >
+                  {copiedField === "password" ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--groups1-text-secondary)] bg-yellow-50 p-2 rounded border border-yellow-200">
+              Warning: This password will only be shown once. Please copy and share securely.
+            </p>
+
+            <div className="flex justify-end pt-2">
+              <Button onClick={closePasswordModal}>
+                Done
+              </Button>
+            </div>
           </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -2,6 +2,8 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 
 export interface Module {
   id: string;
@@ -41,8 +43,10 @@ export interface CourseDetail extends Course {
 }
 
 export function useCourses() {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
   return useSWR<Course[]>(
-    "courses",
+    workspaceId && accessToken ? `${workspaceId}:courses` : null,
     async () => apiClient.getCourses(),
     {
       revalidateOnFocus: true,

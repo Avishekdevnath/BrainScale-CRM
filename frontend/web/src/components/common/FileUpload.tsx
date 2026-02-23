@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, DragEvent, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, X, File, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, X, File, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 export interface FileUploadProps {
   accept?: string; // e.g., '.csv,.xlsx'
@@ -11,6 +11,7 @@ export interface FileUploadProps {
   onFileSelect: (file: File) => void;
   disabled?: boolean;
   error?: string;
+  loading?: boolean; // show parse-in-progress state
 }
 
 const DEFAULT_MAX_SIZE = 10 * 1024 * 1024; // 10MB
@@ -21,6 +22,7 @@ export function FileUpload({
   onFileSelect,
   disabled = false,
   error,
+  loading = false,
 }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -162,7 +164,15 @@ export function FileUpload({
           aria-label="File input"
         />
 
-        {file ? (
+        {loading ? (
+          <div className="space-y-3 py-2">
+            <Loader2 className="w-10 h-10 mx-auto animate-spin text-[var(--groups1-primary)]" />
+            <div>
+              <p className="text-sm font-medium text-[var(--groups1-text)]">Parsing file…</p>
+              <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">This may take a moment for large files.</p>
+            </div>
+          </div>
+        ) : file ? (
           <div className="space-y-2">
             <div className="flex items-center justify-center gap-2">
               <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />

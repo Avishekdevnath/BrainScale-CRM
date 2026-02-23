@@ -1,10 +1,5 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  typescript: {
-    // WARNING: This will ignore ALL TypeScript errors during build
-    ignoreBuildErrors: true,
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

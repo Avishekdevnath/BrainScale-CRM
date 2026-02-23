@@ -1,5 +1,6 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
+import { logger } from '../../config/logger';
 import { CreateRoleInput, UpdateRoleInput, AssignPermissionsInput } from './role.schemas';
 
 /**
@@ -243,7 +244,7 @@ export const listPermissions = async () => {
     orderBy: [{ resource: 'asc' }, { action: 'asc' }],
   });
 
-  console.log(`[listPermissions service] Found ${permissions.length} permissions in database`);
+  logger.debug({ count: permissions.length }, '[listPermissions service] Retrieved permissions from database');
   return permissions;
 };
 

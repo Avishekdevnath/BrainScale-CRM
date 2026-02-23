@@ -22,65 +22,52 @@ export interface CallsTableProps {
 
 export function CallsTable({ callListId, searchQuery = "", state = null, followUpRequired, onItemsUpdated }: CallsTableProps) {
   const router = useRouter();
+  const [mounted, setMounted] = React.useState(false);
   const [selectedItem, setSelectedItem] = React.useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
   const [pageSize] = React.useState<number>(10);
   const [page, setPage] = React.useState<number>(1);
   const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
 
-  // Build filters - use provided state or show all calls (no state filter)
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Build filters - send all filters to API for server-side filtering
   const filters: GetMyCallsParams = React.useMemo(() => {
     const params: GetMyCallsParams = {
       page,
       size: pageSize,
       callListId: callListId || undefined,
-      state: followUpRequired ? undefined : (state || undefined), // Don't filter by state if showing follow-ups
-      followUpRequired: followUpRequired ? true : undefined, // Filter by follow-ups when active
+      q: searchQuery.trim() || undefined,
+      state: followUpRequired ? undefined : (state || undefined),
+      followUpRequired: followUpRequired ? true : undefined,
     };
     return params;
-  }, [page, pageSize, callListId, state, followUpRequired]);
+  }, [page, pageSize, callListId, searchQuery, state, followUpRequired]);
 
   // Reset to page 1 when filters change
   React.useEffect(() => {
     setPage(1);
-  }, [callListId, state, followUpRequired, assignmentFilter]);
+  }, [callListId, searchQuery, state, followUpRequired, assignmentFilter]);
 
   const { data, isLoading, error, mutate } = useAllCalls(filters);
 
   const items = data?.items || [];
   const pagination = data?.pagination;
 
-  // Client-side search and assignment filtering
+  // Client-side assignment filtering only (search is handled server-side)
   const filteredItems = React.useMemo(() => {
-    let filtered = items;
-
-    // Apply assignment filter
     if (assignmentFilter === "assigned") {
-      filtered = filtered.filter((item) => item.assignedTo !== null);
+      return items.filter((item) => item.assignedTo !== null);
     } else if (assignmentFilter === "unassigned") {
-      filtered = filtered.filter((item) => item.assignedTo === null);
+      return items.filter((item) => item.assignedTo === null);
     }
+    return items;
+  }, [items, assignmentFilter]);
 
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((item) => {
-        const student = item.student;
-        if (!student) return false;
-
-        const nameMatch = student.name?.toLowerCase().includes(query);
-        const emailMatch = student.email?.toLowerCase().includes(query);
-        const phoneMatch = student.phones?.some((p) => p.phone?.toLowerCase().includes(query));
-
-        return nameMatch || emailMatch || phoneMatch;
-      });
-    }
-
-    return filtered;
-  }, [items, searchQuery, assignmentFilter]);
-
-  const totalItems = pagination?.total || filteredItems.length;
-  const totalPages = pagination?.totalPages || Math.ceil(filteredItems.length / pageSize);
+  const totalItems = pagination?.total ?? filteredItems.length;
+  const totalPages = pagination?.totalPages ?? Math.ceil(totalItems / pageSize);
 
   // Check if there are active filters
   const hasActiveFilters = Boolean(callListId || searchQuery.trim() || followUpRequired);
@@ -169,7 +156,11 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
               Unassigned
             </Button>
           </div>
-          {isLoading ? (
+          {!mounted ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)]" />
+            </div>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)]" />
             </div>
@@ -288,37 +279,39 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
               </div>
 
               {/* Pagination Controls */}
-              {totalPages > 1 && (
+              {totalItems > 0 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--groups1-border)]">
                   <div className="text-sm text-[var(--groups1-text-secondary)]">
                     Showing {filteredItems.length > 0 ? (page - 1) * pageSize + 1 : 0} to{" "}
                     {Math.min(page * pageSize, totalItems)} of {totalItems} items
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1 || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                    >
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Previous
-                    </Button>
-                    <div className="text-sm text-[var(--groups1-text-secondary)]">
-                      Page {page} of {totalPages}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1 || isLoading}
+                        className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Previous
+                      </Button>
+                      <div className="text-sm text-[var(--groups1-text-secondary)]">
+                        Page {page} of {totalPages}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages || isLoading}
+                        className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages || isLoading}
-                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                    >
-                      Next
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </div>
+                  )}
                 </div>
               )}
             </>

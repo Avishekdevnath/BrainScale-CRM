@@ -2,6 +2,8 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 import type { StudentsListParams, StudentsListResponse } from "@/types/students.types";
 
 // Helper to build SWR cache key from params
@@ -19,11 +21,12 @@ function buildCacheKey(baseKey: string, params?: StudentsListParams): string {
   return queryString ? `${baseKey}?${queryString}` : baseKey;
 }
 
-/**
- * Hook to fetch students list with search, filters, and pagination
- */
 export function useStudents(params?: StudentsListParams) {
-  const cacheKey = buildCacheKey("students", params);
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const cacheKey = workspaceId && accessToken
+    ? `${workspaceId}:${buildCacheKey("students", params)}`
+    : null;
 
   return useSWR<StudentsListResponse>(
     cacheKey,

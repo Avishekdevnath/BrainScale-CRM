@@ -14,12 +14,11 @@ import type {
 
 export function useMyCalls(params?: GetMyCallsParams) {
   const workspaceId = useWorkspaceStore((state) => state.current?.id);
-  const userId = useAuthStore((state) => state.user?.id);
-  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
-  const key = params
-    ? `${scope}:my-calls-${JSON.stringify(params)}`
-    : `${scope}:my-calls`;
-  
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken
+    ? params ? `${workspaceId}:my-calls-${JSON.stringify(params)}` : `${workspaceId}:my-calls`
+    : null;
+
   return useSWR<MyCallsResponse>(
     key,
     async () => apiClient.getMyCalls(params),
@@ -33,10 +32,10 @@ export function useMyCalls(params?: GetMyCallsParams) {
 
 export function useMyCallsStats() {
   const workspaceId = useWorkspaceStore((state) => state.current?.id);
-  const userId = useAuthStore((state) => state.user?.id);
-  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken ? `${workspaceId}:my-calls-stats` : null;
   return useSWR<MyCallsStats>(
-    `${scope}:my-calls-stats`,
+    key,
     async () => apiClient.getMyCallsStats(),
     {
       revalidateOnFocus: true,
@@ -48,12 +47,11 @@ export function useMyCallsStats() {
 
 export function useAllCalls(params?: GetMyCallsParams) {
   const workspaceId = useWorkspaceStore((state) => state.current?.id);
-  const userId = useAuthStore((state) => state.user?.id);
-  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
-  const key = params
-    ? `${scope}:all-calls-${JSON.stringify(params)}`
-    : `${scope}:all-calls`;
-  
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken
+    ? params ? `${workspaceId}:all-calls-${JSON.stringify(params)}` : `${workspaceId}:all-calls`
+    : null;
+
   return useSWR<MyCallsResponse>(
     key,
     async () => apiClient.getAllCalls(params),
@@ -67,12 +65,11 @@ export function useAllCalls(params?: GetMyCallsParams) {
 
 export function useMyCallHistory(params?: GetMyCallHistoryParams) {
   const workspaceId = useWorkspaceStore((state) => state.current?.id);
-  const userId = useAuthStore((state) => state.user?.id);
-  const scope = `${workspaceId || "no-workspace"}:${userId || "no-user"}`;
-  const key = params
-    ? `${scope}:my-calls-history-${JSON.stringify(params)}`
-    : `${scope}:my-calls-history`;
-  
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken
+    ? params ? `${workspaceId}:my-calls-history-${JSON.stringify(params)}` : `${workspaceId}:my-calls-history`
+    : null;
+
   return useSWR<CallLogsResponse>(
     key,
     async () => apiClient.getMyCallHistory(params),

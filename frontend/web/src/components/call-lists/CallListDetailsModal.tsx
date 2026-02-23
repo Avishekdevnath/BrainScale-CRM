@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useCallList, useCallListItems } from "@/hooks/useCallLists";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, ExternalLink, FolderOpen, Users } from "lucide-react";
+import { Loader2, Phone, Eye, ExternalLink, FolderOpen, Users, ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { CallListItem } from "@/types/call-lists.types";
@@ -26,6 +26,8 @@ export function CallListDetailsModal({
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isItemDetailsOpen, setIsItemDetailsOpen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(true);
+  const [isCallsOpen, setIsCallsOpen] = useState(true);
 
   const { data: callList, isLoading: isLoadingCallList, error: callListError } = useCallList(callListId || "");
   const { data: itemsData, isLoading: isLoadingItems } = useCallListItems(callListId || "", { 
@@ -80,94 +82,110 @@ export function CallListDetailsModal({
           ) : (
             <div className="space-y-6">
               {/* Call List Overview */}
-              <div className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
-                <h3 className="text-sm font-semibold text-[var(--groups1-text)] mb-3 flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4" />
-                  Call List Information
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Name:</span>{" "}
-                    <span className="font-medium text-[var(--groups1-text)]">{callList.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Source:</span>{" "}
-                    <span className="font-medium text-[var(--groups1-text)]">{callList.source}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Total Items:</span>{" "}
-                    <span className="font-medium text-[var(--groups1-text)]">{totalItems}</span>
-                  </div>
-                  {callList.groupId ? (
-                    <div>
-                      <span className="text-gray-500">Group:</span>{" "}
-                      <Link 
-                        href={`/app/groups/${callList.groupId}`}
-                        className="font-medium text-[var(--groups1-primary)] hover:underline"
-                      >
-                        {callList.group?.name || "Unknown"}
-                      </Link>
+              <div className="border border-[var(--groups1-border)] rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setIsInfoOpen((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-[var(--groups1-surface)] hover:bg-[var(--groups1-secondary)] transition-colors"
+                >
+                  <h3 className="text-sm font-semibold text-[var(--groups1-text)] flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4" />
+                    Call List Information
+                  </h3>
+                  {isInfoOpen ? <ChevronUp className="w-4 h-4 text-[var(--groups1-text-secondary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--groups1-text-secondary)]" />}
+                </button>
+                {isInfoOpen && (
+                  <div className="px-4 py-3 border-t border-[var(--groups1-border)] bg-[var(--groups1-surface)]">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Name:</span>{" "}
+                        <span className="font-medium text-[var(--groups1-text)]">{callList.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Source:</span>{" "}
+                        <span className="font-medium text-[var(--groups1-text)]">{callList.source}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Total Items:</span>{" "}
+                        <span className="font-medium text-[var(--groups1-text)]">{totalItems}</span>
+                      </div>
+                      {callList.groupId ? (
+                        <div>
+                          <span className="text-gray-500">Group:</span>{" "}
+                          <Link
+                            href={`/app/groups/${callList.groupId}`}
+                            className="font-medium text-[var(--groups1-primary)] hover:underline"
+                          >
+                            {callList.group?.name || "Unknown"}
+                          </Link>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-gray-500">Scope:</span>{" "}
+                          <span className="font-medium text-[var(--groups1-text)]">Workspace-wide</span>
+                        </div>
+                      )}
+                      {callList.group?.batch && (
+                        <div>
+                          <span className="text-gray-500">Batch:</span>{" "}
+                          <Link
+                            href={`/app/batches/${callList.group.batch.id}`}
+                            className="font-medium text-[var(--groups1-primary)] hover:underline"
+                          >
+                            {callList.group.batch.name}
+                          </Link>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-gray-500">Created:</span>{" "}
+                        <span className="font-medium text-[var(--groups1-text)]">
+                          {new Date(callList.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
-                  ) : (
-                    <div>
-                      <span className="text-gray-500">Scope:</span>{" "}
-                      <span className="font-medium text-[var(--groups1-text)]">Workspace-wide</span>
-                    </div>
-                  )}
-                  {callList.group?.batch && (
-                    <div>
-                      <span className="text-gray-500">Batch:</span>{" "}
-                      <Link 
-                        href={`/app/batches/${callList.group.batch.id}`}
-                        className="font-medium text-[var(--groups1-primary)] hover:underline"
-                      >
-                        {callList.group.batch.name}
-                      </Link>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-gray-500">Created:</span>{" "}
-                    <span className="font-medium text-[var(--groups1-text)]">
-                      {new Date(callList.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-                {callList.description && (
-                  <div className="mt-3 pt-3 border-t border-[var(--groups1-border)]">
-                    <span className="text-gray-500 text-sm">Description:</span>
-                    <p className="text-sm text-[var(--groups1-text)] mt-1">{callList.description}</p>
+                    {callList.description && (
+                      <div className="mt-3 pt-3 border-t border-[var(--groups1-border)]">
+                        <span className="text-gray-500 text-sm">Description:</span>
+                        <p className="text-sm text-[var(--groups1-text)] mt-1">{callList.description}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
               {/* Assigned Calls Table */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-[var(--groups1-text)] flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    Assigned Calls {totalItems > 0 && `(${totalItems})`}
-                  </h3>
+              <div className="border border-[var(--groups1-border)] rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-[var(--groups1-surface)]">
+                  <button
+                    onClick={() => setIsCallsOpen((v) => !v)}
+                    className="flex items-center gap-2 flex-1 text-left"
+                  >
+                    <h3 className="text-sm font-semibold text-[var(--groups1-text)] flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Assigned Calls {totalItems > 0 && `(${totalItems})`}
+                    </h3>
+                    {isCallsOpen ? <ChevronUp className="w-4 h-4 text-[var(--groups1-text-secondary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--groups1-text-secondary)]" />}
+                  </button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleViewFullPage}
-                    className="text-xs"
+                    className="text-xs ml-2"
                   >
                     <ExternalLink className="w-3 h-3 mr-1" />
                     View Full Page
                   </Button>
                 </div>
 
-                {isLoadingItems ? (
-                  <div className="flex items-center justify-center py-8">
+                {isCallsOpen && (isLoadingItems ? (
+                  <div className="flex items-center justify-center py-8 border-t border-[var(--groups1-border)]">
                     <Loader2 className="w-5 h-5 animate-spin text-[var(--groups1-primary)]" />
                   </div>
                 ) : items.length === 0 ? (
-                  <div className="py-8 text-center border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
+                  <div className="py-8 text-center border-t border-[var(--groups1-border)]">
                     <p className="text-sm text-[var(--groups1-text-secondary)]">No calls assigned yet.</p>
                   </div>
                 ) : (
-                  <div className="border border-[var(--groups1-border)] rounded-lg overflow-hidden">
+                  <div className="border-t border-[var(--groups1-border)] overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-[var(--groups1-border)]">
                         <thead className="bg-[var(--groups1-secondary)]">
@@ -265,7 +283,7 @@ export function CallListDetailsModal({
                       </div>
                     )}
                   </div>
-                )}
+                ))}
               </div>
             </div>
           )}

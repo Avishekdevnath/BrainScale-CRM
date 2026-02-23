@@ -503,19 +503,21 @@ model AuditLog {
 // ============================================
 
 model Invitation {
-  id           String    @id @default(cuid()) @map("_id")
-  workspaceId  String
-  email        String
-  token        String    @unique // Secure invitation token
-  customRoleId String? // Optional custom role
-  role         String    @default("MEMBER") // Fallback to enum role
-  invitedBy    String // User ID who sent invitation
-  status       String    @default("PENDING")
-  expiresAt    DateTime
-  acceptedAt   DateTime?
-  meta         Json? // Store groupIds and other metadata
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(cuid()) @map("_id")
+  workspaceId        String
+  email              String
+  token              String    @unique // Secure invitation token
+  customRoleId       String? // Optional custom role
+  role               String    @default("MEMBER") // Fallback to enum role
+  invitedBy          String // User ID who sent invitation
+  status             String    @default("PENDING")
+  expiresAt          DateTime
+  acceptedAt         DateTime?
+  temporaryPassword  String? // Temporary password for manual sharing if email fails
+  emailSent          Boolean   @default(false) // Track if email was successfully sent
+  meta               Json? // Store groupIds and other metadata
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

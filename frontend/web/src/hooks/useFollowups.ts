@@ -2,16 +2,19 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useAuthStore } from "@/store/auth";
+import { useWorkspaceStore } from "@/store/workspace";
 import type { ListFollowupsParams, FollowupsListResponse } from "@/types/followups.types";
 
 export function useFollowups(params?: ListFollowupsParams) {
-  const key = `followups-${params?.callListId || ""}-${params?.status || ""}-${params?.assignedTo || ""}-${params?.groupId || ""}-${params?.startDate || ""}-${params?.endDate || ""}-${params?.page || 1}-${params?.size || 20}`;
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const suffix = `${params?.callListId || ""}-${params?.status || ""}-${params?.assignedTo || ""}-${params?.groupId || ""}-${params?.startDate || ""}-${params?.endDate || ""}-${params?.page || 1}-${params?.size || 20}`;
+  const key = workspaceId && accessToken ? `${workspaceId}:followups-${suffix}` : null;
 
   return useSWR<FollowupsListResponse>(
     key,
-    async () => {
-      return apiClient.listFollowups(params);
-    },
+    async () => apiClient.listFollowups(params),
     {
       revalidateOnFocus: true,
       revalidateOnReconnect: true,

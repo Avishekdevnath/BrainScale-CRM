@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import * as emailController from './email.controller';
 import { authGuard, requireRole } from '../../middleware/auth-guard';
-import { asyncHandler } from '../../middleware/error-handler';
 
 const router = Router();
 
@@ -137,6 +136,41 @@ router.post(
   '/process-scheduled',
   cronOrAuth,
   emailController.processScheduledDigestsEndpoint
+);
+
+/**
+ * @openapi
+ * /emails/test:
+ *   post:
+ *     summary: Send a direct test email
+ *     tags: [Emails]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 format: email
+ *               subject:
+ *                 type: string
+ *               message:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Test email sent
+ */
+router.post(
+  '/test',
+  authGuard,
+  requireRole('ADMIN'),
+  emailController.sendTestEmail
 );
 
 export default router;

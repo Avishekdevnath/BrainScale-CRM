@@ -1,38 +1,61 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Slack, Mail, Database, Zap } from "lucide-react";
+import { Slack, Mail, Database, Zap, Globe, Phone, FileSpreadsheet, Webhook } from "lucide-react";
 
-const items = [
-  { name: "Slack", icon: Slack },
-  { name: "Email", icon: Mail },
-  { name: "Postgres", icon: Database },
-  { name: "Zapier", icon: Zap },
+const integrations = [
+  { name: "Slack", icon: Slack, status: "live" },
+  { name: "Email", icon: Mail, status: "live" },
+  { name: "PostgreSQL", icon: Database, status: "live" },
+  { name: "Zapier", icon: Zap, status: "live" },
+  { name: "REST API", icon: Globe, status: "live" },
+  { name: "VoIP", icon: Phone, status: "live" },
+  { name: "Google Sheets", icon: FileSpreadsheet, status: "soon" },
+  { name: "Webhooks", icon: Webhook, status: "live" },
 ];
 
 export function IntegrationsGrid() {
   return (
-    <section className="w-full">
-      <div className="w-full max-w-7xl mx-auto">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-semibold tracking-tight text-[var(--groups1-text)]">
-            Integrations
-          </h2>
-          <p className="text-[var(--groups1-text-secondary)]">Connect your stack in minutes.</p>
+    <section>
+      <div className="mb-12 space-y-3 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-[var(--groups1-border)] bg-[var(--groups1-secondary)] px-3 py-1 text-xs font-medium text-[var(--groups1-text-secondary)]">
+          Integrations
         </div>
-        <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-6">
-          {items.map(({ name, icon: Icon }) => (
-            <Card key={name} variant="groups1" className="transition will-change-transform hover:-translate-y-1">
-              <CardContent variant="groups1" className="py-6 flex flex-col items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] flex items-center justify-center">
-                  <Icon className="h-6 w-6" />
-                </div>
-                <div className="text-sm font-medium text-[var(--groups1-text)]">{name}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <h2 className="text-3xl font-bold tracking-tight text-[var(--groups1-text)] sm:text-4xl">
+          Connects with your stack
+        </h2>
+        <p className="text-lg text-[var(--groups1-text-secondary)]">
+          Drop into your existing workflow without rebuilding anything.
+        </p>
       </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {integrations.map(({ name, icon: Icon, status }) => (
+          <Card
+            key={name}
+            variant="groups1"
+            className="transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
+          >
+            <CardContent variant="groups1" className="relative flex flex-col items-center gap-3 py-5">
+              {status === "soon" && (
+                <div className="absolute right-2 top-2 rounded-full bg-[var(--groups1-secondary)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                  Soon
+                </div>
+              )}
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--groups1-primary)]/12">
+                <Icon className="h-6 w-6 text-[var(--groups1-primary)]" />
+              </div>
+              <div className="text-sm font-medium text-[var(--groups1-text)]">{name}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <p className="mt-6 text-center text-sm text-[var(--groups1-text-secondary)]">
+        All integrations available via our{" "}
+        <a href="/features" className="font-medium text-[var(--groups1-primary)] hover:underline">
+          public REST API
+        </a>
+        .
+      </p>
     </section>
   );
 }
-
-

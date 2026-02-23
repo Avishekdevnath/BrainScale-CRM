@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth-guard';
 import { AppError } from './error-handler';
 import { prisma } from '../db/client';
+import { logger } from '../config/logger';
 
 /**
  * Ensures the user has access to the workspace specified in the request
@@ -15,14 +16,14 @@ export const tenantGuard = async (
     // Ensure user is authenticated (should be set by authGuard)
     // Add explicit check and logging for debugging
     if (!req.user) {
-      console.error('[tenantGuard] req.user is undefined. authGuard may not have run or failed.');
+      logger.error('[tenantGuard] req.user is undefined. authGuard may not have run or failed.');
       return next(new AppError(401, 'Authentication required'));
     }
     
     // Store user in local variable to ensure TypeScript type narrowing
     const user = req.user;
     if (!user || !user.sub) {
-      console.error('[tenantGuard] req.user is invalid:', { user, hasSub: !!user?.sub });
+      logger.error({ user, hasSub: !!user?.sub }, '[tenantGuard] req.user is invalid');
       return next(new AppError(401, 'Authentication required'));
     }
     
@@ -55,15 +56,13 @@ export const tenantGuard = async (
     
     // Debug logging
     if (!workspaceId) {
-      console.error('[tenantGuard] No workspace ID found:', {
+      logger.error({
         paramWorkspaceId,
         isValidFormat: isValidWorkspaceIdFormat,
         headerWorkspaceId,
         bodyWorkspaceId,
         userWorkspaceId: user.workspaceId,
-        path: req.path,
-        params: req.params,
-      });
+      }, '[tenantGuard] No workspace ID found');
     }
     
     if (!workspaceId) {
@@ -96,12 +95,12 @@ export const tenantGuard = async (
         },
       });
     } catch (dbError: any) {
-      console.error('[tenantGuard] Database error:', {
+      logger.error({
         error: dbError.message,
         code: dbError.code,
         userId: req.user.sub,
         workspaceId,
-      });
+      }, '[tenantGuard] Database error');
       throw new AppError(500, 'Failed to verify workspace access');
     }
     
@@ -124,20 +123,15 @@ export const tenantGuard = async (
         });
       } catch (err) {
         // If we can't fetch workspaces, just continue with empty list
-        console.error('[tenantGuard] Failed to fetch user workspaces:', err);
+        logger.error({ err }, '[tenantGuard] Failed to fetch user workspaces');
       }
       
       const availableWorkspaceIds = userWorkspaces.map((m) => m.workspace.id);
-      
-      // Log for debugging
-      console.log('[tenantGuard] Access denied:', {
-        userId: req.user.sub,
-        requestedWorkspaceId: workspaceId,
-        availableWorkspaceIds,
-        path: req.path,
-        params: req.params,
-        header: req.headers['x-workspace-id'],
-      });
+
+      logger.warn(
+        { userId: req.user.sub, requestedWorkspaceId: workspaceId, availableWorkspaceIds },
+        '[tenantGuard] Access denied'
+      );
       
       throw new AppError(
         403,
@@ -189,7 +183,7 @@ export const tenantGuard = async (
           }
         });
       } catch (permError) {
-        console.error('[tenantGuard] Error loading permissions:', permError);
+        logger.error({ permError }, '[tenantGuard] Error loading permissions');
         // Continue with empty permissions array - user will rely on role-based access
       }
     } else {

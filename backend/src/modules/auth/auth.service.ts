@@ -828,23 +828,27 @@ export const refreshAccessToken = async (refreshToken: string) => {
       workspaceId: '',
       role: 'ADMIN',
     });
+    const provisionalRefreshToken = signRefreshToken(user.id);
 
     return {
       accessToken: provisionalAccessToken,
+      refreshToken: provisionalRefreshToken,
       workspace: null,
       message: 'No workspace yet. Use this access token to create one.',
     } as any;
   }
 
-  // Generate new access token
+  // Generate new access token and rotate refresh token
   const accessToken = signAccessToken({
     sub: user.id,
     workspaceId: defaultWorkspace.workspaceId,
     role: defaultWorkspace.role,
   });
+  const newRefreshToken = signRefreshToken(user.id);
 
   return {
     accessToken,
+    refreshToken: newRefreshToken,
     workspace: {
       id: defaultWorkspace.workspace.id,
       name: defaultWorkspace.workspace.name,

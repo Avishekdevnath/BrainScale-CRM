@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
+import { useWorkspaceStore } from "@/store/workspace";
 import type {
   Batch,
   BatchListParams,
@@ -11,10 +12,13 @@ import type {
 } from "@/types/batches.types";
 
 export function useBatches(params?: BatchListParams) {
-  const key = params
-    ? `batches-${JSON.stringify(params)}`
-    : "batches";
-  
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const key = workspaceId
+    ? params
+      ? `${workspaceId}:batches-${JSON.stringify(params)}`
+      : `${workspaceId}:batches`
+    : null;
+
   return useSWR<BatchListResponse>(
     key,
     async () => apiClient.listBatches(params),

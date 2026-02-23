@@ -2,6 +2,18 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth-guard';
 import * as authService from './auth.service';
 import { asyncHandler } from '../../middleware/error-handler';
+import { env } from '../../config/env';
+
+// Helper to set httpOnly refresh token cookie
+const setRefreshTokenCookie = (res: Response, token: string) => {
+  res.cookie('refreshToken', token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
+  });
+};
 
 export const signup = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.signup(req.validatedData);
@@ -10,13 +22,23 @@ export const signup = asyncHandler(async (req: AuthRequest, res: Response) => {
 
 export const login = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.login(req.validatedData);
-  res.json(result);
+  // Set httpOnly cookie with refresh token
+  setRefreshTokenCookie(res, result.refreshToken);
+  // Return only accessToken and user (not refreshToken in body)
+  res.json({ accessToken: result.accessToken, user: result.user });
 });
 
 export const refresh = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { refreshToken } = req.validatedData;
+  // Get refreshToken from httpOnly cookie instead of body
+  const refreshToken = (req.cookies as any)?.refreshToken || req.validatedData?.refreshToken;
+  if (!refreshToken) {
+    throw new Error('Refresh token not found in cookies');
+  }
   const result = await authService.refreshAccessToken(refreshToken);
-  res.json(result);
+  // Set new refresh token cookie
+  setRefreshTokenCookie(res, result.refreshToken);
+  // Return only accessToken (not refreshToken in body)
+  res.json({ accessToken: result.accessToken });
 });
 
 export const me = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -35,8 +57,8 @@ export const completeMemberSetup = asyncHandler(async (req: AuthRequest, res: Re
 });
 
 export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
-  // In a production app, you might want to blacklist the token
-  // or store refresh tokens in the database and delete them on logout
+  // Clear the httpOnly refresh token cookie
+  res.clearCookie('refreshToken', { path: '/', httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax' });
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -87,7 +109,13 @@ export const resendResetPasswordOtp = asyncHandler(async (req: AuthRequest, res:
 
 export const verifySignupOtp = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.verifySignupOtp(req.validatedData);
-  res.json(result);
+  // Set httpOnly cookie with refresh token if present
+  if (result.refreshToken) {
+    setRefreshTokenCookie(res, result.refreshToken);
+  }
+  // Return without refreshToken in body
+  const { refreshToken, ...rest } = result;
+  res.json(rest);
 });
 
 export const resendSignupVerification = asyncHandler(async (req: AuthRequest, res: Response) => {

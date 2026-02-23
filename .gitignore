@@ -6,6 +6,7 @@
 *.swo
 .cursorignore
 **/.cursor*
+.claude/
 
 # Dependencies
 node_modules/

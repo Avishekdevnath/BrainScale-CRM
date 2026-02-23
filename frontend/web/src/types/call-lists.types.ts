@@ -130,6 +130,7 @@ export interface CallListItem {
     answers?: Answer[];
     notes?: string | null;
     callerNote?: string | null;
+    summaryNote?: string | null;
     followUpDate?: string | null;
   } | null;
 }
@@ -318,7 +319,8 @@ export interface GetMyCallsParams {
   batchId?: string; // Optional
   groupId?: string; // Optional
   callListId?: string; // Optional
-  state?: CallListItemState; // Optional
+  state?: CallListItemState; // Optional - single state filter
+  states?: string; // Optional - comma-separated states e.g. "QUEUED,CALLING"
   followUpRequired?: boolean; // Optional - filter by follow-ups required
 }
 

@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { mountSwagger } from './config/swagger';
@@ -91,6 +92,9 @@ app.use(helmet({
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Cookie parsing (required for httpOnly refresh token cookies)
+app.use(cookieParser());
 
 // Disable caching for API routes to avoid leaking tenant-scoped data between users/workspaces
 // via browser/proxy revalidation (304 Not Modified with a stale body).

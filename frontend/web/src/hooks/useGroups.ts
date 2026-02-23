@@ -107,7 +107,9 @@ export function useGroups(params?: GroupsListParams) {
   if (params?.batchId) queryString.append("batchId", params.batchId);
   if (params?.isActive !== undefined) queryString.append("isActive", String(params.isActive));
 
-  const cacheKey = `${workspaceId || "no-workspace"}:groups${queryString.toString() ? `?${queryString.toString()}` : ""}`;
+  const cacheKey = workspaceId
+    ? `${workspaceId}:groups${queryString.toString() ? `?${queryString.toString()}` : ""}`
+    : null;
 
   return useSWR<Group[]>(
     cacheKey,

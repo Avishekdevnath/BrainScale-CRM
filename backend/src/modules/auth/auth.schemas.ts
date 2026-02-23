@@ -19,7 +19,9 @@ export const LoginSchema = z.object({
 });
 
 export const RefreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+  // Refresh token now comes from httpOnly cookie, not from body
+  // This schema is kept for backward compatibility but the token is read from cookies instead
+  refreshToken: z.string().min(1, 'Refresh token is required').optional(),
 });
 
 export const ResendVerificationSchema = z.object({

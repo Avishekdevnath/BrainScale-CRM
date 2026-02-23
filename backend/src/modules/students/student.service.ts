@@ -700,94 +700,104 @@ type FixBangladeshPhonesResult = {
 export const fixBangladeshPhones = async (
   workspaceId: string
 ): Promise<FixBangladeshPhonesResult> => {
-  const candidates = await prisma.studentPhone.findMany({
-    where: {
-      workspaceId,
-      OR: [{ phone: { startsWith: '88' } }, { phone: { startsWith: '+88' } }],
-      student: { isDeleted: false },
-    },
-    select: {
-      id: true,
-      studentId: true,
-      phone: true,
-      isPrimary: true,
-    },
-  });
+  try {
+    // Use contains instead of startsWith to avoid MongoDB regex issues with '+' character
+    const candidates = await prisma.studentPhone.findMany({
+      where: {
+        workspaceId,
+        OR: [
+          { phone: { contains: '88' } },  // Find phones containing 88
+        ],
+        student: { isDeleted: false },
+      },
+      select: {
+        id: true,
+        studentId: true,
+        phone: true,
+        isPrimary: true,
+      },
+    });
 
-  let scanned = candidates.length;
-  let updated = 0;
-  let duplicatesRemoved = 0;
-  let skipped = 0;
-  let conflicts = 0;
-  const conflictExamples: FixBangladeshPhonesResult['conflictExamples'] = [];
+    // Filter to only those starting with 88 or +88 in JavaScript
+    const filteredCandidates = candidates.filter(p => 
+      p.phone.startsWith('88') || p.phone.startsWith('+88')
+    );
 
-  const normalize = (raw: string): string | null => {
-    const trimmed = raw.trim();
-    let working = trimmed;
-    if (working.startsWith('+')) working = working.slice(1);
-    if (!working.startsWith('88')) return null;
+    let scanned = filteredCandidates.length;
+    let updated = 0;
+    let duplicatesRemoved = 0;
+    let skipped = 0;
+    let conflicts = 0;
+    const conflictExamples: FixBangladeshPhonesResult['conflictExamples'] = [];
 
-    const next = working.slice(2);
-    if (!next.startsWith('0')) return null;
-    if (next === trimmed) return null;
+    const normalize = (raw: string): string | null => {
+      const trimmed = raw.trim();
+      let working = trimmed;
+      if (working.startsWith('+')) working = working.slice(1);
+      if (!working.startsWith('88')) return null;
 
-    return next;
-  };
+      const next = working.slice(2);
+      if (!next.startsWith('0')) return null;
+      if (next === trimmed) return null;
 
-  await prisma.$transaction(async (tx) => {
-    for (const phoneRow of candidates) {
+      return next;
+    };
+
+    // Process phones without transaction to avoid timeout issues
+    for (const phoneRow of filteredCandidates) {
       const to = normalize(phoneRow.phone);
       if (!to) {
         skipped += 1;
         continue;
       }
 
-      const existing = await tx.studentPhone.findFirst({
-        where: { workspaceId, phone: to },
-        select: { id: true, studentId: true, isPrimary: true },
-      });
-
-      // Same student already has the normalized number: remove duplicate and preserve primary.
-      if (existing && existing.studentId === phoneRow.studentId) {
-        if (phoneRow.isPrimary && !existing.isPrimary) {
-          await tx.studentPhone.updateMany({
-            where: { studentId: phoneRow.studentId, isPrimary: true },
-            data: { isPrimary: false },
-          });
-          await tx.studentPhone.update({
-            where: { id: existing.id },
-            data: { isPrimary: true },
-          });
-        }
-
-        await tx.studentPhone.delete({ where: { id: phoneRow.id } });
-        duplicatesRemoved += 1;
-        continue;
-      }
-
-      // Another student already has the normalized number: skip and report conflict.
-      if (existing && existing.studentId !== phoneRow.studentId) {
-        conflicts += 1;
-        if (conflictExamples.length < 25) {
-          conflictExamples.push({
-            phoneId: phoneRow.id,
-            from: phoneRow.phone,
-            to,
-            existingStudentId: existing.studentId,
-          });
-        }
-        continue;
-      }
-
       try {
-        await tx.studentPhone.update({
+        const existing = await prisma.studentPhone.findFirst({
+          where: { workspaceId, phone: to },
+          select: { id: true, studentId: true, isPrimary: true },
+        });
+
+        // Same student already has the normalized number: remove duplicate and preserve primary.
+        if (existing && existing.studentId === phoneRow.studentId) {
+          if (phoneRow.isPrimary && !existing.isPrimary) {
+            await prisma.studentPhone.updateMany({
+              where: { studentId: phoneRow.studentId, isPrimary: true },
+              data: { isPrimary: false },
+            });
+            await prisma.studentPhone.update({
+              where: { id: existing.id },
+              data: { isPrimary: true },
+            });
+          }
+
+          await prisma.studentPhone.delete({ where: { id: phoneRow.id } });
+          duplicatesRemoved += 1;
+          continue;
+        }
+
+        // Another student already has the normalized number: skip and report conflict.
+        if (existing && existing.studentId !== phoneRow.studentId) {
+          conflicts += 1;
+          if (conflictExamples.length < 25) {
+            conflictExamples.push({
+              phoneId: phoneRow.id,
+              from: phoneRow.phone,
+              to,
+              existingStudentId: existing.studentId,
+            });
+          }
+          continue;
+        }
+
+        // No conflict, update the phone number
+        await prisma.studentPhone.update({
           where: { id: phoneRow.id },
           data: { phone: to },
         });
         updated += 1;
       } catch (err: any) {
-        // Unique constraint race (workspaceId+phone) or other concurrent updates.
-        if (err?.code === 'P2002') {
+        // Unique constraint race or other errors - skip and report
+        if (err?.code === 'P2002' || err?.code === 'P2025') {
           conflicts += 1;
           if (conflictExamples.length < 25) {
             conflictExamples.push({
@@ -799,20 +809,24 @@ export const fixBangladeshPhones = async (
           }
           continue;
         }
-        throw err;
+        // Log other errors but continue processing
+        console.error(`Error processing phone ${phoneRow.id}:`, err.message);
       }
     }
-  });
 
-  return {
-    message: 'Bangladesh phone numbers normalized successfully',
-    scanned,
-    updated,
-    duplicatesRemoved,
-    skipped,
-    conflicts,
-    conflictExamples,
-  };
+    return {
+      message: 'Bangladesh phone numbers normalized successfully',
+      scanned,
+      updated,
+      duplicatesRemoved,
+      skipped,
+      conflicts,
+      conflictExamples,
+    };
+  } catch (error: any) {
+    console.error('Error fixing Bangladesh phones:', error);
+    throw new AppError(500, `Failed to fix phones: ${error.message || 'Unknown error'}`);
+  }
 };
 
 type FixDuplicateStudentsResult = {
@@ -882,27 +896,10 @@ export const fixDuplicateStudents = async (
 
   let duplicateGroups = 0;
   let mergedStudents = 0;
+  let failedGroups: string[] = [];
 
-  const safeUpdateUnique = async <T extends { id: string }>(
-    tx: any,
-    model: any,
-    record: T,
-    data: Record<string, any>
-  ) => {
-    try {
-      await model.update({ where: { id: record.id }, data });
-      return true;
-    } catch (err: any) {
-      // If a unique constraint would be violated after merge, keep the canonical one and delete the duplicate record.
-      if (err?.code === 'P2002') {
-        await model.delete({ where: { id: record.id } });
-        return false;
-      }
-      throw err;
-    }
-  };
-
-  for (const [, group] of groups) {
+  // Process each duplicate group in its own transaction
+  for (const [emailKey, group] of groups) {
     if (group.length <= 1) continue;
     duplicateGroups += 1;
 
@@ -910,96 +907,143 @@ export const fixDuplicateStudents = async (
     const keep = sorted[0];
     const duplicates = sorted.slice(1);
 
-    await prisma.$transaction(async (tx) => {
-      const keepHasPrimary = await tx.studentPhone.findFirst({
-        where: { workspaceId, studentId: keep.id, isPrimary: true },
-        select: { id: true },
-      });
+    try {
+      await prisma.$transaction(async (tx) => {
+        const keepHasPrimary = await tx.studentPhone.findFirst({
+          where: { workspaceId, studentId: keep.id, isPrimary: true },
+          select: { id: true },
+        });
 
-      for (const dup of duplicates) {
-        // Merge student fields (only when canonical is missing values)
-        const mergedTags = Array.from(new Set([...(keep.tags ?? []), ...(dup.tags ?? [])]));
-        const mergedNotes =
-          keep.notes && keep.notes.trim().length > 0 ? keep.notes : dup.notes ?? keep.notes ?? null;
-        const mergedDiscordId =
-          keep.discordId && keep.discordId.trim().length > 0
-            ? keep.discordId
-            : dup.discordId ?? keep.discordId ?? null;
+        // First, update the canonical student with merged data
+        const allTags = group.flatMap(s => s.tags ?? []);
+        const uniqueTags = Array.from(new Set(allTags));
+        const allNotes = group.map(s => s.notes).filter(n => n && n.trim().length > 0);
+        const mergedNotes = allNotes[0] || null;
+        const allDiscordIds = group.map(s => s.discordId).filter(d => d && d.trim().length > 0);
+        const mergedDiscordId = allDiscordIds[0] || null;
 
         await tx.student.update({
           where: { id: keep.id },
           data: {
-            tags: mergedTags,
+            tags: uniqueTags,
             notes: mergedNotes,
             discordId: mergedDiscordId,
           },
         });
 
-        // Move phones to canonical. If canonical already has a primary phone, demote moved primaries.
-        if (keepHasPrimary) {
+        for (const dup of duplicates) {
+          // Move phones - demote primaries if canonical already has one
+          if (keepHasPrimary) {
+            await tx.studentPhone.updateMany({
+              where: { workspaceId, studentId: dup.id },
+              data: { isPrimary: false },
+            });
+          }
           await tx.studentPhone.updateMany({
-            where: { workspaceId, studentId: dup.id },
-            data: { isPrimary: false },
+            where: { studentId: dup.id },
+            data: { studentId: keep.id },
           });
+
+          // Move batch enrollments (skip duplicates - if canonical already has this batch, just delete duplicate's enrollment)
+          const dupBatches = await tx.studentBatch.findMany({
+            where: { studentId: dup.id },
+          });
+          for (const rb of dupBatches) {
+            const existingBatch = await tx.studentBatch.findFirst({
+              where: { studentId: keep.id, batchId: rb.batchId },
+            });
+            if (existingBatch) {
+              // Already enrolled in this batch, delete duplicate's enrollment
+              await tx.studentBatch.delete({ where: { id: rb.id } });
+            } else {
+              // Move to canonical
+              await tx.studentBatch.update({
+                where: { id: rb.id },
+                data: { studentId: keep.id },
+              });
+            }
+          }
+
+          // Move enrollments (skip duplicates)
+          const dupEnrollments = await tx.enrollment.findMany({
+            where: { studentId: dup.id },
+          });
+          for (const re of dupEnrollments) {
+            const existingEnrollment = await tx.enrollment.findFirst({
+              where: { studentId: keep.id, groupId: re.groupId, courseId: re.courseId, moduleId: re.moduleId },
+            });
+            if (existingEnrollment) {
+              await tx.enrollment.delete({ where: { id: re.id } });
+            } else {
+              await tx.enrollment.update({
+                where: { id: re.id },
+                data: { studentId: keep.id },
+              });
+            }
+          }
+
+          // Move statuses
+          const dupStatuses = await tx.studentGroupStatus.findMany({
+            where: { studentId: dup.id },
+          });
+          for (const rs of dupStatuses) {
+            const existingStatus = await tx.studentGroupStatus.findFirst({
+              where: { studentId: keep.id, groupId: rs.groupId },
+            });
+            if (existingStatus) {
+              await tx.studentGroupStatus.delete({ where: { id: rs.id } });
+            } else {
+              await tx.studentGroupStatus.update({
+                where: { id: rs.id },
+                data: { studentId: keep.id },
+              });
+            }
+          }
+
+          // Move module progress
+          const dupProgress = await tx.moduleProgress.findMany({
+            where: { studentId: dup.id },
+          });
+          for (const rp of dupProgress) {
+            const existingProgress = await tx.moduleProgress.findFirst({
+              where: { studentId: keep.id, moduleId: rp.moduleId },
+            });
+            if (existingProgress) {
+              await tx.moduleProgress.delete({ where: { id: rp.id } });
+            } else {
+              await tx.moduleProgress.update({
+                where: { id: rp.id },
+                data: { studentId: keep.id },
+              });
+            }
+          }
+
+          // Move other relations (no unique constraint issues)
+          await tx.call.updateMany({ where: { studentId: dup.id }, data: { studentId: keep.id } });
+          await tx.followup.updateMany({ where: { studentId: dup.id }, data: { studentId: keep.id } });
+          await tx.callListItem.updateMany({ where: { studentId: dup.id }, data: { studentId: keep.id } });
+          await tx.callLog.updateMany({ where: { studentId: dup.id }, data: { studentId: keep.id } });
+          await tx.payment.updateMany({ where: { studentId: dup.id }, data: { studentId: keep.id } });
+
+          // Mark duplicate as deleted
+          await tx.student.update({
+            where: { id: dup.id },
+            data: { isDeleted: true },
+          });
+
+          mergedStudents += 1;
         }
-        await tx.studentPhone.updateMany({
-          where: { workspaceId, studentId: dup.id },
-          data: { studentId: keep.id },
-        });
-
-        // Tables with unique constraints on studentId + other columns: update per-record and delete conflicts.
-        const dupBatches = await tx.studentBatch.findMany({
-          where: { studentId: dup.id },
-          select: { id: true },
-        });
-        for (const r of dupBatches) {
-          await safeUpdateUnique(tx, tx.studentBatch, r, { studentId: keep.id });
-        }
-
-        const dupEnrollments = await tx.enrollment.findMany({
-          where: { studentId: dup.id },
-          select: { id: true },
-        });
-        for (const r of dupEnrollments) {
-          await safeUpdateUnique(tx, tx.enrollment, r, { studentId: keep.id });
-        }
-
-        const dupStatuses = await tx.studentGroupStatus.findMany({
-          where: { studentId: dup.id },
-          select: { id: true },
-        });
-        for (const r of dupStatuses) {
-          await safeUpdateUnique(tx, tx.studentGroupStatus, r, { studentId: keep.id });
-        }
-
-        const dupProgress = await tx.moduleProgress.findMany({
-          where: { studentId: dup.id },
-          select: { id: true },
-        });
-        for (const r of dupProgress) {
-          await safeUpdateUnique(tx, tx.moduleProgress, r, { studentId: keep.id });
-        }
-
-        // Other relations: can be updated in bulk.
-        await tx.call.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
-        await tx.followup.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
-        await tx.callListItem.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
-        await tx.callLog.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
-        await tx.payment.updateMany({ where: { workspaceId, studentId: dup.id }, data: { studentId: keep.id } });
-
-        // Finally mark duplicate student as deleted so it doesn't show up again.
-        await tx.student.update({
-          where: { id: dup.id },
-          data: { isDeleted: true },
-        });
-
-        mergedStudents += 1;
-      }
-    });
+      });
+    } catch (err: any) {
+      console.error(`Failed to merge duplicates for ${emailKey}:`, err.message);
+      failedGroups.push(emailKey);
+    }
   }
 
   return {
-    message: 'Duplicate students merged successfully',
+    message: failedGroups.length > 0 
+      ? `Completed with ${failedGroups.length} errors`
+      : 'Duplicate students merged successfully',
     scanned: students.length,
     duplicateGroups,
     mergedStudents,

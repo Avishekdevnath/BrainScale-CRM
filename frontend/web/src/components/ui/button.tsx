@@ -12,7 +12,7 @@ const buttonVariants = cva(
         default:
           "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))] hover:brightness-95 hover:border-black dark:hover:border-white",
         destructive:
-          "bg-[hsl(var(--danger))] text-white hover:bg-[hsl(var(--danger))] hover:brightness-95 focus-visible:ring-[hsl(var(--danger))/0.2] dark:focus-visible:ring-[hsl(var(--danger))/0.4] dark:bg-[hsl(var(--danger))/0.6] hover:border-black hover:text-black dark:hover:border-white dark:hover:text-white aria-pressed:hover:text-[inherit] aria-current:hover:text-[inherit] aria-selected:hover:text-[inherit] data-[state=active]:hover:text-[inherit] data-[state=on]:hover:text-[inherit]",
+          "bg-transparent border border-[hsl(var(--danger))] text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger))] hover:text-white hover:brightness-95 focus-visible:ring-[hsl(var(--danger))/0.2] dark:focus-visible:ring-[hsl(var(--danger))/0.4] dark:border-[hsl(var(--danger))/0.8] dark:text-[hsl(var(--danger))/0.8] dark:hover:bg-[hsl(var(--danger))/0.6] dark:hover:text-white",
         outline:
           "border bg-[hsl(var(--background))] shadow-xs hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] dark:bg-[hsl(var(--muted))/0.2] dark:border-[var(--groups1-btn-outline-border)] dark:hover:bg-[var(--groups1-btn-outline-hover-bg)] hover:border-black hover:text-black dark:hover:border-white dark:hover:text-white aria-pressed:hover:text-[inherit] aria-current:hover:text-[inherit] aria-selected:hover:text-[inherit] data-[state=active]:hover:text-[inherit] data-[state=on]:hover:text-[inherit]",
         secondary:

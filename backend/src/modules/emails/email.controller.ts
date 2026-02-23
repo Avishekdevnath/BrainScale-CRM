@@ -71,3 +71,42 @@ export const processScheduledDigestsEndpoint = asyncHandler(async (req: any, res
   });
 });
 
+/**
+ * Send a direct test email (admin-only utility)
+ */
+export const sendTestEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { to, subject, message } = req.body || {};
+
+  if (!to || typeof to !== 'string') {
+    res.status(400).json({ error: 'Recipient email (to) is required' });
+    return;
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(to.trim())) {
+    res.status(400).json({ error: 'Invalid recipient email address' });
+    return;
+  }
+
+  const normalizedSubject =
+    typeof subject === 'string' && subject.trim().length > 0
+      ? subject.trim()
+      : 'SMTP Test Email';
+
+  const normalizedMessage =
+    typeof message === 'string' && message.trim().length > 0
+      ? message.trim()
+      : 'This is a test email from BrainScale CRM.';
+
+  const result = await emailService.sendTestEmail(
+    to.trim(),
+    normalizedSubject,
+    normalizedMessage
+  );
+
+  res.json({
+    message: 'Test email sent successfully',
+    ...result,
+  });
+});
+

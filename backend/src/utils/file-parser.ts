@@ -24,8 +24,11 @@ export const parseCSV = async (fileBuffer: Buffer): Promise<ParseResult> => {
       skipEmptyLines: true,
       transformHeader: (header) => header.trim(),
       complete: (results) => {
-        if (results.errors.length > 0) {
-          reject(new Error(`CSV parsing errors: ${results.errors.map(e => e.message).join(', ')}`));
+        const criticalErrors = results.errors.filter(
+          (e) => e.type !== 'Quotes' && e.type !== 'Delimiter'
+        );
+        if (criticalErrors.length > 0) {
+          reject(new Error(`CSV parsing errors: ${criticalErrors.map(e => e.message).join(', ')}`));
           return;
         }
 
@@ -65,8 +68,16 @@ export const parseXLSX = async (fileBuffer: Buffer): Promise<ParseResult> => {
     throw new Error('Excel file is empty');
   }
 
-  // First row is headers
-  const headers = (rows[0] as string[]).map((h: any) => String(h || '').trim()).filter(Boolean);
+  // First row is headers. Keep original column indexes so blank cells do not
+  // shift the mapping for subsequent headers.
+  const headerRow = rows[0] || [];
+  const headerEntries = headerRow
+    .map((h: any, index: number) => ({
+      name: String(h || '').trim(),
+      index,
+    }))
+    .filter((entry) => Boolean(entry.name));
+  const headers = headerEntries.map((entry) => entry.name);
   const dataRows = rows.slice(1);
 
   // Convert to object array
@@ -74,8 +85,8 @@ export const parseXLSX = async (fileBuffer: Buffer): Promise<ParseResult> => {
     .filter((row) => row.some((cell) => cell !== null && cell !== ''))
     .map((row) => {
       const obj: ParsedRow = {};
-      headers.forEach((header, index) => {
-        obj[header] = row[index] !== undefined && row[index] !== null ? String(row[index]).trim() : null;
+      headerEntries.forEach(({ name, index }) => {
+        obj[name] = row[index] !== undefined && row[index] !== null ? String(row[index]).trim() : null;
       });
       return obj;
     });
@@ -168,4 +179,3 @@ export const parseTextData = async (textData: string): Promise<ParseResult> => {
     });
   });
 };
-

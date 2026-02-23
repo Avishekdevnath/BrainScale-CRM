@@ -7,7 +7,7 @@ import { useGroups } from "@/hooks/useGroups";
 import { useBatches } from "@/hooks/useBatches";
 import { useCallLists } from "@/hooks/useCallLists";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FollowUpModal } from "@/components/calls/FollowUpModal";
@@ -17,7 +17,7 @@ import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search } from "lucide-react";
+import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { mutate } from "swr";
 import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,14 @@ import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
 
 export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
-  
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    const saved = localStorage.getItem("calls-manager:pageSize");
+    if (saved) setPageSize(Number(saved));
+  }, []);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [state, setState] = useState<CallListItemState | null>("QUEUED"); // Default to pending
@@ -100,9 +107,12 @@ export default function CallsManagerPage() {
     if (showFollowUps) {
       // When showing follow-ups, don't filter by state, only by followUpRequired
       params.followUpRequired = true;
+    } else if (state === "QUEUED") {
+      // Pending tab: show both QUEUED and CALLING items so the count matches the stats badge
+      params.states = "QUEUED,CALLING";
     } else {
-      // When state is set, filter by that state (default to QUEUED)
-      params.state = state || "QUEUED";
+      // Other state filters (e.g. DONE)
+      params.state = state;
     }
     
     return params;
@@ -117,6 +127,18 @@ export default function CallsManagerPage() {
   const fromItem = items.length > 0 ? (page - 1) * pageSize + 1 : 0;
   const toItem = Math.min(page * pageSize, totalItems);
   const pageItemIds = useMemo(() => items.map((item) => item.id), [items]);
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | "ellipsis")[] = [1];
+    if (page > 3) pages.push("ellipsis");
+    const start = Math.max(2, page - 1);
+    const end = Math.min(totalPages - 1, page + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (page < totalPages - 2) pages.push("ellipsis");
+    if (pages[pages.length - 1] !== totalPages) pages.push(totalPages);
+    return pages;
+  }, [page, totalPages]);
 
   const tableQuestions = useMemo(() => {
     const callListIds = new Set(items.map((i) => i.callListId).filter(Boolean));
@@ -187,11 +209,6 @@ export default function CallsManagerPage() {
 
   const hasSelection = selectedItemIds.size > 0;
   const selectedCount = selectedItemIds.size;
-
-  const hasMissingNotesInSelection = useMemo(() => {
-    if (!hasSelection) return false;
-    return selectedItems.some((item) => (callerNotes[item.id] ?? "").trim().length === 0);
-  }, [callerNotes, hasSelection, selectedItems]);
 
   const viewLabel = showFollowUps
     ? "Follow-ups"
@@ -521,7 +538,6 @@ export default function CallsManagerPage() {
           const item = selectedItemsCopy.shift();
           if (!item) return;
           const callerNote = (callerNotes[item.id] ?? "").trim();
-          if (!callerNote) continue;
 
           const followUp = followUpData[item.id];
           const selectedStatus = callStatuses[item.id] ?? "completed";
@@ -542,7 +558,7 @@ export default function CallsManagerPage() {
             callListItemId: item.id,
             status: selectedStatus,
             answers,
-            callerNote,
+            callerNote: callerNote || undefined,
             followUpRequired: followUp?.followUpRequired || false,
             followUpDate:
               followUp?.followUpRequired && followUp?.followUpDate ? new Date(followUp.followUpDate).toISOString() : undefined,
@@ -598,65 +614,65 @@ export default function CallsManagerPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <Button
-          variant={state === "QUEUED" && !showFollowUps ? "default" : "outline"}
-          size="sm"
-          onClick={() => {
-            setShowFollowUps(false);
-            setState("QUEUED");
-            setPage(1);
-          }}
-          className={cn(
-            "justify-start",
-            state === "QUEUED" && !showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-              : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Pending
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {counts.pending}
-          </span>
-        </Button>
+            variant={state === "QUEUED" && !showFollowUps ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowFollowUps(false);
+              setState("QUEUED");
+              setPage(1);
+            }}
+            className={cn(
+              "justify-start",
+              state === "QUEUED" && !showFollowUps
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Pending
+            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+              {counts.pending}
+            </span>
+          </Button>
           <Button
-          variant={state === "DONE" && !showFollowUps ? "default" : "outline"}
-          size="sm"
-          onClick={() => {
-            setShowFollowUps(false);
-            setState("DONE");
-            setPage(1);
-          }}
-          className={cn(
-            "justify-start",
-            state === "DONE" && !showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-              : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Completed
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {counts.completed}
-          </span>
-        </Button>
+            variant={state === "DONE" && !showFollowUps ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowFollowUps(false);
+              setState("DONE");
+              setPage(1);
+            }}
+            className={cn(
+              "justify-start",
+              state === "DONE" && !showFollowUps
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Completed
+            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+              {counts.completed}
+            </span>
+          </Button>
           <Button
-          variant={showFollowUps ? "default" : "outline"}
-          size="sm"
-          onClick={() => {
-            setShowFollowUps((prev) => !prev);
-            setState(null);
-            setPage(1);
-          }}
-          className={cn(
-            "justify-start",
-            showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-              : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Follow-ups
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {counts.followUps}
-          </span>
-        </Button>
+            variant={showFollowUps ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowFollowUps((prev) => !prev);
+              setState(null);
+              setPage(1);
+            }}
+            className={cn(
+              "justify-start",
+              showFollowUps
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Follow-ups
+            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
+              {counts.followUps}
+            </span>
+          </Button>
         </div>
         <div className="flex items-center justify-end">
           <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters((prev) => !prev)} />
@@ -778,22 +794,6 @@ export default function CallsManagerPage() {
 
       {/* Calls Table */}
       <Card variant="groups1">
-        <CardHeader variant="groups1">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-base font-semibold text-[var(--groups1-text)]">
-                {viewLabel} ({totalItems})
-              </CardTitle>
-              <p className="mt-1 text-sm text-[var(--groups1-text-secondary)]">
-                {showFollowUps
-                  ? "Calls that need a follow-up."
-                  : state === "DONE"
-                    ? "Your recently completed calls."
-                    : "Calls waiting for you to contact."}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
         <CardContent variant="groups1" className="p-0">
           {hasSelection ? (
             <div className="sticky top-0 z-10 border-b border-[var(--groups1-border)] bg-[var(--groups1-background)] px-4 py-2">
@@ -825,7 +825,7 @@ export default function CallsManagerPage() {
               </div>
             </div>
           ) : null}
-          {isLoading ? (
+          {!mounted || isLoading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="w-7 h-7 animate-spin text-[var(--groups1-text-secondary)] mb-3" />
               <p className="text-sm text-[var(--groups1-text-secondary)]">Loading calls...</p>
@@ -991,6 +991,30 @@ export default function CallsManagerPage() {
                           </div>
                         ) : null}
 
+                        {/* Caller Note */}
+                        {!item.callLog && (
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
+                              Note
+                            </label>
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => openCallerNoteEditor(item.id)}
+                              className={cn(
+                                "w-full text-left rounded-lg border border-[var(--groups1-border)]",
+                                "bg-[var(--groups1-surface)] px-2.5 py-2 text-[13px]",
+                                "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                                "disabled:opacity-50 disabled:cursor-not-allowed"
+                              )}
+                            >
+                              <span className={cn("block truncate", callerNoteTrimmed ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
+                                {callerNoteTrimmed || "Add note..."}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+
                       </div>
 
                       <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
@@ -1012,7 +1036,7 @@ export default function CallsManagerPage() {
                           className="flex-1 bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
                           onClick={() => handleDone(item)}
                           disabled={isDoneDisabled}
-                          title={undefined}
+
                         >
                           {isSubmitting ? (
                             <>
@@ -1069,6 +1093,9 @@ export default function CallsManagerPage() {
                         );
                       })}
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
+                      Note
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
                       Follow-up
                     </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
@@ -1117,13 +1144,13 @@ export default function CallsManagerPage() {
                             <div className="min-w-0">
                               <Link
                                 href={student?.id ? `/app/students/${student.id}` : "#"}
-                                  className={cn(
-                                    "block text-sm font-semibold text-[var(--groups1-text)] truncate",
-                                    student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
-                                  )}
-                                >
-                                  {student?.name || "Unknown"}
-                                </Link>
+                                className={cn(
+                                  "block text-sm font-semibold text-[var(--groups1-text)] truncate",
+                                  student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
+                                )}
+                              >
+                                {student?.name || "Unknown"}
+                              </Link>
                               <div className="mt-0.5 text-xs text-[var(--groups1-text-secondary)] truncate">
                                 {callListName ? callListName : "Call list"}
                                 {groupName ? ` • ${groupName}` : ""}
@@ -1134,14 +1161,12 @@ export default function CallsManagerPage() {
                         <td className="py-2 px-4">
                           {primaryPhone ? (
                             <div className="flex items-center gap-2">
-                              <a
-                                href={`tel:${primaryPhone.phone}`}
-                                className="text-sm font-medium text-[var(--groups1-primary)] hover:underline"
-                              >
-                                {primaryPhone.phone}
-                              </a>
+                              <span className="text-sm text-[var(--groups1-text)]">{primaryPhone.phone}</span>
                               <Button asChild variant="outline" size="sm" className="h-6 px-2 text-xs">
-                                <a href={`tel:${primaryPhone.phone}`}>Call</a>
+                                <a href={`tel:${primaryPhone.phone}`}>
+                                  <Phone className="w-3 h-3 mr-1" />
+                                  Call
+                                </a>
                               </Button>
                             </div>
                           ) : (
@@ -1174,103 +1199,34 @@ export default function CallsManagerPage() {
                           )}
                         </td>
                         {showQuestionColumns &&
-                          tableQuestions.map((q) => {
-                            const isReadOnly = !!item.callLog;
-                            const value = getAnswerValue(item, q.id);
-
-                            const cellBaseClass = cn(
-                              "w-full max-w-[180px] px-2 py-1 text-[13px] rounded-md border border-[var(--groups1-border)]",
-                              "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                              isSubmitting && "opacity-50 cursor-not-allowed"
-                            );
-
-                            return (
-                              <td key={q.id} className="py-2 px-4 align-top">
-                                {isReadOnly ? (
-                                  <div
-                                    title={q.question}
-                                    className="max-w-xs text-[13px] text-[var(--groups1-text)] truncate"
-                                  >
-                                    {(() => {
-                                      const existingAnswer = item.callLog?.answers?.find((a) => a.questionId === q.id);
-                                      if (!existingAnswer) return <span className="text-[var(--groups1-text-secondary)]">—</span>;
-                                      return formatAnswer(existingAnswer);
-                                    })()}
-                                  </div>
-                                ) : q.type === "multiple_choice" ? (
-                                  <select
-                                    value={String(value || "")}
-                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
-                                    disabled={isSubmitting}
-                                    className={cn(cellBaseClass, "max-w-xs")}
-                                  >
-                                    <option value="">—</option>
-                                    {(q.options || []).map((opt) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : q.type === "yes_no" ? (
-                                  <select
-                                    value={value === true ? "true" : value === false ? "false" : ""}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setAnswerValue(item.id, q.id, v === "" ? undefined : v === "true");
-                                    }}
-                                    disabled={isSubmitting}
-                                    className={cn(cellBaseClass, "max-w-[140px]")}
-                                  >
-                                    <option value="">—</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
-                                  </select>
-                                ) : q.type === "number" ? (
-                                  <Input
-                                    value={value === "" ? "" : String(value)}
-                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
-                                    disabled={isSubmitting}
-                                    className={cn(cellBaseClass, "max-w-[140px]")}
-                                    inputMode="decimal"
-                                  />
-                                ) : q.type === "date" ? (
-                                  <Input
-                                    type="date"
-                                    value={String(value || "")}
-                                    onChange={(e) => setAnswerValue(item.id, q.id, e.target.value)}
-                                    disabled={isSubmitting}
-                                    className={cn(cellBaseClass, "max-w-[160px]")}
-                                  />
-                                ) : (
-                                  <button
-                                    type="button"
-                                    disabled={isSubmitting}
-                                    onClick={() =>
-                                      setTextAnswerEditor({
-                                        open: true,
-                                        itemId: item.id,
-                                        questionId: q.id,
-                                        questionLabel: q.question,
-                                        draft: String(value || ""),
-                                      })
-                                    }
-                                    className={cn(
-                                      "w-full max-w-xs text-left rounded-md border border-[var(--groups1-border)]",
-                                      "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
-                                      "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                                      "disabled:opacity-50 disabled:cursor-not-allowed"
-                                    )}
-                                    title={q.question}
-                                  >
-                                    <span className={cn("block truncate", value ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
-                                      {value ? String(value) : "Write..."}
-                                    </span>
-                                  </button>
-                                )}
-                              </td>
-                            );
-                          })}
+                          tableQuestions.map((q) => (
+                            <td key={q.id} className="py-2 px-4 align-top">
+                              {renderQuestionInput(item, q, isSubmitting)}
+                            </td>
+                          ))}
+                        <td className="py-2 px-4">
+                          {item.callLog ? (
+                            <span className="text-[13px] text-[var(--groups1-text-secondary)]">
+                              {item.callLog.callerNote || "—"}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => openCallerNoteEditor(item.id)}
+                              className={cn(
+                                "max-w-[180px] w-full text-left rounded-md border border-[var(--groups1-border)]",
+                                "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
+                                "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                                "disabled:opacity-50 disabled:cursor-not-allowed"
+                              )}
+                            >
+                              <span className={cn("block truncate", callerNoteTrimmed ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
+                                {callerNoteTrimmed || "Add note..."}
+                              </span>
+                            </button>
+                          )}
+                        </td>
                         <td className="py-2 px-4">
                           <div className="flex items-center gap-2">
                             {(hasExistingFollowUp || hasPendingFollowUp) && (
@@ -1300,7 +1256,7 @@ export default function CallsManagerPage() {
                               onClick={() => handleDone(item)}
                               disabled={isDoneDisabled}
                               className="h-6 px-2.5 text-xs font-semibold"
-                              title={undefined}
+    
                             >
                               {isSubmitting ? (
                                 <>
@@ -1326,7 +1282,7 @@ export default function CallsManagerPage() {
           )}
 
           {/* Pagination */}
-          {totalPages > 1 ? (
+          {totalItems > 0 && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-[var(--groups1-border)] bg-[var(--groups1-background)]">
               <div className="text-sm text-[var(--groups1-text-secondary)]">
                 Showing {fromItem} to {toItem} of {totalItems} calls
@@ -1337,6 +1293,7 @@ export default function CallsManagerPage() {
                   onChange={(e) => {
                     const next = parseInt(e.target.value, 10);
                     setPageSize(next);
+                    localStorage.setItem("calls-manager:pageSize", String(next));
                     setPage(1);
                   }}
                   className={cn(
@@ -1352,28 +1309,56 @@ export default function CallsManagerPage() {
                   <option value={100}>100 / page</option>
                 </select>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1 || isLoading}
-                >
-                  Previous
-                </Button>
-                <div className="text-sm text-[var(--groups1-text-secondary)]">
-                  Page {page} of {totalPages}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages || isLoading}
-                >
-                  Next
-                </Button>
+                {totalPages > 1 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1 || isLoading}
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {pageNumbers.map((p, i) =>
+                        p === "ellipsis" ? (
+                          <span key={`ellipsis-${i}`} className="px-1 text-sm text-[var(--groups1-text-secondary)]">...</span>
+                        ) : (
+                          <Button
+                            key={p}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage(p)}
+                            disabled={isLoading}
+                            className={cn(
+                              "h-8 w-8 p-0 text-xs",
+                              p === page
+                                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-[var(--groups1-primary)] hover:bg-[var(--groups1-primary-hover)]"
+                                : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                            )}
+                          >
+                            {p}
+                          </Button>
+                        )
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages || isLoading}
+                      className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-          ) : null}
+          )}
         </CardContent>
       </Card>
 
@@ -1398,7 +1383,7 @@ export default function CallsManagerPage() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-[var(--groups1-text-secondary)]">
-              Write a short note about the call outcome. This is required to mark the call as done.
+              Write a short note about the call outcome (optional).
             </p>
             <textarea
               value={callerNoteEditor.draft}
@@ -1417,7 +1402,6 @@ export default function CallsManagerPage() {
               </Button>
               <Button
                 onClick={handleCallerNoteEditorSave}
-                disabled={callerNoteEditor.draft.trim().length === 0}
                 className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
               >
                 Set note
@@ -1498,7 +1482,7 @@ export default function CallsManagerPage() {
               ) : bulkActionDialog.type === "done" ? (
                 <Button
                   onClick={() => void runBulkDone()}
-                  disabled={bulkActionDialog.working || hasMissingNotesInSelection}
+                  disabled={bulkActionDialog.working}
                   className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
                 >
                   {bulkActionDialog.working ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}

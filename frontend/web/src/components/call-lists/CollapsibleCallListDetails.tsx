@@ -13,6 +13,7 @@ export interface CollapsibleCallListDetailsProps {
 }
 
 export function CollapsibleCallListDetails({ callList }: CollapsibleCallListDetailsProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
   const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set());
 
   const questions = extractQuestions(callList);
@@ -39,21 +40,30 @@ export function CollapsibleCallListDetails({ callList }: CollapsibleCallListDeta
   return (
     <Card variant="groups1">
       <CardHeader variant="groups1" className="py-2">
-        <div className="flex items-center justify-between">
+        <button
+          onClick={() => setIsOpen((v) => !v)}
+          className="w-full flex items-center justify-between"
+        >
           <h3 className="text-sm font-semibold text-[var(--groups1-text)]">Call List Details</h3>
           <div className="flex items-center gap-2">
-            {hasDescription && (
-              <span className="text-xs text-[var(--groups1-text-secondary)]">Description</span>
+            {!isOpen && (
+              <>
+                {hasDescription && (
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">Description</span>
+                )}
+                {hasMessages && (
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">Messages</span>
+                )}
+                {hasQuestions && (
+                  <span className="text-xs text-[var(--groups1-text-secondary)]">Questions</span>
+                )}
+              </>
             )}
-            {hasMessages && (
-              <span className="text-xs text-[var(--groups1-text-secondary)]">Messages</span>
-            )}
-            {hasQuestions && (
-              <span className="text-xs text-[var(--groups1-text-secondary)]">Questions</span>
-            )}
+            {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--groups1-text-secondary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--groups1-text-secondary)]" />}
           </div>
-        </div>
+        </button>
       </CardHeader>
+      {isOpen && (
       <CardContent variant="groups1" className="py-2 space-y-2">
         {/* Description Section */}
         {hasDescription && (
@@ -172,6 +182,7 @@ export function CollapsibleCallListDetails({ callList }: CollapsibleCallListDeta
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

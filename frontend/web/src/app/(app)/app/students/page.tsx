@@ -24,10 +24,11 @@ import { useHasPermission } from "@/hooks/useHasPermission";
 import { apiClient } from "@/lib/api-client";
 import { saveStudentExportFromCSV, type StudentExportFormat } from "@/lib/student-export";
 import { toast } from "sonner";
-import { Search, Upload, ChevronLeft, ChevronRight, Loader2, Phone, CopyX } from "lucide-react";
+import { Search, Upload, Loader2, Phone, CopyX } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { StudentsBulkActionsToolbar } from "@/components/students/StudentsBulkActionsToolbar";
+import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import type { StudentsListParams } from "@/types/students.types";
 
@@ -774,33 +775,13 @@ function StudentsPageContent() {
               </div>
 
               {/* Pagination */}
-              {data.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--groups1-border)]">
-                  <div className="text-sm text-[var(--groups1-text-secondary)]">
-                    Page {data.pagination.page} of {data.pagination.totalPages} ({data.pagination.total} total)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handlePageChange(page - 1)}
-                      disabled={page <= 1}
-                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      Previous
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handlePageChange(page + 1)}
-                      disabled={page >= data.pagination.totalPages}
-                      className="border bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-                    >
-                      Next
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                page={data.pagination.page}
+                totalPages={data.pagination.totalPages}
+                total={data.pagination.total}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+              />
             </>
           )}
         </CardContent>

@@ -57,7 +57,10 @@ export function CallListItemsTable({
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
   const [assignmentFilter, setAssignmentFilter] = React.useState<AssignmentFilterType>("all");
   const [memberFilterId, setMemberFilterId] = React.useState<string | null>(null);
-  const [pageSize, setPageSize] = React.useState<number>(25);
+  const [pageSize, setPageSize] = React.useState<number>(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("call-list-items:pageSize") : null;
+    return saved ? Number(saved) : 25;
+  });
   const [isAssigningToMe, setIsAssigningToMe] = React.useState(false);
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
   const [showFilters, setShowFilters] = React.useState(false);
@@ -418,6 +421,7 @@ export function CallListItemsTable({
                   onChange={(e) => {
                     const newSize = Number(e.target.value);
                     setPageSize(newSize);
+                    localStorage.setItem("call-list-items:pageSize", String(newSize));
                     setFilters((prev) => ({ ...prev, size: newSize, page: 1 }));
                   }}
                   className="px-2 py-1 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"

@@ -140,7 +140,7 @@ router.get('/me', authGuard, authController.me);
  *       200:
  *         description: Logged out successfully
  */
-router.post('/logout', authGuard, authController.logout);
+router.post('/logout', authController.logout);
 
 /**
  * @openapi

@@ -19,7 +19,7 @@ import { useGroupStore } from "@/store/group";
 import { useGroups, Group } from "@/hooks/useGroups";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Archive, ArchiveRestore } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BatchFilter } from "@/components/batches/BatchFilter";
 import { BatchSelector } from "@/components/batches/BatchSelector";
@@ -77,6 +77,7 @@ export default function GroupsManagementPage() {
   const [isBulkAssignDialogOpen, setIsBulkAssignDialogOpen] = useState(false);
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "dragdrop">("table");
+  const [tableTab, setTableTab] = useState<"active" | "archived">("active");
 
   useEffect(() => {
     // Set default group if none selected and groups are loaded
@@ -236,6 +237,22 @@ export default function GroupsManagementPage() {
   const handleViewGroup = (group: Group) => {
     setCurrent({ id: group.id, name: group.name });
     router.push(`/app/groups/${group.id}`);
+  };
+
+  const handleArchiveToggle = async (group: Group) => {
+    const archiving = group.isActive;
+    try {
+      await apiClient.updateGroup(group.id, { isActive: !group.isActive });
+      toast.success(archiving ? "Group archived" : "Group restored");
+      await mutateGroups();
+      await mutate("groups");
+    } catch (error: any) {
+      if (error?.status === 403) {
+        toast.error("Only admins can perform this action");
+      } else {
+        toast.error(error?.message || (archiving ? "Failed to archive group" : "Failed to restore group"));
+      }
+    }
   };
 
   const handleToggleGroupSelection = (groupId: string) => {
@@ -455,7 +472,30 @@ export default function GroupsManagementPage() {
       <Card variant="groups1">
         <CardHeader variant="groups1">
           <div className="flex items-center justify-between">
-            <CardTitle>All Groups</CardTitle>
+            <div className="flex items-center gap-1 border border-[var(--groups1-border)] rounded-lg p-1 bg-[var(--groups1-surface)]">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTableTab("active")}
+                className={cn(
+                  "h-7 px-3 text-xs",
+                  tableTab === "active" && "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                )}
+              >
+                Active
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTableTab("archived")}
+                className={cn(
+                  "h-7 px-3 text-xs",
+                  tableTab === "archived" && "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                )}
+              >
+                Archived
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
               <BatchFilter
                 value={selectedBatchId}
@@ -466,18 +506,27 @@ export default function GroupsManagementPage() {
           </div>
         </CardHeader>
         <CardContent variant="groups1">
-          {uiGroups.length === 0 ? (
+          {(() => {
+            const tabFilteredGroups = groups?.filter((g) =>
+              tableTab === "active" ? g.isActive : !g.isActive
+            ) ?? [];
+            const tabFilteredUiGroups = tabFilteredGroups.map(mapGroupToUI);
+            return tabFilteredUiGroups.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-sm text-[var(--groups1-text-secondary)] mb-4">
-                No groups found. Create your first group to get started.
+                {tableTab === "archived"
+                  ? "No archived groups."
+                  : "No groups found. Create your first group to get started."}
               </p>
-              <Button
-                onClick={handleCreate}
-                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Group
-              </Button>
+              {tableTab === "active" && (
+                <Button
+                  onClick={handleCreate}
+                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Group
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -487,11 +536,11 @@ export default function GroupsManagementPage() {
                     <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--groups1-text)] w-12">
                       <input
                         type="checkbox"
-                        checked={groups && groups.length > 0 && selectedGroupIds.size === groups.length}
+                        checked={tabFilteredGroups.length > 0 && selectedGroupIds.size === tabFilteredGroups.length}
                         ref={(input) => {
-                          if (input && groups) {
+                          if (input) {
                             input.indeterminate =
-                              selectedGroupIds.size > 0 && selectedGroupIds.size < groups.length;
+                              selectedGroupIds.size > 0 && selectedGroupIds.size < tabFilteredGroups.length;
                           }
                         }}
                         onChange={handleSelectAll}
@@ -508,9 +557,6 @@ export default function GroupsManagementPage() {
                       Students
                     </th>
                     <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--groups1-text)]">
-                      Status
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--groups1-text)]">
                       Last Activity
                     </th>
                     <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--groups1-text)]">
@@ -519,7 +565,7 @@ export default function GroupsManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {groups?.map((group) => {
+                  {tabFilteredGroups.map((group) => {
                     const uiGroup = mapGroupToUI(group);
                     const isSelected = selectedGroupIds.has(group.id);
                     return (
@@ -531,10 +577,7 @@ export default function GroupsManagementPage() {
                         )}
                         onClick={() => handleViewGroup(group)}
                       >
-                        <td
-                          className="py-3 px-4"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -557,14 +600,6 @@ export default function GroupsManagementPage() {
                         <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
                           {uiGroup.students}
                         </td>
-                        <td className="py-3 px-4">
-                          <StatusBadge
-                            variant={uiGroup.status === "active" ? "success" : "info"}
-                            size="sm"
-                          >
-                            {uiGroup.status}
-                          </StatusBadge>
-                        </td>
                         <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
                           {uiGroup.lastActivity}
                         </td>
@@ -573,19 +608,35 @@ export default function GroupsManagementPage() {
                             className="flex items-center justify-end gap-2"
                             onClick={(e) => e.stopPropagation()}
                           >
+                            {tableTab === "active" && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleEdit(group)}
+                                className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                                title="Edit"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              onClick={() => handleEdit(group)}
-                              className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                              onClick={() => handleArchiveToggle(group)}
+                              className="text-[var(--groups1-text-secondary)] hover:text-amber-600"
+                              title={tableTab === "active" ? "Archive" : "Restore"}
                             >
-                              <Pencil className="w-4 h-4" />
+                              {tableTab === "active"
+                                ? <Archive className="w-4 h-4" />
+                                : <ArchiveRestore className="w-4 h-4" />
+                              }
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon-sm"
                               onClick={() => handleDelete(group)}
                               className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-error)]"
+                              title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -597,7 +648,8 @@ export default function GroupsManagementPage() {
                 </tbody>
               </table>
             </div>
-          )}
+          );
+          })()}
         </CardContent>
       </Card>
 

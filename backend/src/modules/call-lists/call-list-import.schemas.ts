@@ -10,15 +10,14 @@ export const CommitCallListImportSchema = z.object({
   matchBy: z.enum(['email', 'phone', 'name', 'email_or_phone']).default('email_or_phone'),
   createNewStudents: z.boolean().default(true),
   skipDuplicates: z.boolean().default(true),
-  includeCallerNotes: z.boolean().default(false), // Whether to enable caller notes for imported students
+  includeCallerNotes: z.boolean().optional(), // Deprecated in import flow; set via call list create/update
 });
 
 export const ProcessCallListImportSchema = z.object({
   importId: z.string().min(1, 'Import ID is required'),
-  chunkSize: z.number().int().min(1).max(250).optional(),
+  chunkSize: z.number().int().min(1).max(1000).optional(),
 });
 
 export type PreviewCallListImportInput = z.infer<typeof PreviewCallListImportSchema>;
 export type CommitCallListImportInput = z.infer<typeof CommitCallListImportSchema>;
 export type ProcessCallListImportInput = z.infer<typeof ProcessCallListImportSchema>;
-

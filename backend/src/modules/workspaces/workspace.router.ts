@@ -452,5 +452,34 @@ router.delete(
   workspaceController.removeMember
 );
 
+/**
+ * @openapi
+ * /workspaces/{workspaceId}/members/{memberId}/account:
+ *   delete:
+ *     summary: Permanently delete a member's user account (global)
+ *     tags: [Workspaces]
+ *     parameters:
+ *       - in: path
+ *         name: workspaceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: memberId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User account deleted permanently
+ */
+router.delete(
+  '/:workspaceId/members/:memberId/account',
+  authGuard,
+  tenantGuard,
+  requirePermission('members', 'remove'),
+  workspaceController.deleteMemberAccount
+);
+
 export default router;
 

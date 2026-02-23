@@ -55,6 +55,11 @@ export interface Invitation {
   createdAt: string; // ISO 8601 datetime
   updatedAt: string; // ISO 8601 datetime
   
+  // Temporary password for manual sharing (when email fails or admin wants to share manually)
+  temporaryPassword?: string | null;
+  // Email sent status
+  emailSent?: boolean;
+  
   // Relations (included in API responses)
   workspace?: {
     id: string;
@@ -74,6 +79,12 @@ export interface Invitation {
   } | null;
 }
 
+// Send invitation response (includes temporary password for manual sharing)
+export interface SendInvitationResponse extends Invitation {
+  message: string;
+  emailError?: string;
+}
+
 // Request/Response Types
 
 export type GetMembersResponse = WorkspaceMember[];
@@ -83,6 +94,12 @@ export interface InviteMemberPayload {
   role?: MemberRole;
   customRoleId?: string;
   groupIds?: string[];
+}
+
+export interface InviteMemberResponse extends WorkspaceMember {
+  temporaryPassword: string | null;
+  accountCreated: boolean;
+  message: string;
 }
 
 export interface UpdateMemberPayload {

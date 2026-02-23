@@ -34,6 +34,21 @@ const buildProgress = (partial: Partial<ImportProgress>, totalRows: number): Imp
   updatedAt: new Date().toISOString(),
 });
 
+const updateIncludeCallerNotes = async (
+  listId: string,
+  workspaceId: string,
+  settings: CommitCallListImportInput | undefined
+) => {
+  if (!settings || settings.includeCallerNotes === undefined || !listId) return;
+  const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId } });
+  if (!callList) return;
+  const currentMeta = (callList.meta as Record<string, any>) || {};
+  await prisma.callList.update({
+    where: { id: listId },
+    data: { meta: { ...currentMeta, includeCallerNotes: settings.includeCallerNotes } },
+  });
+};
+
 const chunkArray = <T,>(items: T[], size: number): T[][] => {
   if (size <= 0) return [items];
   const chunks: T[][] = [];
@@ -41,6 +56,41 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
+};
+
+const normalizeColumnKey = (key: string) => key.trim().toLowerCase();
+
+const extractMappedField = (row: Record<string, any>, columnName?: string): string | null => {
+  if (!columnName) return null;
+
+  const direct = row[columnName];
+  if (direct !== undefined && direct !== null) {
+    return typeof direct === 'string' ? direct.trim() : direct.toString().trim();
+  }
+
+  // Fallback for small header formatting differences (extra spaces/case changes).
+  const normalizedTarget = normalizeColumnKey(columnName);
+  const matchedKey = Object.keys(row).find((key) => normalizeColumnKey(key) === normalizedTarget);
+  if (!matchedKey) return null;
+
+  const fallback = row[matchedKey];
+  if (fallback === undefined || fallback === null) return null;
+  return typeof fallback === 'string' ? fallback.trim() : fallback.toString().trim();
+};
+
+const selectBestStudentCandidate = (candidates: any[], preferredPhone?: string | null) => {
+  if (!candidates || candidates.length === 0) return undefined;
+  if (preferredPhone) {
+    const byExactPhone = candidates.find((candidate) =>
+      (candidate.phones || []).some((p: any) => p.phone === preferredPhone)
+    );
+    if (byExactPhone) return byExactPhone;
+  }
+
+  const withAnyPhone = candidates.find((candidate) => (candidate.phones || []).length > 0);
+  if (withAnyPhone) return withAnyPhone;
+
+  return candidates[0];
 };
 
 /**
@@ -251,8 +301,8 @@ export const previewCallListImport = async (
     willSkip = Math.round(willSkip * scaleFactor);
   }
 
-  // Return preview data (first 10 rows for preview display only)
-  const previewRows = parsed.rows.slice(0, 10);
+  // Return all rows for the preview table (user wants to inspect full data)
+  const previewRows = parsed.rows;
   
   console.info('[callListImport.preview] service:done', { ms: Date.now() - startedAt });
   return {
@@ -323,7 +373,7 @@ export const processCallListImportCommitChunk = async (
   workspaceId: string,
   userId: string,
   importId: string,
-  chunkSize = 50
+  chunkSize = 500
 ) => {
   const importRecord = await prisma.import.findFirst({
     where: { id: importId, workspaceId },
@@ -377,19 +427,8 @@ export const processCallListImportCommitChunk = async (
       data: { status: 'COMPLETED', successCount: stats.added, duplicateCount: stats.duplicates, errorCount: stats.errors, meta: { ...meta, progress: completedProgress, resultMessage: meta.resultMessage ?? 'Import completed' } },
     });
     
-    // Update call list meta with includeCallerNotes setting if provided
-    const commitSettings = meta.commitSettings as CommitCallListImportInput | undefined;
-    if (commitSettings?.includeCallerNotes !== undefined && listId) {
-      const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId } });
-      if (callList) {
-        const currentMeta = (callList.meta as Record<string, any>) || {};
-        await prisma.callList.update({
-          where: { id: listId },
-          data: { meta: { ...currentMeta, includeCallerNotes: commitSettings.includeCallerNotes } },
-        });
-      }
-    }
-    
+    await updateIncludeCallerNotes(listId, workspaceId, meta.commitSettings as CommitCallListImportInput | undefined);
+
     return {
       importId,
       status: 'COMPLETED',
@@ -398,17 +437,11 @@ export const processCallListImportCommitChunk = async (
     };
   }
 
-  const extractField = (row: Record<string, any>, columnName?: string): string | null => {
-    if (!columnName) return null;
-    const value = row[columnName];
-    return typeof value === 'string' ? value.trim() : (value?.toString().trim() || null);
-  };
-
   const rowEntries = slice.map((row, index) => {
     const rowNum = nextIndex + index + 2;
-    const name = extractField(row, commitSettings.columnMapping.name);
-    const emailRaw = extractField(row, commitSettings.columnMapping.email);
-    const phoneRaw = extractField(row, commitSettings.columnMapping.phone);
+    const name = extractMappedField(row, commitSettings.columnMapping.name);
+    const emailRaw = extractMappedField(row, commitSettings.columnMapping.email);
+    const phoneRaw = extractMappedField(row, commitSettings.columnMapping.phone);
     const email = emailRaw ? emailRaw.toLowerCase() : null;
     const phone = phoneRaw || null;
     return { row, rowNum, name, email, phone };
@@ -429,22 +462,116 @@ export const processCallListImportCommitChunk = async (
   const emails = Array.from(new Set(validRows.map((entry) => entry.email).filter((email): email is string => Boolean(email))));
   const phones = Array.from(new Set(validRows.map((entry) => entry.phone).filter((phone): phone is string => Boolean(phone))));
 
-  const [studentsByEmail, studentPhones] = await Promise.all([
+  const [studentsByEmail, studentPhones, studentsByName, callListStudentsByEmail, callListStudentsByName] = await Promise.all([
     emails.length > 0 && (commitSettings.matchBy === 'email_or_phone' || commitSettings.matchBy === 'email')
-      ? prisma.student.findMany({ where: { workspaceId, email: { in: emails }, isDeleted: false } })
+      ? prisma.student.findMany({
+          where: { workspaceId, email: { in: emails }, isDeleted: false },
+          include: { phones: { select: { phone: true, isPrimary: true } } },
+        })
       : Promise.resolve([]),
     phones.length > 0 && (commitSettings.matchBy === 'email_or_phone' || commitSettings.matchBy === 'phone')
       ? prisma.studentPhone.findMany({ where: { workspaceId, phone: { in: phones }, student: { workspaceId, isDeleted: false } }, include: { student: true } })
       : Promise.resolve([]),
+    commitSettings.matchBy === 'name'
+      ? prisma.student.findMany({
+          where: { workspaceId, isDeleted: false, name: { in: Array.from(new Set(validRows.map((entry) => entry.name as string))) } },
+          include: { phones: { select: { phone: true, isPrimary: true } } },
+        })
+      : Promise.resolve([]),
+    emails.length > 0
+      ? prisma.callListItem.findMany({
+          where: { callListId: listId, student: { workspaceId, isDeleted: false, email: { in: emails } } },
+          select: { student: { include: { phones: { select: { phone: true, isPrimary: true } } } } },
+        })
+      : Promise.resolve([]),
+    commitSettings.matchBy === 'name'
+      ? prisma.callListItem.findMany({
+          where: {
+            callListId: listId,
+            student: {
+              workspaceId,
+              isDeleted: false,
+              name: { in: Array.from(new Set(validRows.map((entry) => (entry.name as string) || ''))) },
+            },
+          },
+          select: { student: { include: { phones: { select: { phone: true, isPrimary: true } } } } },
+        })
+      : Promise.resolve([]),
   ]);
 
-  const emailMap = new Map<string, any>();
+  const emailMap = new Map<string, any[]>();
   studentsByEmail.forEach((student) => {
-    if (student.email) emailMap.set(student.email.toLowerCase(), student);
+    if (!student.email) return;
+    const key = student.email.toLowerCase();
+    const bucket = emailMap.get(key) || [];
+    bucket.push(student);
+    emailMap.set(key, bucket);
   });
 
   const phoneMap = new Map<string, any>();
   studentPhones.forEach((studentPhone) => phoneMap.set(studentPhone.phone, studentPhone.student));
+
+  const nameMap = new Map<string, any[]>();
+  studentsByName.forEach((student) => {
+    const key = student.name.toLowerCase();
+    const bucket = nameMap.get(key) || [];
+    bucket.push(student);
+    nameMap.set(key, bucket);
+  });
+
+  const callListEmailMap = new Map<string, any[]>();
+  callListStudentsByEmail.forEach((item) => {
+    const student = (item as any).student;
+    if (!student?.email) return;
+    const key = student.email.toLowerCase();
+    const bucket = callListEmailMap.get(key) || [];
+    bucket.push(student);
+    callListEmailMap.set(key, bucket);
+  });
+
+  const callListNameMap = new Map<string, any[]>();
+  callListStudentsByName.forEach((item) => {
+    const student = (item as any).student;
+    if (!student?.name) return;
+    const key = student.name.toLowerCase();
+    const bucket = callListNameMap.get(key) || [];
+    bucket.push(student);
+    callListNameMap.set(key, bucket);
+  });
+
+  const resolveMatchedStudent = (entry: { email: string | null; phone: string | null; name: string | null }) => {
+    // Prefer students already present in the target call list.
+    if (entry.email) {
+      const callListCandidates = callListEmailMap.get(entry.email) || [];
+      const selected = selectBestStudentCandidate(callListCandidates, entry.phone);
+      if (selected) return selected;
+    }
+
+    if (entry.name) {
+      const callListCandidates = callListNameMap.get(entry.name.toLowerCase()) || [];
+      const selected = selectBestStudentCandidate(callListCandidates, entry.phone);
+      if (selected) return selected;
+    }
+
+    if (entry.email && (commitSettings.matchBy === 'email_or_phone' || commitSettings.matchBy === 'email')) {
+      const candidates = emailMap.get(entry.email);
+      const selected = selectBestStudentCandidate(candidates || [], entry.phone);
+      if (selected) return selected;
+    }
+
+    if (entry.phone && (commitSettings.matchBy === 'email_or_phone' || commitSettings.matchBy === 'phone')) {
+      const selected = phoneMap.get(entry.phone);
+      if (selected) return selected;
+    }
+
+    if (entry.name && commitSettings.matchBy === 'name') {
+      const candidates = nameMap.get(entry.name.toLowerCase()) || [];
+      const selected = selectBestStudentCandidate(candidates, entry.phone);
+      if (selected) return selected;
+    }
+
+    return undefined;
+  };
 
   // Determine call list context only once per chunk
   const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId }, include: { group: { select: { batchId: true } } } });
@@ -457,8 +584,7 @@ export const processCallListImportCommitChunk = async (
   const studentsToCreate = validRows
     .filter((entry) => {
       if (!commitSettings.createNewStudents) return false;
-      const matched = (entry.email && emailMap.has(entry.email)) || (entry.phone && phoneMap.has(entry.phone));
-      return !matched;
+      return !resolveMatchedStudent(entry as any);
     })
     .map((entry) => ({ rowNum: entry.rowNum, name: entry.name as string, email: entry.email, phone: entry.phone }));
 
@@ -494,22 +620,25 @@ export const processCallListImportCommitChunk = async (
     }
 
     createdStudents.forEach((student) => {
-      if (student.email) emailMap.set(student.email.toLowerCase(), student);
+      if (!student.email) return;
+      const key = student.email.toLowerCase();
+      const bucket = emailMap.get(key) || [];
+      bucket.push(student);
+      emailMap.set(key, bucket);
     });
   }
 
-  // For matched students, count them now (after creates are merged)
+  // Count matched = pre-existing students found (not newly created ones)
+  const createdStudentIds = new Set(createdStudents.map((s) => s.id));
   validRows.forEach((entry) => {
-    const matched = (entry.email && emailMap.has(entry.email)) || (entry.phone && phoneMap.has(entry.phone));
-    if (matched) stats.matched++;
+    const student = resolveMatchedStudent(entry as any);
+    if (student && !createdStudentIds.has(student.id)) stats.matched++;
   });
 
   // Resolve studentId per row
   const studentIdByRowNum = new Map<number, string>();
   validRows.forEach((entry) => {
-    const byEmail = entry.email ? emailMap.get(entry.email) : undefined;
-    const byPhone = entry.phone ? phoneMap.get(entry.phone) : undefined;
-    const student = byEmail ?? byPhone;
+    const student = resolveMatchedStudent(entry as any);
     if (student?.id) studentIdByRowNum.set(entry.rowNum, student.id);
   });
 
@@ -584,6 +713,7 @@ export const processCallListImportCommitChunk = async (
       workspaceId,
       phone: entry.phone as string,
       isPrimary: true,
+      email: entry.email || null,
     }));
 
   const phoneCreateByPhone = new Map<string, (typeof phonesFromRows)[number]>();
@@ -592,18 +722,41 @@ export const processCallListImportCommitChunk = async (
   });
   const uniquePhonesToCreate = Array.from(phoneCreateByPhone.values());
   const uniquePhones = uniquePhonesToCreate.map((p) => p.phone);
-  const existingPhoneSet = new Set<string>(
+  const existingPhoneRows =
     uniquePhones.length > 0
-      ? (
-          await prisma.studentPhone.findMany({
-            where: { workspaceId, phone: { in: uniquePhones } },
-            select: { phone: true },
-          })
-        ).map((p) => p.phone)
-      : []
-  );
+      ? await prisma.studentPhone.findMany({
+          where: { workspaceId, phone: { in: uniquePhones } },
+          select: {
+            id: true,
+            phone: true,
+            studentId: true,
+            student: {
+              select: {
+                email: true,
+              },
+            },
+          },
+        })
+      : [];
 
-  const studentPhoneCreates = uniquePhonesToCreate.filter((p) => !existingPhoneSet.has(p.phone));
+  const existingPhoneSet = new Set<string>(existingPhoneRows.map((p) => p.phone));
+  const phoneReassignUpdates: Array<{ id: string; studentId: string }> = [];
+  existingPhoneRows.forEach((existing) => {
+    const target = phoneCreateByPhone.get(existing.phone);
+    if (!target) return;
+    if (existing.studentId === target.studentId) return;
+
+    // Safe reassignment rule: same email means duplicate student records.
+    const targetEmail = target.email?.toLowerCase();
+    const ownerEmail = existing.student?.email?.toLowerCase();
+    if (targetEmail && ownerEmail && targetEmail === ownerEmail) {
+      phoneReassignUpdates.push({ id: existing.id, studentId: target.studentId });
+    }
+  });
+
+  const studentPhoneCreates = uniquePhonesToCreate
+    .filter((p) => !existingPhoneSet.has(p.phone))
+    .map(({ email: _email, ...rest }) => rest); // strip email — not a StudentPhone field
 
   if (callListItemCreates.length > 0) {
     writeOps.push({
@@ -650,6 +803,20 @@ export const processCallListImportCommitChunk = async (
     writeOps.push({
       name: 'studentPhone.createMany',
       promise: prisma.studentPhone.createMany({ data: studentPhoneCreates as any } as any),
+    });
+  }
+
+  if (phoneReassignUpdates.length > 0) {
+    writeOps.push({
+      name: 'studentPhone.reassign',
+      promise: Promise.all(
+        phoneReassignUpdates.map((update) =>
+          prisma.studentPhone.update({
+            where: { id: update.id },
+            data: { studentId: update.studentId },
+          })
+        )
+      ),
     });
   }
 
@@ -702,19 +869,8 @@ export const processCallListImportCommitChunk = async (
   });
 
   if (nextStatus === 'COMPLETED') {
-    // Update call list meta with includeCallerNotes setting if provided
-    const commitSettings = meta.commitSettings as CommitCallListImportInput | undefined;
-    if (commitSettings?.includeCallerNotes !== undefined && listId) {
-      const callList = await prisma.callList.findFirst({ where: { id: listId, workspaceId } });
-      if (callList) {
-        const currentMeta = (callList.meta as Record<string, any>) || {};
-        await prisma.callList.update({
-          where: { id: listId },
-          data: { meta: { ...currentMeta, includeCallerNotes: commitSettings.includeCallerNotes } },
-        });
-      }
-    }
-    
+    await updateIncludeCallerNotes(listId, workspaceId, meta.commitSettings as CommitCallListImportInput | undefined);
+
     return {
       importId,
       status: 'COMPLETED',
@@ -724,506 +880,4 @@ export const processCallListImportCommitChunk = async (
   }
 
   return { importId, status: 'IN_PROGRESS', progress: updatedProgress };
-};
-
-/**
- * Commit call list import (match/create students and add to call list)
- */
-export const commitCallListImport = async (
-  listId: string,
-  workspaceId: string,
-  userId: string,
-  parsedData: ParseResult,
-  data: CommitCallListImportInput
-) => {
-  // Verify call list exists and get details
-  const callList = await prisma.callList.findFirst({
-    where: {
-      id: listId,
-      workspaceId,
-    },
-    include: {
-      group: {
-        select: {
-          id: true,
-          name: true,
-          batchId: true,
-        },
-      },
-    },
-  });
-
-  if (!callList) {
-    throw new AppError(404, 'Call list not found');
-  }
-
-  // Verify user has access
-  const membership = await prisma.workspaceMember.findFirst({
-    where: {
-      userId,
-      workspaceId,
-    },
-    include: {
-      groupAccess: true,
-    },
-  });
-
-  if (!membership) {
-    throw new AppError(403, 'Access denied');
-  }
-
-  // Workspace membership is sufficient for call list create/update operations.
-
-  // Get batchId from call list meta or group
-  const batchId = (callList.meta as any)?.batchId || callList.group?.batchId || null;
-  const groupId = callList.groupId;
-
-  // Get existing student IDs in call list
-  const existingItems = await prisma.callListItem.findMany({
-    where: { callListId: listId },
-    select: { studentId: true },
-  });
-  const existingStudentIds = new Set(existingItems.map(item => item.studentId));
-
-  const stats = {
-    matched: 0,
-    created: 0,
-    added: 0,
-    duplicates: 0,
-    errors: 0,
-  };
-  const errors: string[] = [];
-
-  const extractField = (row: Record<string, any>, columnName?: string): string | null => {
-    if (!columnName) return null;
-    const value = row[columnName];
-    return typeof value === 'string' ? value.trim() : (value?.toString().trim() || null);
-  };
-
-  // Phase 1: Collect all row data for batch processing
-  interface RowData {
-    row: Record<string, any>;
-    rowNum: number;
-    name: string;
-    email?: string;
-    phone?: string;
-  }
-
-  const rowData: RowData[] = [];
-  const allEmails: string[] = [];
-  const allPhones: string[] = [];
-  const allNames: string[] = [];
-
-  for (let idx = 0; idx < parsedData.rows.length; idx++) {
-    const row = parsedData.rows[idx] as Record<string, any>;
-    const rowNum = idx + 2;
-
-    const name = extractField(row, data.columnMapping.name);
-    const email = extractField(row, data.columnMapping.email);
-    const phone = extractField(row, data.columnMapping.phone);
-
-    if (!name || name.length === 0) {
-      stats.errors++;
-      errors.push(`Row ${rowNum}: Name is required`);
-      continue;
-    }
-
-    const emailLower = email?.toLowerCase();
-    rowData.push({
-      row,
-      rowNum,
-      name,
-      email: emailLower || undefined,
-      phone: phone || undefined,
-    });
-
-    if (emailLower) allEmails.push(emailLower);
-    if (phone) allPhones.push(phone);
-    if (data.matchBy === 'name') allNames.push(name);
-  }
-
-  // Phase 2: Batch match students
-  const emailMap = new Map<string, any>();
-  const phoneMap = new Map<string, any>();
-  const nameMap = new Map<string, any>();
-
-  // Batch match by email
-  if (allEmails.length > 0 && (data.matchBy === 'email_or_phone' || data.matchBy === 'email')) {
-    const matchedByEmail = await prisma.student.findMany({
-      where: {
-        workspaceId,
-        email: { in: allEmails },
-        isDeleted: false,
-      },
-    });
-    matchedByEmail.forEach(student => {
-      if (student.email) {
-        emailMap.set(student.email.toLowerCase(), student);
-      }
-    });
-  }
-
-  // Batch match by phone
-  if (allPhones.length > 0 && (data.matchBy === 'email_or_phone' || data.matchBy === 'phone')) {
-    const matchedByPhone = await prisma.studentPhone.findMany({
-      where: {
-        workspaceId,
-        phone: { in: allPhones },
-        student: {
-          workspaceId,
-          isDeleted: false,
-        },
-      },
-      include: {
-        student: true,
-      },
-    });
-    matchedByPhone.forEach(sp => {
-      phoneMap.set(sp.phone, sp.student);
-    });
-  }
-
-  // Batch match by name (if needed)
-  // Note: Prisma's `in` operator doesn't support case-insensitive mode,
-  // so we fetch all potential matches and filter in memory
-  if (allNames.length > 0 && data.matchBy === 'name') {
-    const uniqueNames = [...new Set(allNames)];
-    // Fetch students with names that might match (case-insensitive)
-    // We'll do a broader query and filter in memory for case-insensitive matching
-    const allStudents = await prisma.student.findMany({
-      where: {
-        workspaceId,
-        isDeleted: false,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-    // Build case-insensitive map
-    const nameLowerSet = new Set(uniqueNames.map(n => n.toLowerCase()));
-    allStudents.forEach(student => {
-      if (nameLowerSet.has(student.name.toLowerCase())) {
-        nameMap.set(student.name.toLowerCase(), student);
-      }
-    });
-  }
-
-  // Phase 3: Process rows with pre-matched data
-  interface StudentToCreate {
-    name: string;
-    email: string | null;
-    phone?: string;
-    rowNum: number;
-    index: number;
-  }
-
-  interface RelationshipOperation {
-    studentId: string;
-    rowNum: number;
-  }
-
-  const studentsToCreate: StudentToCreate[] = [];
-  const groupStatusesToUpsert: RelationshipOperation[] = [];
-  const enrollmentsToCheck: RelationshipOperation[] = [];
-  const batchesToUpsert: RelationshipOperation[] = [];
-  const callListItemsToUpsert: RelationshipOperation[] = [];
-  const phonesToCreate: Array<{ studentId: string; phone: string; rowNum: number }> = [];
-  const studentRowMap = new Map<number, any>(); // Map row index to student
-  const tempStudentIdMap = new Map<number, string>(); // Map row index to temp/real student ID
-
-  for (let idx = 0; idx < rowData.length; idx++) {
-    const { row, rowNum, name, email, phone } = rowData[idx];
-
-    try {
-      let student: any = null;
-      let isMatched = false;
-
-      // Match by email_or_phone strategy
-      if (data.matchBy === 'email_or_phone' || data.matchBy === 'email') {
-        if (email && emailMap.has(email)) {
-          student = emailMap.get(email);
-          isMatched = true;
-        }
-      }
-
-      if (!student && (data.matchBy === 'email_or_phone' || data.matchBy === 'phone')) {
-        if (phone && phoneMap.has(phone)) {
-          student = phoneMap.get(phone);
-          isMatched = true;
-        }
-      }
-
-      if (!student && data.matchBy === 'name') {
-        if (nameMap.has(name.toLowerCase())) {
-          student = nameMap.get(name.toLowerCase());
-          isMatched = true;
-        }
-      }
-
-      // Check for duplicates if skipDuplicates is true
-      if (!student && data.createNewStudents && data.skipDuplicates) {
-        if (email && emailMap.has(email)) {
-          stats.duplicates++;
-          continue;
-        }
-        if (phone && phoneMap.has(phone)) {
-          stats.duplicates++;
-          continue;
-        }
-      }
-
-      // Create student if not found and createNewStudents is true
-      if (!student && data.createNewStudents) {
-        studentsToCreate.push({
-          name,
-          email: email || null,
-          phone: phone || undefined,
-          rowNum,
-          index: idx,
-        });
-        // Use temporary ID for tracking
-        const tempId = `temp-${idx}`;
-        tempStudentIdMap.set(idx, tempId);
-        student = { id: tempId, name, email: email || null };
-        stats.created++;
-      } else if (!student) {
-        stats.errors++;
-        errors.push(`Row ${rowNum}: Student not found and createNewStudents is false`);
-        continue;
-      } else {
-        stats.matched++;
-        tempStudentIdMap.set(idx, student.id);
-      }
-
-      // Check if student already in call list
-      if (existingStudentIds.has(student.id)) {
-        stats.duplicates++;
-        continue;
-      }
-
-      studentRowMap.set(idx, student);
-
-      // Collect operations for batch processing
-      if (groupId) {
-        groupStatusesToUpsert.push({ studentId: student.id, rowNum });
-        enrollmentsToCheck.push({ studentId: student.id, rowNum });
-      }
-
-      if (batchId) {
-        batchesToUpsert.push({ studentId: student.id, rowNum });
-      }
-
-      callListItemsToUpsert.push({ studentId: student.id, rowNum });
-
-      // Track phone creation for new students
-      if (!isMatched && phone && data.createNewStudents) {
-        phonesToCreate.push({ studentId: student.id, phone, rowNum });
-      }
-    } catch (error: any) {
-      stats.errors++;
-      errors.push(`Row ${rowNum}: ${error.message || 'Unknown error'}`);
-    }
-  }
-
-  // Phase 4: Batch create students
-  if (studentsToCreate.length > 0) {
-    let createdStudents: any[] = [];
-    try {
-      createdStudents = await prisma.$transaction(
-        studentsToCreate.map(studentData =>
-          prisma.student.create({
-            data: {
-              workspaceId,
-              name: studentData.name,
-              email: studentData.email,
-            },
-          })
-        )
-      );
-    } catch (error: any) {
-      // If batch create fails, log errors for each student that failed
-      studentsToCreate.forEach(studentData => {
-        stats.errors++;
-        errors.push(`Row ${studentData.rowNum}: Failed to create student - ${error.message || 'Unknown error'}`);
-      });
-      // Continue with other operations even if some students failed to create
-    }
-
-    // Update temp IDs with real IDs
-    createdStudents.forEach((created, createIdx) => {
-      const studentData = studentsToCreate[createIdx];
-      const rowIdx = studentData.index;
-      const realId = created.id;
-
-      // Update temp ID in maps
-      tempStudentIdMap.set(rowIdx, realId);
-      const student = studentRowMap.get(rowIdx);
-      if (student) {
-        student.id = realId;
-        studentRowMap.set(rowIdx, student);
-      }
-
-      // Update all operation arrays with real IDs
-      groupStatusesToUpsert.forEach(op => {
-        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
-      });
-      enrollmentsToCheck.forEach(op => {
-        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
-      });
-      batchesToUpsert.forEach(op => {
-        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
-      });
-      callListItemsToUpsert.forEach(op => {
-        if (op.studentId === `temp-${rowIdx}`) op.studentId = realId;
-      });
-      phonesToCreate.forEach(phone => {
-        if (phone.studentId === `temp-${rowIdx}`) phone.studentId = realId;
-      });
-    });
-  }
-
-  // Phase 5: Batch upsert operations in parallel
-  const upsertPromises: Promise<any>[] = [];
-
-  // Batch upsert group statuses
-  if (groupStatusesToUpsert.length > 0) {
-    upsertPromises.push(
-      ...groupStatusesToUpsert.map(op =>
-        prisma.studentGroupStatus.upsert({
-          where: {
-            studentId_groupId: {
-              studentId: op.studentId,
-              groupId: groupId!,
-            },
-          },
-          create: {
-            studentId: op.studentId,
-            groupId: groupId!,
-            status: 'NEW',
-          },
-          update: {},
-        })
-      )
-    );
-  }
-
-  // Batch handle enrollments
-  if (enrollmentsToCheck.length > 0) {
-    // First, check which enrollments exist
-    const existingEnrollments = await prisma.enrollment.findMany({
-      where: {
-        studentId: { in: enrollmentsToCheck.map(e => e.studentId) },
-        groupId: groupId!,
-        courseId: null,
-        moduleId: null,
-      },
-    });
-    const existingEnrollmentMap = new Map(
-      existingEnrollments.map(e => [e.studentId, e])
-    );
-
-    enrollmentsToCheck.forEach(op => {
-      const existing = existingEnrollmentMap.get(op.studentId);
-      if (existing) {
-        upsertPromises.push(
-          prisma.enrollment.update({
-            where: { id: existing.id },
-            data: { isActive: true },
-          })
-        );
-      } else {
-        upsertPromises.push(
-          prisma.enrollment.create({
-            data: {
-              studentId: op.studentId,
-              groupId: groupId!,
-              courseId: null,
-              moduleId: null,
-              isActive: true,
-            },
-          })
-        );
-      }
-    });
-  }
-
-  // Batch upsert batches
-  if (batchesToUpsert.length > 0) {
-    upsertPromises.push(
-      ...batchesToUpsert.map(op =>
-        prisma.studentBatch.upsert({
-          where: {
-            studentId_batchId: {
-              studentId: op.studentId,
-              batchId: batchId!,
-            },
-          },
-          create: {
-            studentId: op.studentId,
-            batchId: batchId!,
-          },
-          update: {},
-        })
-      )
-    );
-  }
-
-  // Batch upsert call list items
-  if (callListItemsToUpsert.length > 0) {
-    upsertPromises.push(
-      ...callListItemsToUpsert.map(op =>
-        prisma.callListItem.upsert({
-          where: {
-            callListId_studentId: {
-              callListId: listId,
-              studentId: op.studentId,
-            },
-          },
-          create: {
-            workspaceId,
-            callListId: listId,
-            studentId: op.studentId,
-            state: 'QUEUED',
-            priority: 0,
-          },
-          update: {},
-        })
-      )
-    );
-  }
-
-  // Batch create phones for new students
-  if (phonesToCreate.length > 0) {
-    upsertPromises.push(
-      ...phonesToCreate.map(phone =>
-        prisma.studentPhone.create({
-          data: {
-            studentId: phone.studentId,
-            workspaceId,
-            phone: phone.phone,
-            isPrimary: true,
-          },
-        })
-      )
-    );
-  }
-
-  // Execute all upsert operations in parallel
-  try {
-    await Promise.all(upsertPromises);
-    stats.added = callListItemsToUpsert.length;
-  } catch (error: any) {
-    // If batch upserts fail, log the error but don't fail the entire import
-    // Individual row errors are already tracked in the processing loop
-    errors.push(`Batch operation error: ${error.message || 'Unknown error'}`);
-    // Still count successfully added items (they may have been created before the error)
-    stats.added = callListItemsToUpsert.length;
-  }
-
-  return {
-    message: `Import completed: ${stats.matched} matched, ${stats.created} created, ${stats.added} added, ${stats.duplicates} duplicates, ${stats.errors} errors`,
-    stats,
-    errors: errors.slice(0, 10),
-  };
 };

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { WorkspaceMember } from "@/types/members.types";
 import { formatMemberName, getRoleLabel, formatDate } from "@/lib/member-utils";
-import { MoreVertical, User, Mail, Calendar, Shield, Users, Send } from "lucide-react";
+import { MoreVertical, User, Mail, Calendar, Shield, Users, Send, UserX } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2 } from "lucide-react";
 
@@ -16,6 +16,7 @@ export interface MembersTableProps {
   onGrantAccess: (memberId: string) => void;
   onRemove: (memberId: string) => void;
   onReinvite?: (memberId: string) => void;
+  onDeleteAccount?: (memberId: string) => void;
   isLoading?: boolean;
   currentUserId?: string;
 }
@@ -26,6 +27,7 @@ export function MembersTable({
   onGrantAccess,
   onRemove,
   onReinvite,
+  onDeleteAccount,
   isLoading = false,
   currentUserId,
 }: MembersTableProps) {
@@ -120,7 +122,8 @@ export function MembersTable({
                   const groupAccess = member.groupAccess || [];
                   const visibleGroups = groupAccess.slice(0, 3);
                   const remainingGroups = groupAccess.length - 3;
-                  const canReinvite = !!onReinvite && !isCurrentUser && !member.setupCompleted;
+                  const canReinvite = !!onReinvite && !isCurrentUser;
+                  const canDeleteAccount = !!onDeleteAccount && !isCurrentUser;
 
                   return (
                     <tr
@@ -206,7 +209,7 @@ export function MembersTable({
                                   onSelect={() => onReinvite(member.id)}
                                 >
                                   <Send className="w-4 h-4 mr-2" />
-                                  Re-invite (reset password)
+                                  Reset Password
                                 </DropdownMenu.Item>
                               ) : null}
                               <DropdownMenu.Item
@@ -224,6 +227,15 @@ export function MembersTable({
                                 Grant Group Access
                               </DropdownMenu.Item>
                               <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                              {canDeleteAccount ? (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-red-700 hover:bg-red-50"
+                                  onSelect={() => onDeleteAccount(member.id)}
+                                >
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  Delete User Account
+                                </DropdownMenu.Item>
+                              ) : null}
                               <DropdownMenu.Item
                                 className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                                 onSelect={() => onRemove(member.id)}

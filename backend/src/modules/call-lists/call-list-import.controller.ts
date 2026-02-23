@@ -89,52 +89,34 @@ export const commitCallListImport = asyncHandler(async (req: AuthRequest, res: R
     throw new AppError(400, 'Import ID is required. Please re-upload the file.');
   }
 
-  // Get parsed data from database
-  const importRecord = await prisma.import.findFirst({
-    where: {
-      id: importId,
-      workspaceId: req.user!.workspaceId!,
-      status: 'PREVIEW',
-    },
-  });
-
-  if (!importRecord) {
-    throw new AppError(400, 'Import data not found. Please re-upload the file and complete the import quickly.');
-  }
-
-  // Check if expired (older than 60 minutes)
-  const createdAt = new Date(importRecord.createdAt);
-  if (Date.now() - createdAt.getTime() > IMPORT_TTL) {
-    // Clean up expired record
-    await prisma.import.delete({ where: { id: importId } });
-    throw new AppError(400, 'Import data expired. Please re-upload the file.');
-  }
-
-  const meta = importRecord.meta as any;
-  if (!meta || !meta.parsedData) {
-    throw new AppError(400, 'Import data corrupted. Please re-upload the file.');
-  }
-
-  const result = await callListImportService.commitCallListImport(
+  // Start the chunked import
+  await callListImportService.startCallListImportCommit(
     listId,
     req.user!.workspaceId!,
     req.user!.sub,
-    meta.parsedData,
+    importId,
     req.validatedData!
   );
 
-  // Update import record status
-  await prisma.import.update({
-    where: { id: importId },
-    data: {
-      status: 'COMPLETED',
-      successCount: result.stats.added,
-      duplicateCount: result.stats.duplicates,
-      errorCount: result.stats.errors,
-    },
-  });
+  // Process all chunks synchronously (legacy behaviour: returns only when fully done)
+  let status = 'IN_PROGRESS';
+  let lastResult: any = null;
+  let safety = 0;
+  while (status === 'IN_PROGRESS') {
+    safety++;
+    if (safety > 5000) throw new AppError(500, 'Import timed out during processing');
+    const chunk = await callListImportService.processCallListImportCommitChunk(
+      listId,
+      req.user!.workspaceId!,
+      req.user!.sub,
+      importId,
+      250
+    );
+    status = chunk.status;
+    if (chunk.result) lastResult = chunk.result;
+  }
 
-  res.json(result);
+  res.json(lastResult ?? { message: 'Import completed', stats: {}, errors: [] });
 });
 
 export const startCallListImportCommit = asyncHandler(async (req: AuthRequest, res: Response) => {

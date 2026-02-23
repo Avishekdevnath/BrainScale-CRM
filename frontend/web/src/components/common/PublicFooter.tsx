@@ -1,117 +1,130 @@
+import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Twitter, Github, Linkedin } from "lucide-react";
 
 export function PublicFooter() {
   return (
-    <footer className="w-full border-t border-[var(--groups1-border)] bg-[var(--groups1-surface)] backdrop-blur-md">
+    <footer className="w-full border-t border-[var(--groups1-border)] bg-[var(--groups1-surface)]">
       <div className="mx-auto max-w-7xl px-4 py-12">
-        <div className="grid grid-cols-1 gap-8 text-sm md:grid-cols-4">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded bg-[var(--groups1-primary)]" />
-              <span className="font-medium text-[var(--groups1-text)]">BrainScale CRM</span>
-            </div>
-            <p className="text-[var(--groups1-text-secondary)]">
-              A modern CRM for calls, follow-ups, and team workflows.
+        <div className="grid grid-cols-1 gap-10 text-sm md:grid-cols-4">
+          {/* Brand */}
+          <div className="space-y-4">
+            <Link href="/" className="flex items-center gap-2.5">
+              <Image
+                src="/assets/logo.png"
+                alt="BrainScale CRM"
+                width={28}
+                height={28}
+                className="h-7 w-7 object-contain"
+              />
+              <span className="font-semibold text-[var(--groups1-text)]">BrainScale CRM</span>
+            </Link>
+            <p className="leading-relaxed text-[var(--groups1-text-secondary)]">
+              A modern CRM built for outbound teams who need to move fast.
             </p>
-            <form className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <a
+                href="#"
+                aria-label="Twitter"
+                className="text-[var(--groups1-text-secondary)] transition hover:text-[var(--groups1-primary)]"
+              >
+                <Twitter className="h-4 w-4" />
+              </a>
+              <a
+                href="#"
+                aria-label="GitHub"
+                className="text-[var(--groups1-text-secondary)] transition hover:text-[var(--groups1-primary)]"
+              >
+                <Github className="h-4 w-4" />
+              </a>
+              <a
+                href="#"
+                aria-label="LinkedIn"
+                className="text-[var(--groups1-text-secondary)] transition hover:text-[var(--groups1-primary)]"
+              >
+                <Linkedin className="h-4 w-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* Product */}
+          <div>
+            <p className="mb-4 font-semibold text-[var(--groups1-text)]">Product</p>
+            <ul className="space-y-3 text-[var(--groups1-text-secondary)]">
+              {[
+                ["Overview", "/"],
+                ["Features", "/features"],
+                ["Pricing", "/pricing"],
+                ["Integrations", "/integrations"],
+              ].map(([label, href]) => (
+                <li key={label}>
+                  <Link href={href} className="transition hover:text-[var(--groups1-primary)]">
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Company */}
+          <div>
+            <p className="mb-4 font-semibold text-[var(--groups1-text)]">Company</p>
+            <ul className="space-y-3 text-[var(--groups1-text-secondary)]">
+              {[
+                ["About", "/about"],
+                ["Contact", "/contact"],
+                ["Privacy Policy", "/privacy"],
+                ["Terms of Service", "/terms"],
+              ].map(([label, href]) => (
+                <li key={label}>
+                  <Link href={href} className="transition hover:text-[var(--groups1-primary)]">
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Newsletter */}
+          <div className="space-y-3">
+            <p className="font-semibold text-[var(--groups1-text)]">Stay in the loop</p>
+            <p className="text-[var(--groups1-text-secondary)]">
+              Get product updates and tips in your inbox.
+            </p>
+            <form className="flex flex-col gap-2">
               <input
                 type="email"
-                placeholder="Email for updates"
+                placeholder="you@company.com"
                 aria-label="Email for updates"
-                className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                className="w-full rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-3 py-2 text-sm text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
               />
-              <Button size="sm" className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]">
+              <Button
+                size="sm"
+                className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+              >
                 Subscribe
               </Button>
             </form>
           </div>
-          <div>
-            <p className="font-medium text-[var(--groups1-text)]">Product</p>
-            <ul className="mt-3 space-y-2 text-[var(--groups1-text-secondary)]">
-              <li>
-                <a href="/" className="transition hover:text-[var(--groups1-primary)]">
-                  Overview
-                </a>
-              </li>
-              <li>
-                <a href="#features" className="transition hover:text-[var(--groups1-primary)]">
-                  Features
-                </a>
-              </li>
-              <li>
-                <a href="#pricing" className="transition hover:text-[var(--groups1-primary)]">
-                  Pricing
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <p className="font-medium text-[var(--groups1-text)]">Company</p>
-            <ul className="mt-3 space-y-2 text-[var(--groups1-text-secondary)]">
-              <li>
-                <a href="/about" className="transition hover:text-[var(--groups1-primary)]">
-                  About
-                </a>
-              </li>
-              <li>
-                <a href="/contact" className="transition hover:text-[var(--groups1-primary)]">
-                  Contact
-                </a>
-              </li>
-              <li>
-                <a href="/privacy" className="transition hover:text-[var(--groups1-primary)]">
-                  Privacy
-                </a>
-              </li>
-              <li>
-                <a href="/terms" className="transition hover:text-[var(--groups1-primary)]">
-                  Terms
-                </a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <p className="font-medium text-[var(--groups1-text)]">Follow</p>
-            <ul className="mt-3 space-y-2 text-[var(--groups1-text-secondary)]">
-              <li>
-                <a href="#" className="transition hover:text-[var(--groups1-primary)]">
-                  Twitter
-                </a>
-              </li>
-              <li>
-                <a href="#" className="transition hover:text-[var(--groups1-primary)]">
-                  GitHub
-                </a>
-              </li>
-              <li>
-                <a href="#" className="transition hover:text-[var(--groups1-primary)]">
-                  LinkedIn
-                </a>
-              </li>
-            </ul>
-          </div>
         </div>
-        <div className="mt-10 flex flex-col items-center justify-between gap-3 text-xs text-[var(--groups1-text-secondary)] sm:flex-row">
-          <p>
-            © {new Date().getFullYear()} BrainScale CRM. All rights reserved.
-          </p>
-          <div className="flex items-center gap-3">
-            <a href="/privacy" className="transition hover:text-[var(--groups1-primary)]">
+
+        {/* Bottom bar */}
+        <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-[var(--groups1-border)] pt-6 text-xs text-[var(--groups1-text-secondary)] sm:flex-row">
+          <p>© {new Date().getFullYear()} BrainScale CRM. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy" className="transition hover:text-[var(--groups1-primary)]">
               Privacy
-            </a>
-            <span>·</span>
-            <a href="/terms" className="transition hover:text-[var(--groups1-primary)]">
+            </Link>
+            <Link href="/terms" className="transition hover:text-[var(--groups1-primary)]">
               Terms
-            </a>
-            <span>·</span>
-            <a href="/contact" className="transition hover:text-[var(--groups1-primary)]">
+            </Link>
+            <Link href="/contact" className="transition hover:text-[var(--groups1-primary)]">
               Contact
-            </a>
+            </Link>
           </div>
         </div>
       </div>
     </footer>
   );
 }
-
-

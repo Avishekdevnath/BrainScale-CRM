@@ -342,6 +342,7 @@ export const inviteMember = async (
   let user = await prisma.user.findUnique({
     where: { email: data.email },
   });
+  const accountCreated = !user;
 
   // If user doesn't exist yet, create an account on first invite and email a temporary password.
   // This removes the need for the user to signup before being invited.
@@ -430,10 +431,15 @@ export const inviteMember = async (
     },
   });
 
-  // Backward compatible: return member as before, with optional extra fields for new-user invites.
-  return temporaryPassword
-    ? ({ ...member, temporaryPassword, message: 'Member invited and account created. Temporary password emailed.' } as any)
-    : member;
+  // Return a consistent response shape so frontend can reliably decide whether to show credentials.
+  return {
+    ...member,
+    temporaryPassword,
+    accountCreated,
+    message: accountCreated
+      ? 'Member invited and account created. Share the temporary password with the member.'
+      : 'Member invited successfully',
+  } as any;
 };
 
 export const getMembers = async (workspaceId: string) => {
@@ -750,6 +756,99 @@ export const removeMember = async (memberId: string) => {
   return { message: 'Member removed successfully' };
 };
 
+export const deleteMemberAccount = async (
+  workspaceId: string,
+  memberId: string,
+  requesterUserId: string
+) => {
+  // Ensure target member exists in this workspace
+  const targetMember = await prisma.workspaceMember.findFirst({
+    where: { id: memberId, workspaceId },
+    select: { id: true, userId: true, user: { select: { email: true } } },
+  });
+
+  if (!targetMember) {
+    throw new AppError(404, 'Member not found');
+  }
+
+  // Prevent deleting own account from this admin action
+  if (targetMember.userId === requesterUserId) {
+    throw new AppError(400, 'Use account settings to delete your own account');
+  }
+
+  const userId = targetMember.userId;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  // Find all memberships for global account deletion
+  const memberships = await prisma.workspaceMember.findMany({
+    where: { userId },
+    select: { id: true, workspaceId: true, role: true },
+  });
+
+  // Delete user-owned AI chats & messages first
+  await Promise.all([
+    prisma.chatMessage.deleteMany({ where: { userId } }),
+    prisma.chat.deleteMany({ where: { userId } }),
+  ]);
+
+  // Delete user-created records
+  await Promise.all([
+    prisma.call.deleteMany({ where: { createdBy: userId } }),
+    prisma.followup.deleteMany({ where: { createdBy: userId } }),
+    prisma.auditLog.deleteMany({ where: { userId } }),
+    prisma.emailVerification.deleteMany({ where: { userId } }),
+  ]);
+
+  // Remove each membership and clean references
+  for (const membership of memberships) {
+    await Promise.all([
+      prisma.callListItem.updateMany({
+        where: { workspaceId: membership.workspaceId, assignedTo: membership.id },
+        data: { assignedTo: null },
+      }),
+      prisma.followup.updateMany({
+        where: { workspaceId: membership.workspaceId, assignedTo: membership.id },
+        data: { assignedTo: null },
+      }),
+      prisma.callLog.deleteMany({
+        where: { workspaceId: membership.workspaceId, assignedTo: membership.id },
+      }),
+      prisma.groupAccess.deleteMany({ where: { memberId: membership.id } }),
+    ]);
+
+    await prisma.workspaceMember.delete({ where: { id: membership.id } });
+
+    const remaining = await prisma.workspaceMember.findMany({
+      where: { workspaceId: membership.workspaceId },
+      select: { id: true, role: true },
+    });
+
+    if (remaining.length === 0) {
+      await deleteWorkspace(membership.workspaceId);
+      continue;
+    }
+
+    if (remaining.length === 1 && remaining[0].role !== 'ADMIN') {
+      await prisma.workspaceMember.update({
+        where: { id: remaining[0].id },
+        data: { role: 'ADMIN' },
+      });
+    }
+  }
+
+  await prisma.user.delete({ where: { id: userId } });
+
+  return { message: `User account ${targetMember.user.email} deleted permanently` };
+};
+
 /**
  * Generate a secure random temporary password using cryptographically secure random bytes
  */
@@ -968,10 +1067,6 @@ export const reinviteMemberWithAccount = async (workspaceId: string, memberId: s
     throw new AppError(404, 'Member not found');
   }
 
-  if (member.setupCompleted) {
-    throw new AppError(400, 'This member has already completed setup');
-  }
-
   const temporaryPassword = generateTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
 
@@ -996,7 +1091,7 @@ export const reinviteMemberWithAccount = async (workspaceId: string, memberId: s
   }
 
   return {
-    message: 'Re-invitation sent. Temporary password reset and emailed to the member.',
+    message: 'Temporary password reset successfully.',
     temporaryPassword,
   };
 };

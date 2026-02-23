@@ -419,3 +419,59 @@ export const sendWeeklyDigest = async (workspaceId: string, userId?: string) => 
   return results;
 };
 
+/**
+ * Send a direct test email (admin utility)
+ */
+export const sendTestEmail = async (
+  to: string,
+  subject: string,
+  message: string
+) => {
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const safeSubject = subject.trim() || 'SMTP Test Email';
+  const safeMessage = message.trim() || 'This is a test email from BrainScale CRM.';
+  const escapedSubject = escapeHtml(safeSubject);
+  const escapedMessage = escapeHtml(safeMessage).replace(/\n/g, '<br />');
+  const sentAt = new Date().toISOString();
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${escapedSubject}</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827; margin: 0; padding: 24px;">
+        <h2 style="margin: 0 0 12px;">BrainScale CRM SMTP Test</h2>
+        <p style="margin: 0 0 16px;">${escapedMessage}</p>
+        <p style="margin: 0; font-size: 12px; color: #6b7280;">
+          Sent at: ${sentAt}
+        </p>
+      </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to,
+    subject: safeSubject,
+    html,
+    text: `${safeMessage}\n\nSent at: ${sentAt}`,
+  });
+
+  logger.info({ to, subject: safeSubject }, 'Test email sent');
+
+  return {
+    sent: true,
+    to,
+    subject: safeSubject,
+    sentAt,
+  };
+};

@@ -17,6 +17,14 @@ import { QuestionsBuilder } from "./QuestionsBuilder";
 import { extractQuestions } from "@/lib/call-list-utils";
 import type { CallList, CreateCallListPayload, UpdateCallListPayload, CallListSource, Question, StudentData } from "@/types/call-lists.types";
 
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const e = error as { message?: string; error?: { message?: string } };
+    return e.message || e.error?.message || "Failed to save call list";
+  }
+  return "Failed to save call list";
+}
+
 export interface CallListFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,6 +60,7 @@ export function CallListFormDialog({
     groupIds: [] as string[],
     messages: [] as string[],
     questions: [] as Question[],
+    includeCallerNotes: false,
     status: undefined as 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' | undefined,
   });
   const { data: groups, isLoading: groupsLoading } = useGroups();
@@ -74,6 +83,7 @@ export function CallListFormDialog({
           groupIds: [],
           messages: callList.messages || [],
           questions: questions,
+          includeCallerNotes: Boolean(callList.meta?.includeCallerNotes),
           status: callList.status || 'ACTIVE',
         });
         setShowStudentSelector(false);
@@ -90,6 +100,7 @@ export function CallListFormDialog({
           groupIds: [],
           messages: [],
           questions: [],
+          includeCallerNotes: false,
           status: undefined,
         });
         setShowStudentSelector(false);
@@ -311,6 +322,7 @@ export function CallListFormDialog({
           description: form.description.trim() || undefined,
           messages: form.messages.filter(msg => msg.trim()),
           questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
+          meta: { includeCallerNotes: form.includeCallerNotes },
           status: form.status || undefined,
         };
         await apiClient.updateCallList(callList.id, payload);
@@ -329,22 +341,23 @@ export function CallListFormDialog({
           questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
           matchBy: form.studentsData.length > 0 ? 'email_or_phone' : undefined,
           skipDuplicates: form.studentsData.length > 0 ? true : undefined,
+          meta: { includeCallerNotes: form.includeCallerNotes },
         };
         await apiClient.createCallList(payload);
         toast.success("Call list created successfully");
       }
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Call list save error:", error);
-      const errorMessage =
-        error?.message || error?.error?.message || "Failed to save call list";
+      const errorMessage = getErrorMessage(error);
+      const status = (error as { status?: number } | null)?.status;
       
-      if (error?.status === 403) {
+      if (status === 403) {
         toast.error("Access denied");
-      } else if (error?.status === 404) {
+      } else if (status === 404) {
         toast.error("Group not found");
-      } else if (error?.status === 400) {
+      } else if (status === 400) {
         toast.error(errorMessage);
       } else {
         toast.error(errorMessage);
@@ -395,6 +408,21 @@ export function CallListFormDialog({
               className="w-full min-h-[100px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] resize-y"
               disabled={saving}
             />
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.includeCallerNotes}
+                onChange={(e) => setForm({ ...form, includeCallerNotes: e.target.checked })}
+                disabled={saving}
+                className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <span className="text-sm text-[var(--groups1-text)]">
+                Include caller notes for calls in this list
+              </span>
+            </label>
           </div>
 
           <MessagesBuilder

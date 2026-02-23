@@ -71,6 +71,7 @@ import type {
   Invitation,
   GetMembersResponse,
   InviteMemberPayload,
+  InviteMemberResponse,
   UpdateMemberPayload,
   GrantGroupAccessPayload,
   CreateMemberWithAccountPayload,
@@ -139,16 +140,10 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 
 export class ApiClient {
   private get accessToken(): string | null {
+    // Read from Zustand store (in-memory only, not localStorage)
     try {
-      return typeof window !== "undefined" ? localStorage.getItem("accessToken") : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private get refreshToken(): string | null {
-    try {
-      return typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+      const { useAuthStore } = require("@/store/auth");
+      return useAuthStore.getState().accessToken;
     } catch {
       return null;
     }
@@ -173,8 +168,8 @@ export class ApiClient {
       (headers as Record<string, string>)["X-Workspace-Id"] = workspaceId;
     }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers });
-    if (res.status === 401 && this.refreshToken) {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
+    if (res.status === 401) {
       // Try refresh once
       await this.refreshAccessToken();
       const retryHeaders: HeadersInit = {
@@ -227,8 +222,8 @@ export class ApiClient {
       (headers as Record<string, string>)["X-Workspace-Id"] = workspaceId;
     }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers });
-    if (res.status === 401 && this.refreshToken) {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
+    if (res.status === 401) {
       // Try refresh once
       await this.refreshAccessToken();
       const retryHeaders: HeadersInit = {
@@ -280,22 +275,23 @@ export class ApiClient {
   }
 
   async refreshAccessToken(): Promise<void> {
-    if (!this.refreshToken) throw new Error("No refresh token");
     const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST" satisfies HttpMethod,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: this.refreshToken }),
+      credentials: 'include', // Send httpOnly refresh token cookie
+      // Don't send refreshToken in body - it's in the httpOnly cookie
     });
     if (!res.ok) throw await this.parseError(res);
     const data = (await res.json()) as { accessToken: string };
-    try {
-      localStorage.setItem("accessToken", data.accessToken);
-    } catch {}
+    // Store new accessToken in Zustand memory (not localStorage)
+    const { useAuthStore } = require("@/store/auth");
+    useAuthStore.getState().setTokens({ accessToken: data.accessToken });
   }
 
   // Auth
   login(body: { email: string; password: string }) {
-    return this.request<{ accessToken: string; refreshToken: string; user: any; workspace: any }>(
+    // Backend now returns only accessToken in body (refreshToken is set as httpOnly cookie)
+    return this.request<{ accessToken: string; user: any; workspace: any }>(
       "/auth/login",
       { method: "POST", body: JSON.stringify(body) }
     );
@@ -330,6 +326,11 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(body),
     });
+  }
+
+  logout() {
+    // Call backend logout endpoint to clear httpOnly refresh token cookie
+    return this.request<{ message: string }>("/auth/logout", { method: "POST" });
   }
 
   getMe() {
@@ -371,6 +372,19 @@ export class ApiClient {
     return this.request<{ message: string; canRetryAfter?: number }>("/auth/resend-signup-verification", {
       method: "POST",
       body: JSON.stringify({ email }),
+    });
+  }
+
+  sendTestEmail(body: { to: string; subject?: string; message?: string }) {
+    return this.request<{
+      message: string;
+      sent: boolean;
+      to: string;
+      subject: string;
+      sentAt: string;
+    }>("/emails/test", {
+      method: "POST",
+      body: JSON.stringify(body),
     });
   }
 
@@ -611,7 +625,7 @@ export class ApiClient {
   }
 
   inviteMember(workspaceId: string, data: InviteMemberPayload) {
-    return this.request<WorkspaceMember>(`/workspaces/${workspaceId}/members/invite`, {
+    return this.request<InviteMemberResponse>(`/workspaces/${workspaceId}/members/invite`, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -660,6 +674,15 @@ export class ApiClient {
     });
   }
 
+  deleteMemberAccount(workspaceId: string, memberId: string) {
+    return this.request<{ message: string }>(
+      `/workspaces/${workspaceId}/members/${memberId}/account`,
+      {
+        method: "DELETE",
+      }
+    );
+  }
+
   // Invitation methods
   sendInvitation(workspaceId: string, data: SendInvitationPayload) {
     return this.request<{
@@ -669,6 +692,8 @@ export class ApiClient {
       customRole: { id: string; name: string; description: string | null } | null;
       expiresAt: string;
       status: string;
+      temporaryPassword: string | null;
+      emailSent: boolean;
       message: string;
     }>(`/workspaces/${workspaceId}/invitations`, {
       method: "POST",
@@ -1684,6 +1709,7 @@ export class ApiClient {
       groupId: params?.groupId,
       callListId: params?.callListId,
       state: params?.state,
+      states: params?.states,
       followUpRequired: params?.followUpRequired,
     });
     return this.request<MyCallsResponse>(`/my-calls${queryString}`, {
@@ -1700,6 +1726,7 @@ export class ApiClient {
       groupId: params?.groupId,
       callListId: params?.callListId,
       state: params?.state,
+      states: params?.states,
       followUpRequired: params?.followUpRequired,
     });
     return this.request<MyCallsResponse>(`/my-calls/all${queryString}`, {

@@ -71,6 +71,15 @@ export const removeMember = asyncHandler(async (req: AuthRequest, res: Response)
   res.json(result);
 });
 
+export const deleteMemberAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await workspaceService.deleteMemberAccount(
+    req.params.workspaceId,
+    req.params.memberId,
+    req.user!.sub
+  );
+  res.json(result);
+});
+
 export const createMemberWithAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await workspaceService.createMemberWithAccount(
     req.params.workspaceId,

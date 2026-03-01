@@ -54,6 +54,8 @@ export interface GroupFollowup {
   notes: string | null;
   studentId: string;
   groupId: string;
+  callListId: string | null;
+  previousCallLogId: string | null;
   assignedTo: string | null;
   createdAt: string;
   updatedAt: string;

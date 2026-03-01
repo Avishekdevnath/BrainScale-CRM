@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Trash2, Edit2, Check, X, MessageSquare, Menu, LogOut, Plus } from "lucide-react";
@@ -14,14 +13,24 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspaceStore } from "@/store/workspace";
+import { isToday, isYesterday, isThisWeek, formatDistanceToNow } from "date-fns";
 
 export interface ChatSidebarProps {
   mode?: "desktop" | "mobile";
   onNavigate?: () => void;
 }
 
+function relativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
 export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) {
-  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -30,15 +39,12 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
   const workspaceName = useWorkspaceStore((state) => state.getCurrentName());
   const logout = useLogout();
 
-  // Load chats on mount (only once)
   useEffect(() => {
     const loadChats = async () => {
       try {
         setIsLoading(true);
         const chatsList = await apiClient.getChats();
         setChats(chatsList);
-        
-        // Select first chat if none selected and chats exist
         if (!selectedChatId && chatsList.length > 0) {
           setSelectedChatId(chatsList[0].id);
         }
@@ -49,10 +55,26 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
         setIsLoading(false);
       }
     };
-
     void loadChats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
+  }, []);
+
+  const groupedChats = useMemo(() => {
+    const today: Chat[] = [], yesterday: Chat[] = [], thisWeek: Chat[] = [], older: Chat[] = [];
+    for (const chat of chats) {
+      const d = new Date(chat.updatedAt);
+      if (isToday(d)) today.push(chat);
+      else if (isYesterday(d)) yesterday.push(chat);
+      else if (isThisWeek(d)) thisWeek.push(chat);
+      else older.push(chat);
+    }
+    return [
+      { label: "Today", chats: today },
+      { label: "Yesterday", chats: yesterday },
+      { label: "This Week", chats: thisWeek },
+      { label: "Older", chats: older },
+    ].filter((g) => g.chats.length > 0);
+  }, [chats]);
 
   const handleStartEdit = (chat: Chat) => {
     setEditingChatId(chat.id);
@@ -107,6 +129,107 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
       const message = err instanceof Error ? err.message : "Failed to create chat";
       toast.error(message);
     }
+  };
+
+  const renderChatItem = (chat: Chat) => {
+    const isSelected = chat.id === selectedChatId;
+    const isEditing = editingChatId === chat.id;
+    const displayTitle = chat.title || "New Chat";
+
+    return (
+      <div
+        key={chat.id}
+        className={cn(
+          "group relative mb-1 rounded-lg p-2 cursor-pointer transition-colors",
+          isSelected
+            ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+            : "hover:bg-[var(--groups1-secondary)] text-[var(--groups1-text)]"
+        )}
+        onClick={() => !isEditing && handleChatSelect(chat.id)}
+        title={collapsed ? displayTitle : undefined}
+      >
+        {isEditing ? (
+          <div className="flex items-center gap-1">
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveEdit(chat.id);
+                else if (e.key === "Escape") handleCancelEdit();
+              }}
+              className="h-7 text-sm bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); handleSaveEdit(chat.id); }}
+              className="h-7 w-7"
+            >
+              <Check className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }}
+              className="h-7 w-7"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <MessageSquare className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{displayTitle}</div>
+                  <div
+                    className={cn(
+                      "text-xs mt-0.5",
+                      isSelected
+                        ? "text-[var(--groups1-btn-primary-text)] opacity-70"
+                        : "text-[var(--groups1-text-secondary)]"
+                    )}
+                  >
+                    {relativeTime(chat.updatedAt)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); handleStartEdit(chat); }}
+                    className={cn(
+                      "h-6 w-6",
+                      isSelected
+                        ? "text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-btn-primary-text)] hover:bg-opacity-20"
+                        : ""
+                    )}
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={(e) => handleDelete(chat.id, e)}
+                    className={cn(
+                      "h-6 w-6",
+                      isSelected
+                        ? "text-[var(--groups1-btn-primary-text)] hover:bg-red-500 hover:bg-opacity-20"
+                        : "text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/20"
+                    )}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -172,123 +295,17 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
           <div className="p-4 text-center text-sm text-[var(--groups1-text-secondary)]">
             {!collapsed && "No chats yet. Create a new chat to get started."}
           </div>
+        ) : collapsed ? (
+          chats.map(renderChatItem)
         ) : (
-          <>
-            {chats.map((chat) => {
-              const isSelected = chat.id === selectedChatId;
-              const isEditing = editingChatId === chat.id;
-              const displayTitle = chat.title || "New Chat";
-
-              return (
-                <div
-                  key={chat.id}
-                  className={cn(
-                    "group relative mb-1 rounded-lg p-2 cursor-pointer transition-colors",
-                    isSelected
-                      ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                      : "hover:bg-[var(--groups1-secondary)] text-[var(--groups1-text)]"
-                  )}
-                  onClick={() => !isEditing && handleChatSelect(chat.id)}
-                  title={collapsed ? displayTitle : undefined}
-                >
-                  {isEditing ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={editTitle}
-                        onChange={(e) => setEditTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleSaveEdit(chat.id);
-                          } else if (e.key === "Escape") {
-                            handleCancelEdit();
-                          }
-                        }}
-                        className="h-7 text-sm bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                      />
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveEdit(chat.id);
-                        }}
-                        className="h-7 w-7"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCancelEdit();
-                        }}
-                        className="h-7 w-7"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="w-5 h-5 flex-shrink-0" />
-                      {!collapsed && (
-                        <>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">{displayTitle}</div>
-                            {chat._count?.messages !== undefined && (
-                              <div
-                                className={cn(
-                                  "text-xs mt-0.5",
-                                  isSelected
-                                    ? "text-[var(--groups1-btn-primary-text)] opacity-70"
-                                    : "text-[var(--groups1-text-secondary)]"
-                                )}
-                              >
-                                {chat._count.messages} messages
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEdit(chat);
-                              }}
-                              className={cn(
-                                "h-6 w-6",
-                                isSelected
-                                  ? "text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-btn-primary-text)] hover:bg-opacity-20"
-                                  : ""
-                              )}
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              onClick={(e) => handleDelete(chat.id, e)}
-                              className={cn(
-                                "h-6 w-6",
-                                isSelected
-                                  ? "text-[var(--groups1-btn-primary-text)] hover:bg-red-500 hover:bg-opacity-20"
-                                  : "text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/20"
-                              )}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
+          groupedChats.map((group) => (
+            <div key={group.label} className="mb-3">
+              <div className="px-2 py-1 text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                {group.label}
+              </div>
+              {group.chats.map(renderChatItem)}
+            </div>
+          ))
         )}
       </nav>
 
@@ -323,4 +340,3 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
     </aside>
   );
 }
-

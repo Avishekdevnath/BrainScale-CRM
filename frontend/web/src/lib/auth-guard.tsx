@@ -22,8 +22,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         await apiClient.refreshAccessToken();
         setReady(true);
-      } catch (err) {
+      } catch (err: unknown) {
         // Silent refresh failed - redirect to login
+        console.error("[AuthGuard] Silent refresh failed:", err);
         router.replace("/login");
       }
     };

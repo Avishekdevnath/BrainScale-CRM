@@ -610,6 +610,24 @@ export const updateFollowup = async (
     },
   });
 
+  // Fire in-app notification if assignee changed
+  if (data.assignedTo && data.assignedTo !== followup.assignedTo && updatedFollowup.assignee) {
+    await createNotification({
+      workspaceId,
+      userId: updatedFollowup.assignee.userId,
+      type: 'FOLLOWUP_ASSIGNED',
+      title: 'Follow-up Assigned',
+      body: `You have a new follow-up for ${updatedFollowup.student.name} in ${updatedFollowup.group.name}`,
+      meta: {
+        entityId: updatedFollowup.id,
+        entityType: 'followup',
+        studentName: updatedFollowup.student.name,
+        groupName: updatedFollowup.group.name,
+        dueAt: updatedFollowup.dueAt.toISOString(),
+      },
+    });
+  }
+
   const now = new Date();
   return {
     ...updatedFollowup,

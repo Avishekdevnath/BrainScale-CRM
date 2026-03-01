@@ -104,6 +104,12 @@ import type {
   CreateFollowupCallLogRequest,
 } from "@/types/followups.types";
 import type {
+  Notification,
+  NotificationPreference,
+  NotificationsListResponse,
+  NotificationCountResponse,
+} from "@/types/notifications.types";
+import type {
   CustomRole,
   CustomRolesResponse,
   CreateRolePayload,
@@ -2124,6 +2130,40 @@ export class ApiClient {
       : `ai-data.${options?.format ?? 'csv'}`;
 
     triggerBlobDownload(blob, filename);
+  }
+
+  // ─── Notifications ────────────────────────────────────────────────────────
+
+  getNotifications(params?: { page?: number; size?: number; unreadOnly?: boolean }) {
+    const qs = params ? buildQueryString(params as Record<string, string | number | boolean | undefined>) : "";
+    return this.request<NotificationsListResponse>(`/notifications${qs}`);
+  }
+
+  getNotificationCount() {
+    return this.request<NotificationCountResponse>("/notifications/count");
+  }
+
+  markNotificationRead(id: string) {
+    return this.request<{ success: boolean }>(`/notifications/${id}/read`, { method: "PATCH" });
+  }
+
+  markAllNotificationsRead() {
+    return this.request<{ success: boolean }>("/notifications/read-all", { method: "PATCH" });
+  }
+
+  deleteNotification(id: string) {
+    return this.request<{ success: boolean }>(`/notifications/${id}`, { method: "DELETE" });
+  }
+
+  getNotificationPreferences() {
+    return this.request<NotificationPreference>("/notifications/preferences");
+  }
+
+  updateNotificationPreferences(data: Partial<Pick<NotificationPreference, "followupAssigned" | "followupDueSoon" | "followupOverdue" | "callLogCompleted">>) {
+    return this.request<NotificationPreference>("/notifications/preferences", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   }
 }
 

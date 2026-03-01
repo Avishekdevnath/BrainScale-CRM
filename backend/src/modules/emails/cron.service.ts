@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { logger } from '../../config/logger';
 import { sendDailyDigest, sendWeeklyDigest, sendFollowupReminders } from './email.service';
+import { createNotification } from '../notifications/notification.service';
 
 /**
  * Process all workspaces and send digests based on their preferences
@@ -96,6 +97,82 @@ export const processScheduledDigests = async () => {
         } catch (error) {
           results.followupReminders.failed++;
           logger.error({ error, workspaceId: workspace.id }, 'Failed to send followup reminders');
+        }
+
+        // Fire in-app notifications for due-soon and overdue follow-ups
+        try {
+          const nowTime = new Date();
+          const in24h = new Date(nowTime.getTime() + 24 * 60 * 60 * 1000);
+
+          // Due soon: dueAt between now and +24h
+          const dueSoonFollowups = await prisma.followup.findMany({
+            where: {
+              workspaceId: workspace.id,
+              status: 'PENDING',
+              dueAt: { gte: nowTime, lte: in24h },
+              assignedTo: { not: null },
+            },
+            include: {
+              student: { select: { name: true } },
+              group: { select: { name: true } },
+              assignee: { select: { userId: true } },
+            },
+          });
+
+          for (const f of dueSoonFollowups) {
+            if (f.assignee) {
+              await createNotification({
+                workspaceId: workspace.id,
+                userId: f.assignee.userId,
+                type: 'FOLLOWUP_DUE_SOON',
+                title: 'Follow-up Due Soon',
+                body: `Follow-up for ${f.student.name} in ${f.group.name} is due within 24 hours`,
+                meta: {
+                  entityId: f.id,
+                  entityType: 'followup',
+                  studentName: f.student.name,
+                  groupName: f.group.name,
+                  dueAt: f.dueAt.toISOString(),
+                },
+              });
+            }
+          }
+
+          // Overdue: dueAt < now
+          const overdueFollowups = await prisma.followup.findMany({
+            where: {
+              workspaceId: workspace.id,
+              status: 'PENDING',
+              dueAt: { lt: nowTime },
+              assignedTo: { not: null },
+            },
+            include: {
+              student: { select: { name: true } },
+              group: { select: { name: true } },
+              assignee: { select: { userId: true } },
+            },
+          });
+
+          for (const f of overdueFollowups) {
+            if (f.assignee) {
+              await createNotification({
+                workspaceId: workspace.id,
+                userId: f.assignee.userId,
+                type: 'FOLLOWUP_OVERDUE',
+                title: 'Follow-up Overdue',
+                body: `Follow-up for ${f.student.name} in ${f.group.name} is overdue`,
+                meta: {
+                  entityId: f.id,
+                  entityType: 'followup',
+                  studentName: f.student.name,
+                  groupName: f.group.name,
+                  dueAt: f.dueAt.toISOString(),
+                },
+              });
+            }
+          }
+        } catch (error) {
+          logger.error({ error, workspaceId: workspace.id }, 'Failed to create in-app followup notifications');
         }
       } else {
         results.followupReminders.skipped++;

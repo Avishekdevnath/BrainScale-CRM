@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { useGroupInitializer } from "@/hooks/useGroupInitializer";
 import { useWorkspaceInitializer } from "@/hooks/useWorkspaceInitializer";
 import { useChatInitializer } from "@/hooks/useChatInitializer";
+import { useNotificationCount } from "@/hooks/useNotifications";
 import { LayoutContent } from "./LayoutContent";
 import { AuthGuard } from "@/lib/auth-guard";
 
@@ -12,6 +13,7 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
   useWorkspaceInitializer();
   useGroupInitializer();
   useChatInitializer();
+  useNotificationCount(); // Starts 30s polling for unread badge
 
   return (
     <Suspense fallback={

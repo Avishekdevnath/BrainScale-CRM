@@ -28,7 +28,9 @@ import {
   ChevronRight,
   Database,
   Shield,
+  Bell,
 } from "lucide-react";
+import { useNotificationStore } from "@/store/notifications";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useMyCallsStats } from "@/hooks/useMyCalls";
@@ -60,6 +62,7 @@ const navSections: NavSection[] = [
     label: "",
     items: [
       { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/app/notifications", label: "Notifications", icon: Bell },
     ],
   },
   
@@ -137,6 +140,7 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   const currentWorkspace = useWorkspaceStore((state) => state.current);
   const { data: myCallsStats } = useMyCallsStats();
   const isAdmin = useIsAdmin();
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
 
   // Handle workspace name client-side only to avoid hydration mismatch
   useEffect(() => {
@@ -263,8 +267,10 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
                     const Icon = item.icon;
                     const active = isActive(item.href);
                     const showBadge =
-                      item.href === "/app/calls-manager" &&
-                      pendingCallsCount > 0;
+                      (item.href === "/app/calls-manager" && pendingCallsCount > 0) ||
+                      (item.href === "/app/notifications" && unreadCount > 0);
+                    const badgeCount =
+                      item.href === "/app/notifications" ? unreadCount : pendingCallsCount;
                     return (
                       <Link
                         key={item.href}
@@ -288,7 +294,7 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
                               ? "bg-[var(--groups1-btn-primary-text)] text-[var(--groups1-primary)]"
                               : "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                           )}>
-                            {pendingCallsCount > 99 ? "99+" : pendingCallsCount}
+                            {badgeCount > 99 ? "99+" : badgeCount}
                           </span>
                         )}
                       </Link>

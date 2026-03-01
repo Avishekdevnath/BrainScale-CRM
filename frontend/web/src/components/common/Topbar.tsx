@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, Bell, Building2, Users, Brain, Menu, Check, ChevronDown, Plus, X } from "lucide-react";
+import { Search, Building2, Users, Brain, Menu, Check, ChevronDown, Plus, X } from "lucide-react";
+import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
 import { cn } from "@/lib/utils";
@@ -453,14 +454,9 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
         >
           <Search className="w-5 h-5" />
         </button>
-        <button
-          type="button"
-          className="hidden md:relative w-10 h-10 md:flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
-          aria-label="Notifications"
-        >
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-[var(--groups1-error)] rounded-full" />
-        </button>
+        <div className="hidden md:flex">
+          <NotificationDropdown />
+        </div>
         <UserMenu />
       </div>
 

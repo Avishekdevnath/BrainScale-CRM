@@ -548,7 +548,6 @@ export class ApiClient {
       createdAt: string;
       updatedAt: string;
       accessToken?: string;
-      refreshToken?: string;
     }>("/workspaces", {
       method: "POST",
       body: JSON.stringify(data),
@@ -987,15 +986,10 @@ export class ApiClient {
 
   getGroupFollowups(
     groupId: string,
-    params?: {
-      page?: number;
-      size?: number;
-      status?: string;
-      assignedTo?: string;
-      startDate?: string;
-      endDate?: string;
-      callListId?: string;
-    }
+    params?: Pick<
+      ListFollowupsParams,
+      "page" | "size" | "status" | "assignedTo" | "startDate" | "endDate" | "callListId"
+    >
   ) {
     const queryString = buildQueryString({
       page: params?.page,
@@ -1006,44 +1000,7 @@ export class ApiClient {
       endDate: params?.endDate,
       callListId: params?.callListId,
     });
-    return this.request<{
-      followups: Array<{
-        id: string;
-        status: string;
-        dueAt: string;
-        notes: string | null;
-        studentId: string;
-        groupId: string;
-        assignedTo: string | null;
-        createdAt: string;
-        updatedAt: string;
-        isOverdue: boolean;
-        student: {
-          id: string;
-          name: string;
-          email: string;
-        };
-        creator: {
-          id: string;
-          name: string;
-          email: string;
-        };
-        assignee: {
-          id: string;
-          user: {
-            id: string;
-            name: string;
-            email: string;
-          };
-        } | null;
-      }>;
-      pagination: {
-        page: number;
-        size: number;
-        total: number;
-        totalPages: number;
-      };
-    }>(`/groups/${groupId}/followups${queryString}`, {
+    return this.request<FollowupsListResponse>(`/groups/${groupId}/followups${queryString}`, {
       method: "GET",
     });
   }

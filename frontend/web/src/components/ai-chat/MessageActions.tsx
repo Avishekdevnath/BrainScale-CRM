@@ -7,21 +7,17 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface MessageActionsProps {
-  messageId: string;
   content: string;
   role: "user" | "assistant";
-  onCopy?: () => void;
-  onFeedback?: (messageId: string, feedback: "positive" | "negative") => void;
 }
 
-export function MessageActions({ messageId, content, role, onCopy, onFeedback }: MessageActionsProps) {
+export function MessageActions({ content, role }: MessageActionsProps) {
   const [feedback, setFeedback] = useState<"positive" | "negative" | null>(null);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(content);
       toast.success("Copied to clipboard");
-      onCopy?.();
     } catch {
       toast.error("Failed to copy message");
     }
@@ -29,7 +25,6 @@ export function MessageActions({ messageId, content, role, onCopy, onFeedback }:
 
   const handleFeedback = (type: "positive" | "negative") => {
     setFeedback(type);
-    onFeedback?.(messageId, type);
     toast.success(type === "positive" ? "Marked as helpful" : "Feedback recorded");
   };
 

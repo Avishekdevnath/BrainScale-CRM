@@ -121,6 +121,12 @@ const withBrand = (subject: string) => `${BRAND_NAME} – ${subject}`;
  * Send email with retry logic for connection timeouts
  */
 export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<void> => {
+  // Email sending is disabled — skip silently
+  if (process.env.EMAIL_DISABLED === 'true') {
+    logger.info({ to: options.to, subject: options.subject }, 'Email sending disabled, skipping');
+    return;
+  }
+
   const MAX_RETRIES = 2;
   const RETRY_DELAY = 2000; // 2 seconds between retries
 

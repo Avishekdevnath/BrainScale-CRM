@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
-import { Loader2, Send, Trash2, Bot, User, Search, Download, ChevronDown, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2, Sparkles, Trash2, Bot, User, Search, Download, ChevronDown, X, AlertTriangle } from "lucide-react";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import { TypingIndicator } from "@/components/ai-chat/TypingIndicator";
 import { MessageActions } from "@/components/ai-chat/MessageActions";
@@ -27,6 +27,8 @@ const STARTER_QUESTIONS = [
   "Are there any overdue follow-ups?",
   "Show call trends for this month",
 ];
+
+const MAX_MESSAGE_LENGTH = 5000;
 
 interface GroupedMessages {
   date: string;
@@ -46,42 +48,68 @@ export default function AIChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Compute selected chat info
+  const selectedChat = selectedChatId ? chats.find((c) => c.id === selectedChatId) ?? null : null;
+  const chatName = selectedChat?.title
+    ? selectedChat.title
+    : selectedChat?.summary
+    ? selectedChat.summary.length > 50
+      ? selectedChat.summary.substring(0, 47) + "..."
+      : selectedChat.summary
+    : selectedChatId
+    ? "New Chat"
+    : null;
+  const chatSummary =
+    selectedChat?.title && selectedChat?.summary
+      ? selectedChat.summary.length > 60
+        ? selectedChat.summary.substring(0, 57) + "..."
+        : selectedChat.summary
+      : null;
 
   // Suggested follow-up questions based on last assistant message
   const suggestedQuestions = useMemo(() => {
-    const assistantMsgs = messages.filter(m => m.role === 'assistant');
+    const assistantMsgs = messages.filter((m) => m.role === "assistant");
     const last = assistantMsgs[assistantMsgs.length - 1];
     if (!last) return [];
     const c = last.content.toLowerCase();
     const pool: string[] = [];
-    if (c.includes('student') || c.includes('enroll')) {
-      pool.push('Which group has the most students?', 'Show me top student tags');
+    if (c.includes("student") || c.includes("enroll")) {
+      pool.push("Which group has the most students?", "Show me top student tags");
     }
-    if (c.includes('call') || c.includes('trend')) {
-      pool.push('Show call trends for this week', 'Who made the most calls today?');
+    if (c.includes("call") || c.includes("trend")) {
+      pool.push("Show call trends for this week", "Who made the most calls today?");
     }
-    if (c.includes('follow') || c.includes('overdue')) {
-      pool.push('How many follow-ups are overdue?', 'Show all pending follow-ups');
+    if (c.includes("follow") || c.includes("overdue")) {
+      pool.push("How many follow-ups are overdue?", "Show all pending follow-ups");
     }
-    if (c.includes('group') || c.includes('batch')) {
-      pool.push('List all groups', 'Which group has the most calls?');
+    if (c.includes("group") || c.includes("batch")) {
+      pool.push("List all groups", "Which group has the most calls?");
     }
-    if (c.includes('caller') || c.includes('counselor') || c.includes('performance')) {
-      pool.push('Show counselor performance this month', 'Who has the best completion rate?');
+    if (c.includes("caller") || c.includes("counselor") || c.includes("performance")) {
+      pool.push("Show counselor performance this month", "Who has the best completion rate?");
     }
-    return (pool.length > 0 ? pool : [
-      'How many calls were made today?',
-      'Show pending follow-ups',
-      'Who are the top callers this week?',
-    ]).slice(0, 3);
+    return (
+      pool.length > 0
+        ? pool
+        : ["How many calls were made today?", "Show pending follow-ups", "Who are the top callers this week?"]
+    ).slice(0, 3);
   }, [messages]);
 
   const handleSuggestionClick = (text: string) => {
     setInputMessage(text);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
+    // Resize textarea to fit new text
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = textareaRef.current.scrollHeight + "px";
+      }
+    }, 0);
   };
 
   // Load messages when selectedChatId changes
@@ -113,7 +141,6 @@ export default function AIChatPage() {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (messages.length > 0) {
-      // Use setTimeout to ensure DOM is updated
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
@@ -139,9 +166,7 @@ export default function AIChatPage() {
   const filteredMessages = useMemo(() => {
     if (!searchQuery.trim()) return messages;
     const query = searchQuery.toLowerCase();
-    return messages.filter(
-      (msg) => msg.content.toLowerCase().includes(query)
-    );
+    return messages.filter((msg) => msg.content.toLowerCase().includes(query));
   }, [messages, searchQuery]);
 
   // Group messages by date
@@ -158,19 +183,15 @@ export default function AIChatPage() {
       } else if (isYesterday(date)) {
         label = "Yesterday";
       } else if (isThisWeek(date)) {
-        label = format(date, "EEEE"); // Day name
+        label = format(date, "EEEE");
       } else if (differenceInDays(new Date(), date) < 7) {
-        label = format(date, "EEEE"); // Day name
+        label = format(date, "EEEE");
       } else {
         label = format(date, "MMMM d, yyyy");
       }
 
       if (!currentGroup || currentGroup.label !== label) {
-        currentGroup = {
-          date: format(date, "yyyy-MM-dd"),
-          label,
-          messages: [],
-        };
+        currentGroup = { date: format(date, "yyyy-MM-dd"), label, messages: [] };
         groups.push(currentGroup);
       }
       currentGroup.messages.push(message);
@@ -179,16 +200,19 @@ export default function AIChatPage() {
     return groups;
   }, [filteredMessages]);
 
-
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
     const userMessageText = inputMessage.trim();
     setInputMessage("");
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
     setIsLoading(true);
     setError(null);
+    setShowClearConfirm(false);
 
-    // If no chat selected, create one first
     let currentChatId = selectedChatId;
     if (!currentChatId) {
       try {
@@ -205,7 +229,6 @@ export default function AIChatPage() {
       }
     }
 
-    // Optimistically add user message
     const tempUserMessage: ChatMessage = {
       id: `temp-${Date.now()}`,
       chatId: currentChatId,
@@ -216,44 +239,33 @@ export default function AIChatPage() {
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, tempUserMessage]);
-    
-    // Scroll to bottom immediately after adding user message
+
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 50);
 
     try {
       const response = await apiClient.sendChatMessage(userMessageText, currentChatId);
-      
-      // Update selectedChatId if a new chat was created
+
       if (response.chatId !== currentChatId) {
         setSelectedChatId(response.chatId);
-        // Reload chats to get the new one
-        const chatsList = await apiClient.getChats();
-        setChats(chatsList);
       }
-      
-      // Replace temp message with real user message and add assistant message
+
       setMessages((prev) => {
         const filtered = prev.filter((msg) => msg.id !== tempUserMessage.id);
         return [...filtered, response.userMessage, response.assistantMessage];
       });
 
-      // Update chats list to reflect updated chat
       const chatsList = await apiClient.getChats();
       setChats(chatsList);
 
-      // Scroll to bottom after assistant message is added
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
 
-      // Focus input after sending
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     } catch (err) {
-      // Remove temp message on error
       setMessages((prev) => prev.filter((msg) => msg.id !== tempUserMessage.id));
-      
       const message = err instanceof Error ? err.message : "Failed to send message";
       setError(message);
       toast.error(message);
@@ -267,15 +279,11 @@ export default function AIChatPage() {
       toast.error("No chat selected");
       return;
     }
-
-    if (!confirm("Are you sure you want to clear all messages in this chat? This cannot be undone.")) {
-      return;
-    }
-
     try {
       await apiClient.clearChatHistory(selectedChatId);
       setMessages([]);
       setSearchQuery("");
+      setShowClearConfirm(false);
       toast.success("Chat history cleared");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to clear chat history";
@@ -283,23 +291,17 @@ export default function AIChatPage() {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSendMessage();
     }
   };
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return format(date, "MMM d, h:mm a");
+  const handleTextareaInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 128) + "px";
   };
 
   const formatAbsoluteTime = (dateString: string) => {
@@ -310,25 +312,20 @@ export default function AIChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-
   if (isLoadingHistory) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex-shrink-0 pb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">AI Chat</h1>
-            <p className="text-sm text-[var(--groups1-text-secondary)]">
-              Ask questions about your workspace data and get AI-powered insights
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">AI Chat</h1>
+          <p className="text-sm text-[var(--groups1-text-secondary)]">
+            Ask questions about your workspace data and get AI-powered insights
+          </p>
         </div>
         <Card variant="groups1" className="flex-1 flex flex-col min-h-0">
           <CardContent variant="groups1" className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[var(--groups1-text-secondary)]" />
-              <p className="text-sm text-[var(--groups1-text-secondary)]">
-                Loading chat history...
-              </p>
+              <p className="text-sm text-[var(--groups1-text-secondary)]">Loading chat history...</p>
             </div>
           </CardContent>
         </Card>
@@ -338,48 +335,20 @@ export default function AIChatPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header - Fixed at top */}
+      {/* Header */}
       <div className="flex-shrink-0 pb-6">
         <div className="flex items-center justify-between mb-4">
-          {/* Chat name and summary on left */}
-          {(() => {
-            const selectedChat = selectedChatId ? chats.find(c => c.id === selectedChatId) : null;
-            
-            // Use title if available, otherwise use summary (first message), otherwise default
-            const chatName = selectedChat?.title 
-              ? selectedChat.title
-              : selectedChat?.summary
-                ? (selectedChat.summary.length > 50 
-                    ? selectedChat.summary.substring(0, 47) + '...' 
-                    : selectedChat.summary)
-                : selectedChatId
-                  ? "New Chat"
-                  : null;
-            
-            // Summary is only shown if different from the name (when title exists)
-            const chatSummary = selectedChat?.title && selectedChat?.summary
-              ? (selectedChat.summary.length > 60
-                  ? selectedChat.summary.substring(0, 57) + '...'
-                  : selectedChat.summary)
-              : null;
-            
-            if (!chatName) return null;
-            
-            return (
-              <div className="flex flex-col min-w-0 flex-1">
-                <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">
-                  {chatName}
-                </h1>
+          <div className="flex flex-col min-w-0 flex-1">
+            {chatName ? (
+              <>
+                <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">{chatName}</h1>
                 {chatSummary && (
-                  <p className="text-sm text-[var(--groups1-text-secondary)]">
-                    {chatSummary}
-                  </p>
+                  <p className="text-sm text-[var(--groups1-text-secondary)]">{chatSummary}</p>
                 )}
-              </div>
-            );
-          })()}
-          
-          {/* Export/Clear buttons on right */}
+              </>
+            ) : null}
+          </div>
+
           <div className="flex gap-2">
             {messages.length > 0 && (
               <>
@@ -395,7 +364,7 @@ export default function AIChatPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleClearHistory}
+                  onClick={() => setShowClearConfirm(true)}
                   className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -405,6 +374,7 @@ export default function AIChatPage() {
             )}
           </div>
         </div>
+
         {messages.length > 0 && (
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
@@ -426,126 +396,127 @@ export default function AIChatPage() {
         )}
       </div>
 
-      {/* Chat Container - Takes remaining space */}
+      {/* Chat Container */}
       <Card variant="groups1" className="flex-1 flex flex-col min-h-0 overflow-hidden shadow-lg">
-        {/* Messages Area - Scrollable */}
+        {/* Messages Area */}
         <div
           ref={messagesContainerRef}
           className="chat-messages-container flex-1 overflow-y-auto p-6 space-y-6 min-h-0 relative"
         >
           <CardContent variant="groups1" className="p-0">
-          {filteredMessages.length === 0 && !isLoading ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-full text-center py-12"
-            >
+            {filteredMessages.length === 0 && !isLoading ? (
               <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center h-full text-center py-12"
               >
-                <Bot className="w-16 h-16 text-[var(--groups1-text-secondary)] mb-4" />
-              </motion.div>
-              <h3 className="text-lg font-semibold text-[var(--groups1-text)] mb-2">
-                {searchQuery ? "No messages found" : "Start a conversation"}
-              </h3>
-              <p className="text-sm text-[var(--groups1-text-secondary)] max-w-md mb-6">
-                {searchQuery
-                  ? "Try a different search query"
-                  : "Ask me anything about your workspace. I can help you find students, analyze call logs, get statistics, and more!"}
-              </p>
-              {!searchQuery && (
-                <div className="space-y-3">
-                  <p className="text-xs text-[var(--groups1-text-secondary)] font-medium">Try asking:</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {STARTER_QUESTIONS.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        onClick={() => handleSuggestionClick(q)}
-                        className="text-xs px-3 py-1.5 rounded-full border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] hover:border-[var(--groups1-primary)] transition-colors cursor-pointer"
-                      >
-                        {q}
-                      </button>
-                    ))}
+                <motion.div
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="mb-5"
+                >
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--groups1-primary)] to-purple-600 flex items-center justify-center shadow-lg">
+                    <Bot className="w-10 h-10 text-white" />
                   </div>
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            <>
-              <AnimatePresence>
-                {groupedMessages.map((group, groupIndex) => (
-                  <div key={group.date} className="space-y-4">
-                    {/* Date separator */}
-                    <div className="flex items-center gap-4 my-4">
-                      <div className="flex-1 h-px bg-[var(--groups1-border)]" />
-                      <span className="text-xs font-medium text-[var(--groups1-text-secondary)] px-2">
-                        {group.label}
-                      </span>
-                      <div className="flex-1 h-px bg-[var(--groups1-border)]" />
+                </motion.div>
+                <h3 className="text-xl font-semibold text-[var(--groups1-text)] mb-2">
+                  {searchQuery ? "No messages found" : "Hey, I'm Brain!"}
+                </h3>
+                <p className="text-sm text-[var(--groups1-text-secondary)] max-w-md mb-6">
+                  {searchQuery
+                    ? "Try a different search query"
+                    : "I can help you find students, analyze call logs, view statistics, create call lists, and more. What would you like to know?"}
+                </p>
+                {!searchQuery && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-[var(--groups1-text-secondary)] font-medium">Try asking:</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      {STARTER_QUESTIONS.map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => handleSuggestionClick(q)}
+                          className="text-xs px-3 py-1.5 rounded-full border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] hover:border-[var(--groups1-primary)] transition-colors cursor-pointer"
+                        >
+                          {q}
+                        </button>
+                      ))}
                     </div>
-                    {/* Messages in group */}
-                    {group.messages.map((message, msgIndex) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: msgIndex * 0.05 }}
-                        className={cn(
-                          "flex gap-3 group",
-                          message.role === "user" ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        {message.role === "assistant" && (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--groups1-primary)] flex items-center justify-center shadow-sm">
-                            <Bot className="w-4 h-4 text-[var(--groups1-btn-primary-text)]" />
-                          </div>
-                        )}
-                        <div
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <>
+                <AnimatePresence>
+                  {groupedMessages.map((group) => (
+                    <div key={group.date} className="space-y-4">
+                      {/* Date separator */}
+                      <div className="flex items-center gap-4 my-4">
+                        <div className="flex-1 h-px bg-[var(--groups1-border)]" />
+                        <span className="text-xs font-medium text-[var(--groups1-text-secondary)] px-2">
+                          {group.label}
+                        </span>
+                        <div className="flex-1 h-px bg-[var(--groups1-border)]" />
+                      </div>
+                      {group.messages.map((message, msgIndex) => (
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: msgIndex * 0.05 }}
                           className={cn(
-                            "max-w-[80%] rounded-lg px-4 py-3 shadow-sm transition-shadow hover:shadow-md relative",
-                            message.role === "user"
-                              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                              : "bg-[var(--groups1-surface)] border border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                            "flex gap-3 group",
+                            message.role === "user" ? "justify-end" : "justify-start"
                           )}
                         >
-                          <div className="break-words">
-                            <MarkdownRenderer content={message.content} />
-                          </div>
-                          <div className="flex items-center justify-between mt-2 gap-2">
-                            <div
-                              className={cn(
-                                "text-xs",
-                                message.role === "user"
-                                  ? "text-[var(--groups1-btn-primary-text)] opacity-70"
-                                  : "text-[var(--groups1-text-secondary)]"
-                              )}
-                              title={formatAbsoluteTime(message.createdAt)}
-                            >
-                              {formatTime(message.createdAt)}
+                          {message.role === "assistant" && (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-[var(--groups1-primary)] to-purple-600 flex items-center justify-center shadow-sm">
+                              <Bot className="w-4 h-4 text-white" />
                             </div>
-                            <MessageActions
-                              messageId={message.id}
-                              content={message.content}
-                              role={message.role}
-                            />
+                          )}
+                          <div
+                            className={cn(
+                              "max-w-[80%] rounded-lg px-4 py-3 shadow-sm transition-shadow hover:shadow-md relative",
+                              message.role === "user"
+                                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                                : "bg-[var(--groups1-surface)] border border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                            )}
+                          >
+                            <div className="break-words">
+                              <MarkdownRenderer content={message.content} />
+                            </div>
+                            <div className="flex items-center justify-between mt-2 gap-2">
+                              <div
+                                className={cn(
+                                  "text-xs",
+                                  message.role === "user"
+                                    ? "text-[var(--groups1-btn-primary-text)] opacity-70"
+                                    : "text-[var(--groups1-text-secondary)]"
+                                )}
+                                title={formatAbsoluteTime(message.createdAt)}
+                              >
+                                {formatRelativeTime(message.createdAt)}
+                              </div>
+                              <MessageActions
+                                content={message.content}
+                                role={message.role}
+                              />
+                            </div>
                           </div>
-                        </div>
-                        {message.role === "user" && (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--groups1-secondary)] flex items-center justify-center shadow-sm">
-                            <User className="w-4 h-4 text-[var(--groups1-text)]" />
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
-                ))}
-              </AnimatePresence>
-              {isLoading && <TypingIndicator />}
-              <div ref={messagesEndRef} />
-            </>
-          )}
+                          {message.role === "user" && (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--groups1-secondary)] flex items-center justify-center shadow-sm">
+                              <User className="w-4 h-4 text-[var(--groups1-text)]" />
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                    </div>
+                  ))}
+                </AnimatePresence>
+                {isLoading && <TypingIndicator />}
+                <div ref={messagesEndRef} />
+              </>
+            )}
           </CardContent>
         </div>
 
@@ -567,8 +538,40 @@ export default function AIChatPage() {
           </motion.div>
         )}
 
-        {/* Input Area - Fixed at bottom */}
+        {/* Input Area */}
         <div className="flex-shrink-0 border-t border-[var(--groups1-border)] p-4 bg-[var(--groups1-background)] z-10">
+          {/* Inline clear confirmation */}
+          <AnimatePresence>
+            {showClearConfirm && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-3 flex items-center gap-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40"
+              >
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-700 dark:text-red-300 flex-1">
+                  Clear all messages in this chat? This cannot be undone.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="h-7 text-xs border-red-200 dark:border-red-900"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleClearHistory}
+                  className="h-7 text-xs bg-red-500 hover:bg-red-600 text-white border-none"
+                >
+                  Clear
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -578,6 +581,7 @@ export default function AIChatPage() {
               {error}
             </motion.div>
           )}
+
           {suggestedQuestions.length > 0 && !isLoading && (
             <div className="flex gap-2 flex-wrap mb-3">
               {suggestedQuestions.map((q) => (
@@ -593,32 +597,55 @@ export default function AIChatPage() {
               ))}
             </div>
           )}
-          <div className="flex gap-2">
-            <Input
-              ref={inputRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
-              disabled={isLoading}
-              className="flex-1 bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] transition-all"
-            />
+
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 relative">
+              <textarea
+                ref={textareaRef}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onInput={handleTextareaInput}
+                placeholder="Ask Brain anything... (Enter to send, Shift+Enter for new line)"
+                disabled={isLoading}
+                rows={1}
+                maxLength={MAX_MESSAGE_LENGTH}
+                className={cn(
+                  "w-full resize-none overflow-y-auto rounded-md border px-3 py-2 text-sm leading-relaxed",
+                  "bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]",
+                  "placeholder:text-[var(--groups1-text-secondary)]",
+                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                  "transition-all max-h-32 disabled:opacity-50"
+                )}
+              />
+              {inputMessage.length > 0 && (
+                <span
+                  className={cn(
+                    "absolute bottom-2 right-2 text-xs pointer-events-none",
+                    inputMessage.length > MAX_MESSAGE_LENGTH * 0.9
+                      ? "text-red-500"
+                      : "text-[var(--groups1-text-secondary)]"
+                  )}
+                >
+                  {inputMessage.length}/{MAX_MESSAGE_LENGTH}
+                </span>
+              )}
+            </div>
             <Button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isLoading}
-              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary)] hover:opacity-90 transition-all shadow-sm hover:shadow-md"
+              className="bg-gradient-to-br from-[var(--groups1-primary)] to-purple-600 text-white hover:opacity-90 transition-all shadow-sm hover:shadow-md flex-shrink-0 self-end"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Send className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" />
               )}
             </Button>
           </div>
         </div>
       </Card>
 
-      {/* Export Dialog */}
       <ExportDialog
         open={showExportDialog}
         onOpenChange={setShowExportDialog}

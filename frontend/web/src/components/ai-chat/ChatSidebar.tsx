@@ -13,21 +13,12 @@ import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useLogout } from "@/hooks/useLogout";
 import { useWorkspaceStore } from "@/store/workspace";
-import { isToday, isYesterday, isThisWeek, formatDistanceToNow } from "date-fns";
+import { isToday, isYesterday, isThisWeek } from "date-fns";
+import { formatRelativeTime } from "@/lib/utils";
 
 export interface ChatSidebarProps {
   mode?: "desktop" | "mobile";
   onNavigate?: () => void;
-}
-
-function relativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const diffMs = Date.now() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-  return formatDistanceToNow(date, { addSuffix: true });
 }
 
 export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) {
@@ -193,7 +184,7 @@ export function ChatSidebar({ mode = "desktop", onNavigate }: ChatSidebarProps) 
                         : "text-[var(--groups1-text-secondary)]"
                     )}
                   >
-                    {relativeTime(chat.updatedAt)}
+                    {formatRelativeTime(chat.updatedAt)}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -109,13 +109,7 @@ export const resendResetPasswordOtp = asyncHandler(async (req: AuthRequest, res:
 
 export const verifySignupOtp = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await authService.verifySignupOtp(req.validatedData);
-  // Set httpOnly cookie with refresh token if present
-  if (result.refreshToken) {
-    setRefreshTokenCookie(res, result.refreshToken);
-  }
-  // Return without refreshToken in body
-  const { refreshToken, ...rest } = result;
-  res.json(rest);
+  res.json(result);
 });
 
 export const resendSignupVerification = asyncHandler(async (req: AuthRequest, res: Response) => {

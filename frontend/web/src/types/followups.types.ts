@@ -86,6 +86,11 @@ export interface Followup {
   callList?: FollowupCallList;
   previousCallLog?: FollowupPreviousCallLog;
   assignee?: FollowupAssignee | null;
+  creator?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
 export interface ListFollowupsParams {

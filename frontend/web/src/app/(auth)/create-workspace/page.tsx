@@ -115,11 +115,10 @@ function CreateWorkspacePageContent() {
         timezone: parsedValues.timezone,
       });
 
-      // If new tokens are returned, update them (this ensures JWT has correct workspaceId)
-      if (workspace.accessToken && workspace.refreshToken) {
+      // If a new access token is returned, update auth state with it.
+      if (workspace.accessToken) {
         setTokens({
           accessToken: workspace.accessToken,
-          refreshToken: workspace.refreshToken,
           user: user || undefined,
         });
       }

@@ -403,7 +403,7 @@ export default function GroupDetailPage() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-sm font-medium text-[var(--groups1-text)]">
-                            {followup.student.name}
+                            {followup.student?.name || "Unknown Student"}
                           </p>
                           <p className="text-xs text-[var(--groups1-text-secondary)]">
                             Due: {formatDate(followup.dueAt)}
@@ -431,7 +431,7 @@ export default function GroupDetailPage() {
                       )}
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-xs text-[var(--groups1-text-secondary)]">
-                          By {followup.creator.name}
+                          By {followup.creator?.name || "Unknown"}
                         </p>
                         {followup.assignee && (
                           <p className="text-xs text-[var(--groups1-text-secondary)]">

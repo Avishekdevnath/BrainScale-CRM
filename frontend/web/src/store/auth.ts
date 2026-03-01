@@ -41,8 +41,10 @@ export const useAuthStore = create<AuthState>((set, get) => {
       if (storedUser) {
         initialUser = JSON.parse(storedUser);
       }
-      // accessToken is now kept in memory only (lost on refresh, will be re-fetched silently)
-      // refreshToken is now in httpOnly cookie (not accessible from JS)
+      const storedToken = localStorage.getItem("accessToken");
+      if (storedToken) {
+        initialAccessToken = storedToken;
+      }
     } catch {}
   }
 
@@ -54,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (user) {
           localStorage.setItem("user", JSON.stringify(user));
         }
+        localStorage.setItem("accessToken", accessToken);
       } catch {}
       // If no user provided, keep the existing user in state (don't overwrite with null)
       set((state) => ({ accessToken, user: user ?? state.user }));
@@ -67,7 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     clear: () => {
       try {
         localStorage.removeItem("user");
-        // accessToken and refreshToken don't exist in localStorage anymore
+        localStorage.removeItem("accessToken");
       } catch {}
       set({ accessToken: null, user: null });
     },

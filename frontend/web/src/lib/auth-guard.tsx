@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { apiClient } from "@/lib/api-client";
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return true;
+  }
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
@@ -12,8 +21,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // If we have an accessToken in memory, we're ready
-      if (accessToken) {
+      // If we have a valid non-expired token, we're ready immediately
+      if (accessToken && !isTokenExpired(accessToken)) {
         setReady(true);
         return;
       }

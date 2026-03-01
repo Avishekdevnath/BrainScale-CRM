@@ -335,7 +335,7 @@ export const chatWithFunctions = async (
         tools: tools.length > 0 ? tools : undefined,
         tool_choice: tools.length > 0 ? 'auto' : undefined,
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 2000,
       });
 
       const choice = response.choices[0];
@@ -468,7 +468,7 @@ export const chatWithFunctions = async (
 
       const response = await anthropicClient.messages.create({
         model: 'claude-3-5-haiku-20241022',
-        max_tokens: 1000,
+        max_tokens: 2000,
         messages: anthropicMessages,
         system: messages.find(msg => msg.role === 'system')?.content || '',
         tools: tools.length > 0 ? tools : undefined,

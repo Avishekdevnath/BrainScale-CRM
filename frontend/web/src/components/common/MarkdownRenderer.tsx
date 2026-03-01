@@ -26,6 +26,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
   let tableRows: string[][] = [];
   let tableHeaders: string[] | null = null;
   let inTable = false;
+  let pendingTableHeader: string[] | null = null;
 
   const closeLists = (key: string) => {
     const result: React.ReactNode[] = [];
@@ -87,6 +88,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
       const rows = tableRows;
       tableHeaders = null;
       tableRows = [];
+      pendingTableHeader = null;
       return (
         <div key={`table-${key}`} className="my-3 overflow-x-auto">
           <table className="min-w-full border-collapse border border-[var(--groups1-border)] rounded-lg">
@@ -169,18 +171,23 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
       
       // Check if it's a header separator (|---|---|)
       if (cells.every(c => /^:?-+:?$/.test(c))) {
+        // Promote the buffered row (the one before the separator) as table headers
+        if (pendingTableHeader) {
+          tableHeaders = pendingTableHeader;
+          pendingTableHeader = null;
+        }
         inTable = true;
         return previousElements;
       }
-      
+
       if (inTable) {
-        if (!tableHeaders) {
-          tableHeaders = cells;
-        } else {
-          tableRows.push(cells);
-        }
+        tableRows.push(cells);
         return previousElements;
       }
+
+      // Buffer this row — it may be the header row (separator hasn't arrived yet)
+      pendingTableHeader = cells;
+      return previousElements;
     } else if (inTable) {
       // Close table if we're not in one anymore
       const table = closeTable(`before-${index}`);

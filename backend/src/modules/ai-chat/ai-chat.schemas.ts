@@ -25,11 +25,13 @@ export const ExportChatHistorySchema = z.object({
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
   role: z.enum(['user', 'assistant']).optional(),
+  format: z.enum(['csv', 'excel', 'markdown', 'pdf']).default('csv'),
 });
 
 export const ExportAIDataSchema = z.object({
   dataType: z.enum(['students', 'callLogs', 'followups', 'callLists', 'stats']),
   filters: z.record(z.string(), z.any()).optional(),
+  format: z.enum(['csv', 'excel', 'markdown', 'pdf']).default('csv'),
 });
 
 export type CreateChatInput = z.infer<typeof CreateChatSchema>;

@@ -17,7 +17,7 @@ import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { mutate } from "swr";
 import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
@@ -44,12 +44,6 @@ export default function CallsManagerPage() {
   const [batchId, setBatchId] = useState<string>("");
   const [callListId, setCallListId] = useState<string>("");
   const [showFilters, setShowFilters] = useState(false);
-  const [callerNotes, setCallerNotes] = useState<Record<string, string>>({});
-  const [callerNoteEditor, setCallerNoteEditor] = useState<{
-    open: boolean;
-    itemId: string | null;
-    draft: string;
-  }>({ open: false, itemId: null, draft: "" });
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [submittingItemId, setSubmittingItemId] = useState<string | null>(null);
@@ -216,19 +210,6 @@ export default function CallsManagerPage() {
       ? "Completed"
       : "Pending";
 
-  const handleCallerNoteChange = (itemId: string, note: string) => {
-    setCallerNotes((prev) => ({ ...prev, [itemId]: note }));
-  };
-
-  const openCallerNoteEditor = (itemId: string, seed?: string) => {
-    const current = callerNotes[itemId] ?? "";
-    setCallerNoteEditor({
-      open: true,
-      itemId,
-      draft: seed ? `${current}${seed}` : current,
-    });
-  };
-
   const handleCallStatusChange = (itemId: string, status: CallLogStatus) => {
     setCallStatuses((prev) => ({ ...prev, [itemId]: status }));
   };
@@ -252,9 +233,6 @@ export default function CallsManagerPage() {
       return;
     }
 
-    const callerNote = callerNotes[item.id]?.trim() || "";
-    // Caller note is now optional
-
     setSubmittingItemId(item.id);
     try {
       const followUp = followUpData[item.id];
@@ -275,7 +253,6 @@ export default function CallsManagerPage() {
         callListItemId: item.id,
         status: selectedStatus,
         answers,
-        callerNote: callerNote || undefined,
         followUpRequired: followUp?.followUpRequired || false,
         followUpDate: followUp?.followUpRequired && followUp?.followUpDate 
           ? new Date(followUp.followUpDate).toISOString() 
@@ -289,11 +266,6 @@ export default function CallsManagerPage() {
       toast.success("Call completed successfully");
       
       // Clear local state for this item
-      setCallerNotes((prev) => {
-        const newNotes = { ...prev };
-        delete newNotes[item.id];
-        return newNotes;
-      });
       setCallStatuses((prev) => {
         const next = { ...prev };
         delete next[item.id];
@@ -323,16 +295,6 @@ export default function CallsManagerPage() {
     } finally {
       setSubmittingItemId(null);
     }
-  };
-
-  const handleCallerNoteEditorSave = () => {
-    if (!callerNoteEditor.itemId) return;
-    handleCallerNoteChange(callerNoteEditor.itemId, callerNoteEditor.draft);
-    setCallerNoteEditor({ open: false, itemId: null, draft: "" });
-  };
-
-  const handleCallerNoteEditorCancel = () => {
-    setCallerNoteEditor({ open: false, itemId: null, draft: "" });
   };
 
   const handleTextAnswerEditorSave = () => {
@@ -537,8 +499,6 @@ export default function CallsManagerPage() {
         while (selectedItemsCopy.length > 0) {
           const item = selectedItemsCopy.shift();
           if (!item) return;
-          const callerNote = (callerNotes[item.id] ?? "").trim();
-
           const followUp = followUpData[item.id];
           const selectedStatus = callStatuses[item.id] ?? "completed";
           const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
@@ -558,7 +518,6 @@ export default function CallsManagerPage() {
             callListItemId: item.id,
             status: selectedStatus,
             answers,
-            callerNote: callerNote || undefined,
             followUpRequired: followUp?.followUpRequired || false,
             followUpDate:
               followUp?.followUpRequired && followUp?.followUpDate ? new Date(followUp.followUpDate).toISOString() : undefined,
@@ -875,8 +834,6 @@ export default function CallsManagerPage() {
                 {items.map((item) => {
                   const student = item.student;
                   const primaryPhone = student?.phones?.find((p) => p.isPrimary) || student?.phones?.[0];
-                  const callerNote = callerNotes[item.id] || "";
-                  const callerNoteTrimmed = callerNote.trim();
                   const followUp = followUpData[item.id];
                   const hasExistingFollowUp = item.callLog?.followUpRequired || false;
                   const hasPendingFollowUp = followUp?.followUpRequired || false;
@@ -991,30 +948,6 @@ export default function CallsManagerPage() {
                           </div>
                         ) : null}
 
-                        {/* Caller Note */}
-                        {!item.callLog && (
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)]">
-                              Note
-                            </label>
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => openCallerNoteEditor(item.id)}
-                              className={cn(
-                                "w-full text-left rounded-lg border border-[var(--groups1-border)]",
-                                "bg-[var(--groups1-surface)] px-2.5 py-2 text-[13px]",
-                                "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                                "disabled:opacity-50 disabled:cursor-not-allowed"
-                              )}
-                            >
-                              <span className={cn("block truncate", callerNoteTrimmed ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
-                                {callerNoteTrimmed || "Add note..."}
-                              </span>
-                            </button>
-                          </div>
-                        )}
-
                       </div>
 
                       <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
@@ -1093,9 +1026,6 @@ export default function CallsManagerPage() {
                         );
                       })}
                     <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Note
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
                       Follow-up
                     </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
@@ -1107,8 +1037,6 @@ export default function CallsManagerPage() {
                   {items.map((item) => {
                     const student = item.student;
                     const primaryPhone = student?.phones?.find((p) => p.isPrimary) || student?.phones?.[0];
-                    const callerNote = callerNotes[item.id] || "";
-                    const callerNoteTrimmed = callerNote.trim();
                     const followUp = followUpData[item.id];
                     const hasExistingFollowUp = item.callLog?.followUpRequired || false;
                     const hasPendingFollowUp = followUp?.followUpRequired || false;
@@ -1204,29 +1132,6 @@ export default function CallsManagerPage() {
                               {renderQuestionInput(item, q, isSubmitting)}
                             </td>
                           ))}
-                        <td className="py-2 px-4">
-                          {item.callLog ? (
-                            <span className="text-[13px] text-[var(--groups1-text-secondary)]">
-                              {item.callLog.callerNote || "—"}
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={isSubmitting}
-                              onClick={() => openCallerNoteEditor(item.id)}
-                              className={cn(
-                                "max-w-[180px] w-full text-left rounded-md border border-[var(--groups1-border)]",
-                                "bg-[var(--groups1-surface)] px-2.5 py-1 text-[13px]",
-                                "hover:bg-[var(--groups1-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                                "disabled:opacity-50 disabled:cursor-not-allowed"
-                              )}
-                            >
-                              <span className={cn("block truncate", callerNoteTrimmed ? "text-[var(--groups1-text)]" : "text-[var(--groups1-text-secondary)]")}>
-                                {callerNoteTrimmed || "Add note..."}
-                              </span>
-                            </button>
-                          )}
-                        </td>
                         <td className="py-2 px-4">
                           <div className="flex items-center gap-2">
                             {(hasExistingFollowUp || hasPendingFollowUp) && (
@@ -1374,42 +1279,6 @@ export default function CallsManagerPage() {
           }}
         />
       )}
-
-      <Dialog open={callerNoteEditor.open} onOpenChange={(open) => (!open ? handleCallerNoteEditorCancel() : undefined)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Caller Note</DialogTitle>
-            <DialogClose onClose={handleCallerNoteEditorCancel} />
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--groups1-text-secondary)]">
-              Write a short note about the call outcome (optional).
-            </p>
-            <textarea
-              value={callerNoteEditor.draft}
-              onChange={(e) => setCallerNoteEditor((prev) => ({ ...prev, draft: e.target.value }))}
-              className={cn(
-                "w-full min-h-[140px] resize-y rounded-md border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] p-3 text-sm text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-              )}
-              placeholder="Type caller note..."
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handleCallerNoteEditorCancel}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCallerNoteEditorSave}
-                className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-              >
-                Set note
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={textAnswerEditor.open} onOpenChange={(open) => (!open ? handleTextAnswerEditorCancel() : undefined)}>
         <DialogContent className="max-w-xl">

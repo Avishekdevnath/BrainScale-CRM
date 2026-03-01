@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Bell, Building2, Users, Brain, Menu, Check, ChevronDown, Plus } from "lucide-react";
+import { Search, Bell, Building2, Users, Brain, Menu, Check, ChevronDown, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
 import { cn } from "@/lib/utils";
@@ -9,9 +9,11 @@ import { useGroupStore } from "@/store/group";
 import { useGroups } from "@/hooks/useGroups";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useDebounce } from "@/hooks/useDebounce";
+import { GlobalSearchDropdown } from "@/components/common/GlobalSearchDropdown";
 
 interface TopbarProps {
   showWorkspaceName?: boolean;
@@ -30,8 +32,37 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   const { data: workspaces, isLoading: workspacesLoading } = useWorkspaces();
   const [mounted, setMounted] = useState(false);
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const debouncedSearch = useDebounce(searchQuery, 300);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setMounted(true), []);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSearchSelect = (studentId: string) => {
+    router.push(`/app/students/${studentId}`);
+    setSearchQuery("");
+    setIsSearchOpen(false);
+    setIsMobileSearchOpen(false);
+  };
+
+  const handleMobileSearchOpen = () => {
+    setIsMobileSearchOpen(true);
+    setTimeout(() => mobileInputRef.current?.focus(), 50);
+  };
 
   // Extract groupId from URL if on group detail page
   const urlGroupId = pathname?.match(/^\/app\/groups\/([^/]+)$/)?.[1];
@@ -203,17 +234,38 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
 
       {/* Center: Search Box */}
       <div className="hidden md:flex flex-1 justify-center max-w-md mx-auto">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+        <div className="relative w-full" ref={searchContainerRef}>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)] pointer-events-none" />
           <input
             type="text"
-            placeholder="Search students, calls..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setIsSearchOpen(true); }}
+            onFocus={() => { if (searchQuery.length > 0) setIsSearchOpen(true); }}
+            onKeyDown={(e) => { if (e.key === "Escape") { setSearchQuery(""); setIsSearchOpen(false); } }}
+            placeholder="Search students..."
             className={cn(
-              "w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+              "w-full pl-10 pr-8 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
               "bg-[var(--groups1-background)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]",
               "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] focus:border-[var(--groups1-primary)]"
             )}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(""); setIsSearchOpen(false); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isSearchOpen && debouncedSearch.length > 0 && (
+            <GlobalSearchDropdown
+              query={debouncedSearch}
+              onSelect={handleSearchSelect}
+              onClose={() => setIsSearchOpen(false)}
+            />
+          )}
         </div>
       </div>
 
@@ -395,6 +447,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
 
         <button
           type="button"
+          onClick={handleMobileSearchOpen}
           className="md:hidden relative w-10 h-10 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring)]"
           aria-label="Search"
         >
@@ -410,6 +463,53 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
         </button>
         <UserMenu />
       </div>
+
+      {/* Mobile full-screen search overlay */}
+      {isMobileSearchOpen && (
+        <div className="fixed inset-0 z-50 bg-[var(--groups1-surface)] flex flex-col md:hidden">
+          <div className="flex items-center gap-2 px-3 py-3 border-b border-[var(--groups1-border)]">
+            <button
+              type="button"
+              onClick={() => { setIsMobileSearchOpen(false); setSearchQuery(""); }}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] flex-shrink-0"
+              aria-label="Close search"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)] pointer-events-none" />
+              <input
+                ref={mobileInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") { setIsMobileSearchOpen(false); setSearchQuery(""); } }}
+                placeholder="Search students..."
+                className={cn(
+                  "w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+                  "bg-[var(--groups1-background)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]",
+                  "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] focus:border-[var(--groups1-primary)]"
+                )}
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {debouncedSearch.length > 0 ? (
+              <GlobalSearchDropdown
+                query={debouncedSearch}
+                onSelect={handleSearchSelect}
+                onClose={() => { setIsMobileSearchOpen(false); setSearchQuery(""); }}
+                inline
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 gap-2 text-[var(--groups1-text-secondary)]">
+                <Search className="w-8 h-8 opacity-40" />
+                <p className="text-sm">Type to search students</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

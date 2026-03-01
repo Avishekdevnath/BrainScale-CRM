@@ -1201,6 +1201,7 @@ export const listCallListItems = async (
     select: {
       id: true,
       status: true,
+      answers: true,
       summaryNote: true,
       followUpDate: true,
       followUpRequired: true,

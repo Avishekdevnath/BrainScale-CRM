@@ -6,110 +6,66 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OtpInput } from "@/components/password/OtpInput";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { PasswordStrengthIndicator } from "@/components/password/PasswordStrengthIndicator";
+import { useChangePassword } from "@/hooks/usePasswordChange";
+import { getPasswordRequirements, validatePassword } from "@/lib/password-utils";
 import {
-  useRequestPasswordChangeOtp,
-  useChangePasswordWithOtp,
-  useResendPasswordChangeOtp,
-} from "@/hooks/usePasswordChange";
-import { formatOtpTime } from "@/lib/password-utils";
-import { validatePassword } from "@/lib/password-utils";
-import { Loader2, ArrowLeft, Mail, Eye, EyeOff } from "lucide-react";
-import { toast } from "sonner";
-import { useAuthStore } from "@/store/auth";
-
-type Step = "request" | "verify";
+  Loader2,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Circle,
+  ShieldCheck,
+  ShieldAlert,
+  LockKeyhole,
+} from "lucide-react";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
-  const [step, setStep] = React.useState<Step>("request");
-  const [email, setEmail] = React.useState("");
-  const [otp, setOtp] = React.useState("");
+  const [currentPassword, setCurrentPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
-  const [resendCooldown, setResendCooldown] = React.useState(0);
+  const [showCurrentPassword, setShowCurrentPassword] = React.useState(false);
   const [showNewPassword, setShowNewPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
-  const userEmail = useAuthStore((state) => state.user?.email);
-  const { mutate: requestOtp, isPending: isRequestingOtp } = useRequestPasswordChangeOtp();
-  const { mutate: changePassword, isPending: isChangingPassword } = useChangePasswordWithOtp();
-  const { mutate: resendOtp, isPending: isResendingOtp } = useResendPasswordChangeOtp();
+  const passwordRequirements = React.useMemo(() => getPasswordRequirements(), []);
+  const newPasswordValidation = React.useMemo(
+    () => validatePassword(newPassword),
+    [newPassword]
+  );
+  const passwordsMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
 
-  React.useEffect(() => {
-    if (userEmail) {
-      setEmail(userEmail);
-    }
-  }, [userEmail]);
+  const { mutate: changePassword, isPending: isChangingPassword } = useChangePassword();
 
-  // Countdown timer for resend
-  React.useEffect(() => {
-    if (resendCooldown <= 0) return;
-
-    const timer = setInterval(() => {
-      setResendCooldown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
-  const handleRequestOtp = async () => {
-    if (!email) {
-      setErrors({ email: "Email is required" });
-      return;
-    }
-
-    try {
-      const result = await requestOtp(email);
-      if (result.canRetryAfter) {
-        setResendCooldown(result.canRetryAfter);
-      } else {
-        setResendCooldown(120); // Default 2 minutes
-      }
-      setStep("verify");
-      setErrors({});
-    } catch (error) {
-      // Error handled by hook
-    }
+  const clearFieldError = (field: "currentPassword" | "newPassword" | "confirmPassword") => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
   };
 
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0) return;
-
-    try {
-      const result = await resendOtp(email);
-      if (result.canRetryAfter) {
-        setResendCooldown(result.canRetryAfter);
-      } else {
-        setResendCooldown(120); // Default 2 minutes
-      }
-      setOtp(""); // Clear OTP
-    } catch (error) {
-      // Error handled by hook
-    }
-  };
-
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
-    // Validation
-    if (otp.length !== 6) {
-      setErrors({ otp: "Please enter the 6-digit verification code" });
+    if (!currentPassword) {
+      setErrors({ currentPassword: "Current password is required" });
       return;
     }
 
-    const passwordValidation = validatePassword(newPassword);
-    if (!passwordValidation.valid) {
-      setErrors({ newPassword: passwordValidation.errors[0] });
+    if (!newPasswordValidation.valid) {
+      setErrors({ newPassword: newPasswordValidation.errors[0] });
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setErrors({ newPassword: "New password must be different from current password" });
       return;
     }
 
@@ -119,232 +75,273 @@ export default function ChangePasswordPage() {
     }
 
     try {
-      await changePassword(email, otp, newPassword);
-      // Success - redirect or show message
+      await changePassword(currentPassword, newPassword);
       setTimeout(() => {
         router.push("/app/settings");
       }, 1500);
-    } catch (error) {
+    } catch {
       // Error handled by hook
     }
   };
 
-  if (step === "request") {
-    return (
-      <div className="container max-w-md mx-auto py-8">
-        <Card variant="groups1">
-          <CardHeader>
-            <div className="flex items-center gap-2 mb-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/app/settings")}
-                className="p-0 h-auto"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-              <CardTitle>Change Password</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent variant="groups1" className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email Address</Label>
-              <div className="mt-1 flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled
-                  className="bg-[var(--groups1-secondary)]"
-                />
-              </div>
-              <p className="mt-2 text-xs text-[var(--groups1-text-secondary)]">
-                We'll send a verification code to your email address to confirm your identity.
-              </p>
-            </div>
+  const submitDisabled =
+    isChangingPassword ||
+    !currentPassword ||
+    !newPassword ||
+    !confirmPassword ||
+    !newPasswordValidation.valid ||
+    !passwordsMatch;
 
-            {errors.email && (
-              <p className="text-sm text-red-600">{errors.email}</p>
-            )}
+  const strengthVariant = !newPassword
+    ? "info"
+    : newPasswordValidation.strength === "strong"
+      ? "success"
+      : newPasswordValidation.strength === "medium"
+        ? "warning"
+        : "error";
 
-            <Button
-              onClick={handleRequestOtp}
-              disabled={!email || isRequestingOtp}
-              className="w-full"
-            >
-              {isRequestingOtp ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                "Send Verification Code"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const strengthLabel = !newPassword
+    ? "Not Set"
+    : `${newPasswordValidation.strength.charAt(0).toUpperCase()}${newPasswordValidation.strength.slice(1)}`;
 
   return (
-    <div className="container max-w-md mx-auto py-8">
-      <Card variant="groups1">
-        <CardHeader>
-          <div className="flex items-center gap-2 mb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStep("request")}
-              className="p-0 h-auto"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <CardTitle>Enter Verification Code</CardTitle>
+    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:py-8">
+      <div className="rounded-xl border border-[var(--groups1-card-border)] bg-[var(--groups1-surface)] p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg border border-[var(--groups1-card-border)] bg-[var(--groups1-background)] p-2 text-[var(--groups1-primary)]">
+            <LockKeyhole className="h-5 w-5" />
           </div>
-        </CardHeader>
-        <CardContent variant="groups1">
-          <div className="mb-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 p-3 text-sm text-blue-700 dark:text-blue-300">
-            <p className="font-medium mb-1">📧 Check your spam folder</p>
-            <p className="text-xs">If you don&apos;t see the password change code email, please check your spam or junk folder.</p>
-          </div>
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            {/* Email Display */}
-            <div>
-              <Label>Email</Label>
-              <div className="mt-1 flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
-                <Input
-                  type="email"
-                  value={email}
-                  disabled
-                  className="bg-[var(--groups1-secondary)]"
-                />
-              </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold text-[var(--groups1-text)] sm:text-xl">
+                Change Password
+              </h1>
+              <StatusBadge variant="info" size="sm">
+                Security
+              </StatusBadge>
             </div>
+            <p className="mt-1 text-sm text-[var(--groups1-text-secondary)]">
+              Update your account password. No email verification is required on this screen.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/app/settings")}
+            className="shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+        </div>
+      </div>
 
-            {/* OTP Input */}
-            <div>
-              <Label>Verification Code</Label>
-              <div className="mt-2">
-                <OtpInput
-                  value={otp}
-                  onChange={setOtp}
-                  disabled={isChangingPassword}
-                  error={!!errors.otp}
-                />
-              </div>
-              {errors.otp && (
-                <p className="mt-1 text-sm text-red-600">{errors.otp}</p>
-              )}
-              <div className="mt-2 flex items-center justify-between">
-                <p className="text-xs text-[var(--groups1-text-secondary)]">
-                  Didn't receive the code?
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Card variant="groups1" className="overflow-hidden">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Set a New Password</CardTitle>
+              <StatusBadge variant={strengthVariant} size="sm">
+                Strength: {strengthLabel}
+              </StatusBadge>
+            </div>
+          </CardHeader>
+          <CardContent variant="groups1">
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <p className="mt-1 text-xs text-[var(--groups1-text-secondary)]">
+                  Enter your current password to confirm this change.
                 </p>
+                <div className="relative mt-2">
+                  <Input
+                    id="currentPassword"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value);
+                      clearFieldError("currentPassword");
+                    }}
+                    autoComplete="current-password"
+                    className="pr-10"
+                    disabled={isChangingPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--groups1-text-secondary)] transition-colors hover:text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                    aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.currentPassword && (
+                  <p className="mt-1 text-xs text-red-600">{errors.currentPassword}</p>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative mt-2">
+                  <Input
+                    id="newPassword"
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                      clearFieldError("newPassword");
+                      if (confirmPassword) clearFieldError("confirmPassword");
+                    }}
+                    autoComplete="new-password"
+                    className="pr-10"
+                    disabled={isChangingPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--groups1-text-secondary)] transition-colors hover:text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                    aria-label={showNewPassword ? "Hide password" : "Show password"}
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.newPassword && (
+                  <p className="mt-1 text-xs text-red-600">{errors.newPassword}</p>
+                )}
+                {newPassword && (
+                  <div className="mt-3 rounded-lg border border-[var(--groups1-card-border)] bg-[var(--groups1-background)] p-3">
+                    <PasswordStrengthIndicator password={newPassword} showRequirements={false} />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <div className="relative mt-2">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      clearFieldError("confirmPassword");
+                    }}
+                    autoComplete="new-password"
+                    className="pr-10"
+                    disabled={isChangingPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--groups1-text-secondary)] transition-colors hover:text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                {confirmPassword && (
+                  <p
+                    className={
+                      passwordsMatch
+                        ? "mt-1 text-xs text-emerald-600 dark:text-emerald-400"
+                        : "mt-1 text-xs text-amber-600 dark:text-amber-400"
+                    }
+                  >
+                    {passwordsMatch ? "Passwords match." : "Passwords do not match yet."}
+                  </p>
+                )}
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-xs text-red-600">{errors.confirmPassword}</p>
+                )}
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 pt-3 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleResendOtp}
-                  disabled={resendCooldown > 0 || isResendingOtp}
-                  className="h-auto p-0 text-xs"
+                  variant="outline"
+                  onClick={() => router.push("/app/settings")}
+                  disabled={isChangingPassword}
                 >
-                  {resendCooldown > 0
-                    ? `Resend in ${formatOtpTime(resendCooldown)}`
-                    : "Resend Code"}
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitDisabled}>
+                  {isChangingPassword ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Update Password"
+                  )}
                 </Button>
               </div>
-            </div>
+            </form>
+          </CardContent>
+        </Card>
 
-            {/* New Password */}
-            <div>
-              <Label htmlFor="newPassword">New Password</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="newPassword"
-                  type={showNewPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pr-10"
-                  disabled={isChangingPassword}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
-                  aria-label={showNewPassword ? "Hide password" : "Show password"}
-                >
-                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+        <div className="space-y-6">
+          <Card variant="groups1">
+            <CardHeader>
+              <CardTitle className="text-sm">Password Checklist</CardTitle>
+            </CardHeader>
+            <CardContent variant="groups1" className="space-y-3">
+              {passwordRequirements.map((item) => {
+                const isMet = item.test(newPassword);
+                return (
+                  <div key={item.label} className="flex items-center gap-2">
+                    {isMet ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <Circle className="h-4 w-4 shrink-0 text-[var(--groups1-text-secondary)]" />
+                    )}
+                    <span
+                      className={
+                        isMet
+                          ? "text-xs text-emerald-700 dark:text-emerald-300"
+                          : "text-xs text-[var(--groups1-text-secondary)]"
+                      }
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card variant="groups1">
+            <CardHeader>
+              <CardTitle className="text-sm">Security Notes</CardTitle>
+            </CardHeader>
+            <CardContent variant="groups1" className="space-y-3">
+              <div className="flex gap-2">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--groups1-info)]" />
+                <p className="text-xs text-[var(--groups1-text-secondary)]">
+                  Password updates happen immediately after successful confirmation.
+                </p>
               </div>
-              {errors.newPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.newPassword}</p>
-              )}
-              {newPassword && (
-                <div className="mt-2">
-                  <PasswordStrengthIndicator password={newPassword} />
-                </div>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <div className="relative mt-1">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pr-10"
-                  disabled={isChangingPassword}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] rounded p-1"
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+              <div className="flex gap-2">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-[var(--groups1-warning)]" />
+                <p className="text-xs text-[var(--groups1-text-secondary)]">
+                  Avoid using old passwords or passwords reused on other services.
+                </p>
               </div>
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("request")}
-                disabled={isChangingPassword}
-                className="flex-1"
-              >
-                Back
-              </Button>
-              <Button
-                type="submit"
-                disabled={isChangingPassword}
-                className="flex-1"
-              >
-                {isChangingPassword ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Changing...
-                  </>
-                ) : (
-                  "Change Password"
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
-

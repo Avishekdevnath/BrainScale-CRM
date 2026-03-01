@@ -95,35 +95,38 @@ export const exportChatHistory = asyncHandler(async (req: AuthRequest, res: Resp
     chatId,
     filters
   );
-  
-  // Add BOM for Excel compatibility
-  const csvWithBOM = '\ufeff' + result.csv;
-  
-  // Set headers for CSV download
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+
+  res.setHeader('Content-Type', result.contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-  res.setHeader('Content-Length', Buffer.byteLength(csvWithBOM, 'utf-8'));
-  
-  res.send(csvWithBOM);
+  if (result.data instanceof Buffer) {
+    res.setHeader('Content-Length', result.data.length);
+    res.end(result.data);
+  } else {
+    // Text formats: add BOM for CSV so Excel opens correctly
+    const text = result.contentType.includes('csv') ? '\ufeff' + result.data : result.data;
+    res.setHeader('Content-Length', Buffer.byteLength(text as string, 'utf-8'));
+    res.send(text);
+  }
 });
 
 export const exportAIData = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { dataType, filters } = req.validatedData!;
+  const { dataType, filters, format } = req.validatedData!;
   const result = await aiChatService.exportAIData(
     req.user!.workspaceId!,
     req.user!.sub,
     dataType,
-    filters
+    { ...filters, format }
   );
-  
-  // Add BOM for Excel compatibility
-  const csvWithBOM = '\ufeff' + result.csv;
-  
-  // Set headers for CSV download
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+
+  res.setHeader('Content-Type', result.contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-  res.setHeader('Content-Length', Buffer.byteLength(csvWithBOM, 'utf-8'));
-  
-  res.send(csvWithBOM);
+  if (result.data instanceof Buffer) {
+    res.setHeader('Content-Length', result.data.length);
+    res.end(result.data);
+  } else {
+    const text = result.contentType.includes('csv') ? '\ufeff' + result.data : result.data;
+    res.setHeader('Content-Length', Buffer.byteLength(text as string, 'utf-8'));
+    res.send(text);
+  }
 });
 

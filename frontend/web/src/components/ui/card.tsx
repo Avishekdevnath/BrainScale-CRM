@@ -36,7 +36,7 @@ export function CardHeader({ className, variant = "default", suppressHydrationWa
       className={cn(
         "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-4 has-[data-slot=card-action]:grid-cols-[1fr_auto]",
         variant === "groups1"
-          ? "border-b border-[var(--groups1-card-border-inner)] pt-6 pb-4"
+          ? "border-b border-[var(--groups1-card-border-inner)] pt-8 pb-4"
           : "[.border-b]:pb-6",
         "px-6",
         className

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import type {
+  ChangePasswordResponse,
   RequestPasswordChangeOtpResponse,
   ChangePasswordOtpResponse,
   ResendPasswordChangeOtpResponse,
@@ -11,6 +12,34 @@ import type {
   ResetPasswordResponse,
   ResendResetPasswordOtpResponse,
 } from "@/types/password.types";
+
+/**
+ * Hook to change password directly (no email OTP)
+ */
+export function useChangePassword() {
+  const [isPending, setIsPending] = useState(false);
+
+  const mutate = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<ChangePasswordResponse> => {
+      setIsPending(true);
+      try {
+        const result = await apiClient.changePassword(currentPassword, newPassword);
+        toast.success("Password changed successfully");
+        return result;
+      } catch (error: unknown) {
+        console.error("Failed to change password:", error);
+        const message = error instanceof Error ? error.message : "Failed to change password";
+        toast.error(message);
+        throw error;
+      } finally {
+        setIsPending(false);
+      }
+    },
+    []
+  );
+
+  return { mutate, isPending };
+}
 
 /**
  * Hook to request password change OTP

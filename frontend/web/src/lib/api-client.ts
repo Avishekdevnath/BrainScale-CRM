@@ -92,6 +92,8 @@ import type {
   ResetPasswordResponse,
   ResendResetPasswordOtpPayload,
   ResendResetPasswordOtpResponse,
+  ChangePasswordPayload,
+  ChangePasswordResponse,
 } from "@/types/password.types";
 import type { DashboardSummaryResponse } from "@/types/dashboard.types";
 import type {
@@ -757,6 +759,13 @@ export class ApiClient {
   }
 
   // Password Management methods
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.request<ChangePasswordResponse>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword } as ChangePasswordPayload),
+    });
+  }
+
   requestPasswordChangeOtp(email: string) {
     return this.request<RequestPasswordChangeOtpResponse>("/auth/request-password-change-otp", {
       method: "POST",
@@ -2100,15 +2109,16 @@ export class ApiClient {
     });
   }
 
-  async exportChatHistory(chatId: string, options?: ExportChatHistoryOptions): Promise<void> {
+  async exportChatHistory(chatId: string, options?: ExportChatHistoryOptions & { format?: string }): Promise<void> {
     const params = new URLSearchParams();
     if (options?.dateFrom) params.append('dateFrom', options.dateFrom);
     if (options?.dateTo) params.append('dateTo', options.dateTo);
     if (options?.role) params.append('role', options.role);
-    
+    params.append('format', options?.format ?? 'csv');
+
     const queryString = params.toString();
     const endpoint = `/ai-chat/chats/${chatId}/export/history${queryString ? `?${queryString}` : ''}`;
-    
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: {
@@ -2119,31 +2129,19 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      try {
-        const error = await this.parseError(response);
-        throw error;
-      } catch (err) {
-        throw new Error(`Export failed: ${response.status} ${response.statusText}`);
-      }
+      throw new Error(`Export failed: ${response.status} ${response.statusText}`);
     }
 
     const blob = await response.blob();
     const contentDisposition = response.headers.get('content-disposition');
     const filename = contentDisposition
-      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'chat-history.csv'
-      : 'chat-history.csv';
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || `chat-history.${options?.format ?? 'csv'}`
+      : `chat-history.${options?.format ?? 'csv'}`;
 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    triggerBlobDownload(blob, filename);
   }
 
-  async exportAIData(options: ExportAIDataOptions): Promise<void> {
+  async exportAIData(options: ExportAIDataOptions & { format?: string }): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/ai-chat/export/data`, {
       method: 'POST',
       headers: {
@@ -2152,33 +2150,32 @@ export class ApiClient {
         'Content-Type': 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify(options),
+      body: JSON.stringify({ ...options, format: options.format ?? 'csv' }),
     });
 
     if (!response.ok) {
-      try {
-        const error = await this.parseError(response);
-        throw error;
-      } catch (err) {
-        throw new Error(`Export failed: ${response.status} ${response.statusText}`);
-      }
+      throw new Error(`Export failed: ${response.status} ${response.statusText}`);
     }
 
     const blob = await response.blob();
     const contentDisposition = response.headers.get('content-disposition');
     const filename = contentDisposition
-      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'ai-data.csv'
-      : 'ai-data.csv';
+      ? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || `ai-data.${options?.format ?? 'csv'}`
+      : `ai-data.${options?.format ?? 'csv'}`;
 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    triggerBlobDownload(blob, filename);
   }
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
 }
 
 export const apiClient = new ApiClient();

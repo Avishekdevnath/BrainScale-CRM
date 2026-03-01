@@ -19,6 +19,15 @@ import { format, isToday, isYesterday, isThisWeek, differenceInDays } from "date
 import type { ChatMessage } from "@/types/ai-chat.types";
 import { useChatStore } from "@/store/chat";
 
+const STARTER_QUESTIONS = [
+  "How many students do we have?",
+  "How many calls were made today?",
+  "Who made the most calls this week?",
+  "Which group has the most students?",
+  "Are there any overdue follow-ups?",
+  "Show call trends for this month",
+];
+
 interface GroupedMessages {
   date: string;
   label: string;
@@ -40,6 +49,40 @@ export default function AIChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Suggested follow-up questions based on last assistant message
+  const suggestedQuestions = useMemo(() => {
+    const assistantMsgs = messages.filter(m => m.role === 'assistant');
+    const last = assistantMsgs[assistantMsgs.length - 1];
+    if (!last) return [];
+    const c = last.content.toLowerCase();
+    const pool: string[] = [];
+    if (c.includes('student') || c.includes('enroll')) {
+      pool.push('Which group has the most students?', 'Show me top student tags');
+    }
+    if (c.includes('call') || c.includes('trend')) {
+      pool.push('Show call trends for this week', 'Who made the most calls today?');
+    }
+    if (c.includes('follow') || c.includes('overdue')) {
+      pool.push('How many follow-ups are overdue?', 'Show all pending follow-ups');
+    }
+    if (c.includes('group') || c.includes('batch')) {
+      pool.push('List all groups', 'Which group has the most calls?');
+    }
+    if (c.includes('caller') || c.includes('counselor') || c.includes('performance')) {
+      pool.push('Show counselor performance this month', 'Who has the best completion rate?');
+    }
+    return (pool.length > 0 ? pool : [
+      'How many calls were made today?',
+      'Show pending follow-ups',
+      'Who are the top callers this week?',
+    ]).slice(0, 3);
+  }, [messages]);
+
+  const handleSuggestionClick = (text: string) => {
+    setInputMessage(text);
+    inputRef.current?.focus();
+  };
 
   // Load messages when selectedChatId changes
   useEffect(() => {
@@ -412,14 +455,20 @@ export default function AIChatPage() {
                   : "Ask me anything about your workspace. I can help you find students, analyze call logs, get statistics, and more!"}
               </p>
               {!searchQuery && (
-                <div className="space-y-2 text-left">
+                <div className="space-y-3">
                   <p className="text-xs text-[var(--groups1-text-secondary)] font-medium">Try asking:</p>
-                  <ul className="text-xs text-[var(--groups1-text-secondary)] space-y-1 list-disc list-inside">
-                    <li>"Show me students who haven't been called in the last week"</li>
-                    <li>"What are my workspace statistics?"</li>
-                    <li>"Find call logs for John Doe"</li>
-                    <li>"What follow-ups are due today?"</li>
-                  </ul>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {STARTER_QUESTIONS.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => handleSuggestionClick(q)}
+                        className="text-xs px-3 py-1.5 rounded-full border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] hover:border-[var(--groups1-primary)] transition-colors cursor-pointer"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </motion.div>
@@ -528,6 +577,21 @@ export default function AIChatPage() {
             >
               {error}
             </motion.div>
+          )}
+          {suggestedQuestions.length > 0 && !isLoading && (
+            <div className="flex gap-2 flex-wrap mb-3">
+              {suggestedQuestions.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => handleSuggestionClick(q)}
+                  className="text-xs px-3 py-1 rounded-full border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)] hover:border-[var(--groups1-primary)] transition-colors truncate max-w-[220px] cursor-pointer"
+                  title={q}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           )}
           <div className="flex gap-2">
             <Input

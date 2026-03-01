@@ -79,11 +79,11 @@ export default function SettingsPage() {
       </div>
 
       {/* Account Information */}
-      <Card variant="groups1">
-        <CardHeader>
+      <Card variant="groups1" className="gap-1">
+        <CardHeader className="gap-1 pb-1 pt-2">
           <CardTitle>Account Information</CardTitle>
         </CardHeader>
-        <CardContent variant="groups1" className="space-y-4">
+        <CardContent variant="groups1" className="space-y-4 pt-1">
           <div className="flex items-center gap-3">
             <User className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
             <div>
@@ -112,11 +112,11 @@ export default function SettingsPage() {
       </Card>
 
       {/* Security */}
-      <Card variant="groups1">
-        <CardHeader>
+      <Card variant="groups1" className="gap-1">
+        <CardHeader className="gap-1 pb-1 pt-2">
           <CardTitle>Security</CardTitle>
         </CardHeader>
-        <CardContent variant="groups1" className="space-y-4">
+        <CardContent variant="groups1" className="space-y-4 pt-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Lock className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
@@ -138,14 +138,14 @@ export default function SettingsPage() {
 
       {/* AI Features (Admin Only) */}
       {isAdmin && (
-        <Card variant="groups1">
-          <CardHeader>
+        <Card variant="groups1" className="gap-1">
+          <CardHeader className="gap-1 pb-1 pt-2">
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
               <CardTitle>AI Features</CardTitle>
             </div>
           </CardHeader>
-          <CardContent variant="groups1" className="space-y-6">
+          <CardContent variant="groups1" className="space-y-2 pt-1">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin text-[var(--groups1-text-secondary)]" />
@@ -153,12 +153,12 @@ export default function SettingsPage() {
             ) : (
               <>
                 {/* Master AI Toggle */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <Label htmlFor="ai-features-enabled" className="text-sm font-medium text-[var(--groups1-text)]">
                       Enable AI Features
                     </Label>
-                    <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                    <p className="mt-0 text-xs leading-4 text-[var(--groups1-text-secondary)]">
                       Master switch to enable or disable all AI features for this workspace
                     </p>
                   </div>
@@ -172,13 +172,13 @@ export default function SettingsPage() {
 
                 {/* Individual AI Features */}
                 {settings?.aiFeaturesEnabled && (
-                  <div className="space-y-4 pl-4 border-l-2 border-[var(--groups1-border)]">
+                  <div className="space-y-3 border-l-2 border-[var(--groups1-border)] pl-4 pt-1">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <Label htmlFor="ai-chat" className="text-sm font-medium text-[var(--groups1-text)]">
                           AI Chat
                         </Label>
-                        <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                        <p className="mt-0.5 text-xs text-[var(--groups1-text-secondary)]">
                           Enable AI-powered chat assistant for workspace queries
                         </p>
                       </div>
@@ -195,7 +195,7 @@ export default function SettingsPage() {
                         <Label htmlFor="ai-summary" className="text-sm font-medium text-[var(--groups1-text)]">
                           Call Log Summary
                         </Label>
-                        <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                        <p className="mt-0.5 text-xs text-[var(--groups1-text-secondary)]">
                           Automatically generate summaries for call logs
                         </p>
                       </div>
@@ -212,7 +212,7 @@ export default function SettingsPage() {
                         <Label htmlFor="ai-sentiment" className="text-sm font-medium text-[var(--groups1-text)]">
                           Sentiment Analysis
                         </Label>
-                        <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                        <p className="mt-0.5 text-xs text-[var(--groups1-text-secondary)]">
                           Analyze sentiment of call logs automatically
                         </p>
                       </div>
@@ -227,7 +227,7 @@ export default function SettingsPage() {
                 )}
 
                 {!settings?.aiFeaturesEnabled && (
-                  <p className="text-xs text-[var(--groups1-text-secondary)] italic">
+                  <p className="mt-0 text-xs italic leading-4 text-[var(--groups1-text-secondary)]">
                     Enable AI Features to configure individual features
                   </p>
                 )}
@@ -238,11 +238,11 @@ export default function SettingsPage() {
       )}
 
       {/* Data Export & Account Deletion */}
-      <Card variant="groups1">
-        <CardHeader>
+      <Card variant="groups1" className="gap-1">
+        <CardHeader className="gap-1 pb-1 pt-2">
           <CardTitle>Data & Account</CardTitle>
         </CardHeader>
-        <CardContent variant="groups1" className="space-y-4">
+        <CardContent variant="groups1" className="space-y-4 pt-1">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-[var(--groups1-text)]">Export account data</p>

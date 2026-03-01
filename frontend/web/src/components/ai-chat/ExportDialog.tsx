@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Download, X } from "lucide-react";
+import { Loader2, Download, FileText, FileSpreadsheet, FileCode, FileDown } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -25,6 +25,7 @@ export function ExportDialog({ open, onOpenChange, messageCount = 0, chatId }: E
   const [dateTo, setDateTo] = useState("");
   const [role, setRole] = useState<"user" | "assistant" | "">("");
   const [dataType, setDataType] = useState<ExportAIDataOptions["dataType"]>("students");
+  const [exportFormat, setExportFormat] = useState<"csv" | "excel" | "markdown" | "pdf">("csv");
 
   const handleExport = async () => {
     try {
@@ -36,7 +37,7 @@ export function ExportDialog({ open, onOpenChange, messageCount = 0, chatId }: E
           return;
         }
 
-        const options: ExportChatHistoryOptions = {};
+        const options: ExportChatHistoryOptions & { format: string } = { format: exportFormat };
         if (dateFrom) options.dateFrom = new Date(dateFrom).toISOString();
         if (dateTo) options.dateTo = new Date(dateTo).toISOString();
         if (role) options.role = role;
@@ -44,8 +45,9 @@ export function ExportDialog({ open, onOpenChange, messageCount = 0, chatId }: E
         await apiClient.exportChatHistory(chatId, options);
         toast.success("Chat history exported successfully");
       } else {
-        const options: ExportAIDataOptions = {
+        const options: ExportAIDataOptions & { format: string } = {
           dataType,
+          format: exportFormat,
         };
         await apiClient.exportAIData(options);
         toast.success("Data exported successfully");
@@ -184,6 +186,37 @@ export function ExportDialog({ open, onOpenChange, messageCount = 0, chatId }: E
             </div>
           )}
 
+          {/* Format Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-[var(--groups1-text)]">
+              File Format
+            </Label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(
+                [
+                  { value: "csv", label: "CSV", icon: FileText },
+                  { value: "excel", label: "Excel", icon: FileSpreadsheet },
+                  { value: "markdown", label: "Markdown", icon: FileCode },
+                  { value: "pdf", label: "PDF", icon: FileDown },
+                ] as const
+              ).map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setExportFormat(value)}
+                  className={`flex flex-col items-center gap-1 py-2 px-1 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
+                    exportFormat === value
+                      ? "border-[var(--groups1-primary)] bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                      : "border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text-secondary)] hover:border-[var(--groups1-primary)] hover:text-[var(--groups1-text)]"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4">
             <Button
@@ -207,7 +240,7 @@ export function ExportDialog({ open, onOpenChange, messageCount = 0, chatId }: E
               ) : (
                 <>
                   <Download className="w-4 h-4 mr-2" />
-                  Export CSV
+                  Export {exportFormat.toUpperCase()}
                 </>
               )}
             </Button>

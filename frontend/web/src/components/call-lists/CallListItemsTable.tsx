@@ -10,18 +10,19 @@ import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
 import { CallListFilters } from "./CallListFilters";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { useCallListItems } from "@/hooks/useCallLists";
+import { useCallList, useCallListItems } from "@/hooks/useCallLists";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
 import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical } from "lucide-react";
+import { extractQuestions, getStateLabel, getStateColor } from "@/lib/call-list-utils";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical, Download } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import type { CallListItem, CallListItemState, CallListItemsListParams } from "@/types/call-lists.types";
+import type { Answer, CallListItem, CallListItemState, CallListItemsListParams, Question } from "@/types/call-lists.types";
+import * as XLSX from "xlsx";
 
 export interface CallListItemsTableProps {
   listId: string;
@@ -38,6 +39,7 @@ export interface CallListItemsTableProps {
 
 type FilterType = "all" | "success" | "skipped" | "follow_up";
 type AssignmentFilterType = "all" | "assigned" | "unassigned" | "member";
+
 
 export function CallListItemsTable({
   listId,
@@ -65,7 +67,7 @@ export function CallListItemsTable({
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
   const [showFilters, setShowFilters] = React.useState(false);
   const [hoveredRowId, setHoveredRowId] = React.useState<string | null>(null);
-
+  const [isExportingExcel, setIsExportingExcel] = React.useState(false);
   // Get current user's member ID to check if they're assigned
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember } = useCurrentMember(workspaceId);
@@ -102,6 +104,7 @@ export function CallListItemsTable({
     }));
   }, [pageSize, activeFilter, assignmentFilter, memberFilterId]);
 
+  const { data: callListDetails } = useCallList(listId);
   const { data, isLoading, error, mutate } = useCallListItems(listId, filters);
 
   // Clear selection when page changes
@@ -148,6 +151,25 @@ export function CallListItemsTable({
   const totalItems = data?.pagination?.total ?? 0;
 
   const totalPages = Math.ceil(totalItems / pageSize);
+
+  const questions = React.useMemo(() => {
+    const fromCallListDetails = extractQuestions(callListDetails);
+    if (fromCallListDetails.length > 0) {
+      return fromCallListDetails.slice().sort((a, b) => a.order - b.order);
+    }
+
+    const fromItemQuestions = paginatedItems[0]?.callList?.questions;
+    if (fromItemQuestions && fromItemQuestions.length > 0) {
+      return fromItemQuestions.slice().sort((a, b) => a.order - b.order);
+    }
+
+    const fromItemMeta = paginatedItems[0]?.callList?.meta?.questions;
+    if (Array.isArray(fromItemMeta) && fromItemMeta.length > 0) {
+      return (fromItemMeta as Question[]).slice().sort((a, b) => a.order - b.order);
+    }
+
+    return [];
+  }, [callListDetails, paginatedItems]);
 
   const selectionMeta = React.useMemo(() => {
     let assignedToMe = 0;
@@ -395,6 +417,127 @@ export function CallListItemsTable({
     return item.callLog || null;
   };
 
+  const normalizeQuestionText = (value: string | undefined | null): string => {
+    return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  };
+
+  const getAnswer = (item: CallListItem, question: Question): Answer | undefined => {
+    const answers = item.callLog?.answers || [];
+    const answerByQuestionId = answers.find((answer) => answer.questionId === question.id);
+    if (answerByQuestionId) return answerByQuestionId;
+
+    const targetQuestionText = normalizeQuestionText(question.question);
+    if (!targetQuestionText) return undefined;
+
+    return answers.find((answer) => normalizeQuestionText(answer.question) === targetQuestionText);
+  };
+
+  const formatAnswerValue = (answer: string | number | boolean | undefined | null): string => {
+    if (answer === undefined || answer === null || answer === "") return "-";
+    if (typeof answer === "boolean") return answer ? "Yes" : "No";
+    if (answer === "true") return "Yes";
+    if (answer === "false") return "No";
+    return String(answer);
+  };
+
+  const getQuestionHeaderLabel = (question: Question): string => {
+    const shortFromCamel = question.shortLabel?.trim();
+    const shortFromSnake = (question as unknown as { short_label?: string }).short_label?.trim();
+    const short = shortFromCamel || shortFromSnake;
+    return short && short.length > 0 ? short : "-";
+  };
+
+  const getQuestionExportLabel = (question: Question): string => {
+    const shortLabel = getQuestionHeaderLabel(question);
+    return shortLabel !== "-" ? shortLabel : question.question;
+  };
+
+  const formatDateForExport = (value?: string | null): string => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString();
+  };
+
+  const getPrimaryPhone = (item: CallListItem): string => {
+    const primaryPhone = item.student?.phones?.find((phone) => phone.isPrimary) || item.student?.phones?.[0];
+    return primaryPhone?.phone || "-";
+  };
+
+  const handleExportExcel = async () => {
+    if (isExportingExcel) return;
+
+    setIsExportingExcel(true);
+    try {
+      const requestParams: CallListItemsListParams = {
+        ...filters,
+        page: 1,
+        size: 1000,
+      };
+
+      const firstPage = await apiClient.getCallListItems(listId, requestParams);
+      const allItems: CallListItem[] = [...firstPage.items];
+      const totalPagesForExport = firstPage.pagination.totalPages || 1;
+
+      for (let page = 2; page <= totalPagesForExport; page += 1) {
+        const pageResult = await apiClient.getCallListItems(listId, {
+          ...requestParams,
+          page,
+        });
+        allItems.push(...pageResult.items);
+      }
+
+      const questionHeaders = questions.map((question) => getQuestionExportLabel(question));
+      const headers = [
+        "SL",
+        "Student Name",
+        "Phone",
+        "Assigned",
+        "Status",
+        ...questionHeaders,
+        "Follow-up Date",
+      ];
+
+      const rows = allItems.map((item, index) => {
+        const assignedTo = item.assignee?.user?.email || (item.assignedTo ? "Assigned" : "Unassigned");
+        const answerValues = questions.map((question) => {
+          const answer = getAnswer(item, question);
+          return formatAnswerValue(answer?.answer);
+        });
+
+        return [
+          index + 1,
+          item.student?.name || "Student not found",
+          getPrimaryPhone(item),
+          assignedTo,
+          getStateLabel(item.state),
+          ...answerValues,
+          formatDateForExport(item.callLog?.followUpDate),
+        ];
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Call List Items");
+
+      const safeListName = (callListDetails?.name || "call-list")
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .trim()
+        .replace(/\s+/g, "-")
+        .toLowerCase();
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+
+      XLSX.writeFile(workbook, `${safeListName || "call-list"}-items-${timestamp}.xlsx`);
+      toast.success(`Exported ${allItems.length} item(s) to Excel.`);
+    } catch (error: unknown) {
+      console.error("Failed to export call list items:", error);
+      const message = error instanceof Error ? error.message : "Failed to export call list items";
+      toast.error(message);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const isAllSelectedOnCurrentPage = React.useMemo(() => {
     if (!paginatedItems || paginatedItems.length === 0) return false;
     const selectableItems = isAdmin
@@ -413,6 +556,26 @@ export function CallListItemsTable({
               Students ({totalItems})
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleExportExcel}
+                disabled={isLoading || isExportingExcel}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isExportingExcel ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-1" />
+                    Export Excel
+                  </>
+                )}
+              </Button>
               {/* Pagination Size Selector */}
               <div className="flex items-center gap-1.5">
                 <label className="text-sm text-[var(--groups1-text-secondary)]">Per page:</label>
@@ -503,7 +666,6 @@ export function CallListItemsTable({
                   const primaryPhone = item.student?.phones?.find((p) => p.isPrimary) || item.student?.phones?.[0];
                   const isUpdating = updatingItemId === item.id;
                   const callLog = getCallLogData(item);
-                  const summaryNote = callLog?.summaryNote || null;
                   const followUpDate = callLog?.followUpDate || null;
                   const serialNumber = (filters.page! - 1) * pageSize + index + 1;
 
@@ -682,16 +844,22 @@ export function CallListItemsTable({
                         </div>
                       </div>
 
-                      <div className="mt-2">
-                        <div className="text-xs text-[var(--groups1-text-secondary)]">Summary Note (AI)</div>
-                        {summaryNote ? (
-                          <p className="mt-0.5 text-sm text-[var(--groups1-text-secondary)] line-clamp-2" title={summaryNote}>
-                            {summaryNote}
-                          </p>
-                        ) : (
-                          <div className="mt-0.5 text-sm text-[var(--groups1-text-secondary)]">-</div>
-                        )}
-                      </div>
+                      {questions.length > 0 && (
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                          {questions.map((q) => {
+                            const answerObj = getAnswer(item, q);
+                            const displayValue = formatAnswerValue(answerObj?.answer);
+                            return (
+                              <div key={q.id} className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
+                                <div className="text-[10px] text-[var(--groups1-text-secondary)] truncate">
+                                  {getQuestionHeaderLabel(q)}
+                                </div>
+                                <div className="mt-0.5 text-xs text-[var(--groups1-text)]">{displayValue}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -699,10 +867,10 @@ export function CallListItemsTable({
 
               {/* Desktop table view */}
               <div className="hidden md:block overflow-x-auto">
-              <table className="w-full border-collapse">
+                <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10 bg-[var(--groups1-surface)]">
                       <input
                         type="checkbox"
                         checked={isAllSelectedOnCurrentPage}
@@ -710,7 +878,7 @@ export function CallListItemsTable({
                         className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-primary)] focus:ring-offset-0 cursor-pointer"
                       />
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] w-12">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       SL
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
@@ -725,13 +893,21 @@ export function CallListItemsTable({
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Status
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
-                      Summary Note (AI)
-                    </th>
+                    {questions.map((q) => (
+                      <th
+                        key={q.id}
+                        className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]"
+                        title={q.question}
+                      >
+                        <span className="truncate block pr-3 normal-case">
+                          {getQuestionHeaderLabel(q)}
+                        </span>
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Follow-up Date
                     </th>
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-l border-[var(--groups1-card-border-inner)] sticky right-0 z-10 bg-[var(--groups1-surface)]">
                       Actions
                     </th>
                   </tr>
@@ -741,14 +917,13 @@ export function CallListItemsTable({
                     const primaryPhone = item.student?.phones?.find((p) => p.isPrimary) || item.student?.phones?.[0];
                     const isUpdating = updatingItemId === item.id;
                     const callLog = getCallLogData(item);
-                    const summaryNote = callLog?.summaryNote || null;
                     const followUpDate = callLog?.followUpDate || null;
-                  const serialNumber = (filters.page! - 1) * pageSize + index + 1;
+                    const serialNumber = (filters.page! - 1) * pageSize + index + 1;
 
-                  const isAssigned = !!item.assignedTo;
-                  const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
-                  const isAssignedToOther = isAssigned && !isAssignedToMe;
-                  const isSelected = selectedItemIds.has(item.id);
+                    const isAssigned = !!item.assignedTo;
+                    const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
+                    const isAssignedToOther = isAssigned && !isAssignedToMe;
+                    const isSelected = selectedItemIds.has(item.id);
 
                   return (
                     <tr
@@ -761,7 +936,10 @@ export function CallListItemsTable({
                         onMouseEnter={() => setHoveredRowId(item.id)}
                         onMouseLeave={() => setHoveredRowId(null)}
                       >
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className={cn(
+                          "px-3 py-2 border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10",
+                          isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
+                        )}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -774,13 +952,13 @@ export function CallListItemsTable({
                         <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-sm text-[var(--groups1-text-secondary)]">
                           {serialNumber}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] overflow-hidden">
                           {item.student ? (
                             <Link
                               href={`/app/students/${item.student.id}`}
                               className="hover:underline"
                             >
-                              <div className="font-medium text-[var(--groups1-text)]">
+                              <div className="font-medium text-[var(--groups1-text)] truncate" title={item.student.name}>
                                 {item.student.name}
                               </div>
                             </Link>
@@ -826,15 +1004,20 @@ export function CallListItemsTable({
                             {getStateLabel(item.state)}
                           </StatusBadge>
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] max-w-xs">
-                          {summaryNote ? (
-                            <p className="text-sm text-[var(--groups1-text-secondary)] truncate" title={summaryNote}>
-                              {summaryNote}
-                            </p>
-                          ) : (
-                            <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
-                          )}
-                        </td>
+                        {questions.map((q) => {
+                          const answerObj = getAnswer(item, q);
+                          const displayValue = formatAnswerValue(answerObj?.answer);
+                          return (
+                            <td key={q.id} className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] max-w-[140px]">
+                              <span
+                                className="text-sm text-[var(--groups1-text)] truncate block"
+                                title={displayValue !== "-" ? displayValue : undefined}
+                              >
+                                {displayValue}
+                              </span>
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
                           {followUpDate ? (
                             <span className="text-sm text-[var(--groups1-text)]">
@@ -844,9 +1027,10 @@ export function CallListItemsTable({
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td 
-                          className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-right w-20"
-                        >
+                        <td className={cn(
+                          "px-3 py-2 border-b border-l border-[var(--groups1-card-border-inner)] text-right sticky right-0 z-10",
+                          isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
+                        )}>
                           <div className={cn(
                             "flex items-center justify-end gap-2 transition-opacity duration-200",
                             (hoveredRowId === item.id || isSelected) ? "opacity-100" : "opacity-0"

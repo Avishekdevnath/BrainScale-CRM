@@ -4,6 +4,8 @@ import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import { chatWithFunctions, ChatMessage as AIChatMessage, FunctionDefinition } from '../../utils/ai-client';
 import * as contextService from './context.service';
+import * as XLSX from 'xlsx';
+import PDFDocument from 'pdfkit';
 
 /**
  * Check if AI chat is enabled for workspace
@@ -77,7 +79,7 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
     },
     {
       name: 'getCallLogs',
-      description: 'Get call logs with optional filters. Use this when user asks about calls, call history, call logs, "how many students we called today", "students called today", or any question about calls made today. The response includes both count (total calls) and uniqueStudentsCount (unique students called). For questions about "today", ALWAYS set today: true.',
+      description: 'Get call logs with optional filters. Use this when user asks about calls, call history, or call logs for a specific date range. The response includes "total" (the REAL total count from the database matching the filters), "count" (number of records returned, limited by the limit param), and "uniqueStudentsCount". For "how many calls" questions without a date filter, prefer getWorkspaceStats which has totalCallsAllTime. For questions about "today", ALWAYS set today: true.',
       parameters: {
         type: 'object',
         properties: {
@@ -110,7 +112,7 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
     },
     {
       name: 'getWorkspaceStats',
-      description: 'Get workspace statistics and KPIs. Use this when user asks about overall workspace metrics, dashboard stats, or summary numbers.',
+      description: 'Get workspace statistics and KPIs. ALWAYS use this when user asks "how many students", "how many calls", "total students", "total calls", or any aggregate count question about the workspace. Returns "studentCount" (exact total students), "totalCallsAllTime" (exact total call logs ever), plus overview, activity, followups, and metrics.',
       parameters: {
         type: 'object',
         properties: {},
@@ -172,13 +174,88 @@ const getFunctionDefinitions = (): FunctionDefinition[] => {
         },
       },
     },
+    {
+      name: 'getGroups',
+      description: 'Get all active groups (classes/batches) in the workspace. Use this when user asks "how many groups", "list groups", "which groups exist", or any question about groups. Returns each group\'s name, student count, and call list count.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+    {
+      name: 'getCallerPerformance',
+      description: 'Get performance statistics for each caller/counselor. Use this when user asks "who called the most", "top callers", "counselor performance", "caller stats", or any question comparing how many calls each team member made. Returns totalCalls, completed, missed, noAnswer, voicemail, and completionRate per caller.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: 'Number of top callers to return (default: 10)',
+          },
+          dateFrom: {
+            type: 'string',
+            description: 'Filter calls from this date (ISO format)',
+          },
+          dateTo: {
+            type: 'string',
+            description: 'Filter calls until this date (ISO format)',
+          },
+        },
+      },
+    },
+    {
+      name: 'getCallTrends',
+      description: 'Get day-by-day call volume trends for a date range. Use this when user asks about "call trends", "calls this week vs last week", "call volume over time", "how many calls per day", "show me calls for [month]", or any time-series question about call activity. Returns a list of daily call counts with completed/missed/noAnswer breakdown and the peak day.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dateFrom: {
+            type: 'string',
+            description: 'Start date for the trend (ISO format, e.g. "2026-02-01"). Calculate based on current date for relative periods like "this week" or "last month".',
+          },
+          dateTo: {
+            type: 'string',
+            description: 'End date for the trend (ISO format, e.g. "2026-02-28"). For "this week" use today as dateTo.',
+          },
+        },
+        required: ['dateFrom', 'dateTo'],
+      },
+    },
+    {
+      name: 'createCallList',
+      description: 'Create a new call list with a set of students. Use this when the user asks to create or make a call list. IMPORTANT: You MUST have groupId before calling this — call getGroups() first if you do not know the group, then confirm with the user which group to use. Gather studentIds via searchStudents or getFollowups before calling this function. Never call this without confirmed groupId and studentIds.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Name for the call list (e.g. "Overdue Follow-ups March 2026")',
+          },
+          groupId: {
+            type: 'string',
+            description: 'ID of the group the call list belongs to (required)',
+          },
+          studentIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of student IDs to add to the call list',
+          },
+          description: {
+            type: 'string',
+            description: 'Optional description for the call list',
+          },
+        },
+        required: ['name', 'groupId', 'studentIds'],
+      },
+    },
   ];
 };
 
 /**
  * Execute a function call
  */
-const executeFunction = async (name: string, args: any, workspaceId: string): Promise<any> => {
+const executeFunction = async (name: string, args: any, workspaceId: string, userId: string): Promise<any> => {
   try {
     switch (name) {
       case 'getStudentInfo':
@@ -195,6 +272,14 @@ const executeFunction = async (name: string, args: any, workspaceId: string): Pr
         return await contextService.getFollowups(args || {}, workspaceId);
       case 'getCallLists':
         return await contextService.getCallLists(args || {}, workspaceId);
+      case 'getGroups':
+        return await contextService.getGroups(workspaceId);
+      case 'getCallerPerformance':
+        return await contextService.getCallerPerformance(workspaceId, args.limit, args.dateFrom, args.dateTo);
+      case 'getCallTrends':
+        return await contextService.getCallTrends({ dateFrom: args.dateFrom, dateTo: args.dateTo }, workspaceId);
+      case 'createCallList':
+        return await contextService.createCallListForAI(workspaceId, userId, args);
       default:
         return { error: `Unknown function: ${name}` };
     }
@@ -207,10 +292,20 @@ const executeFunction = async (name: string, args: any, workspaceId: string): Pr
 /**
  * Get system prompt for AI
  */
-const getSystemPrompt = (workspaceName: string): string => {
+const getSystemPrompt = (workspaceName: string, workspaceAlerts?: string): string => {
+  const now = new Date();
+  const todayDate = now.toISOString().split('T')[0];
+  const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+  const monthYear = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
   return `You are Brain, a helpful AI assistant for the workspace "${workspaceName}". Your role is to help users understand their workspace data, answer questions, and provide insights.
 
 Your name is "Brain" - you should introduce yourself as Brain and refer to yourself as Brain in your responses when appropriate.
+
+CURRENT DATE & TIME:
+- Today: ${todayDate} (${dayName})
+- Month: ${monthYear}
+Use this to correctly interpret relative date queries like "today", "this week", "last month", "yesterday".
 
 IMPORTANT RULES:
 1. You can ONLY access data from the current workspace (workspaceId is automatically provided to all functions)
@@ -234,10 +329,32 @@ You have access to the following workspace data:
 - Call logs and call history
 - Follow-ups and reminders
 - Call lists
+- Groups (classes/batches)
 - Workspace statistics and metrics
+- Caller/counselor performance
 - Recent activity
 
-Use the available functions to retrieve data when users ask questions about their workspace.`;
+DATA RETRIEVAL RULES:
+- For "how many students" or "total students" → ALWAYS call getWorkspaceStats and use the "studentCount" field
+- For "how many calls" or "total calls" (all time) → ALWAYS call getWorkspaceStats and use "totalCallsAllTime"
+- For "which group has most students" or "top student tags" → call getWorkspaceStats (it now includes "topGroups" and "topTags")
+- For "how many calls today" → call getCallLogs with today: true and use the "total" field
+- For date-filtered call counts → call getCallLogs with dateFrom/dateTo and use the "total" field (NOT count — count is just the page size)
+- For "how many groups" or group list → ALWAYS call getGroups
+- For "who called the most", "top callers", "counselor performance" → ALWAYS call getCallerPerformance
+- For "call trends", "calls this week vs last week", "call volume over time", "show me February calls" → ALWAYS call getCallTrends with the appropriate dateFrom and dateTo
+- For "create a call list" or "make a call list" → (1) call getGroups to show available groups, (2) ask the user to confirm which group, (3) gather studentIds via searchStudents or getFollowups, (4) call createCallList with name + groupId + studentIds
+- NEVER guess or invent numbers; always call a function to get real data
+- If a function returns data, cite the exact numbers from it in your response
+
+RESPONSE FORMATTING RULES:
+- Always use **bold** for key numbers and names (e.g. **42 students**, **John Smith**)
+- Use bullet lists for listing multiple items (3 or more)
+- Use a markdown table when comparing data across multiple callers, groups, or time periods
+- Keep responses concise — lead with the direct answer, then add context
+- For performance comparisons, always show the top result first
+- For trend data, describe the peak day and overall direction (increasing/decreasing)
+${workspaceAlerts ? `\nWORKSPACE ALERTS (auto-detected — mention these proactively if the user asks about follow-ups or workspace status):\n${workspaceAlerts}` : ''}`;
 };
 
 /**
@@ -464,11 +581,23 @@ export const sendMessage = async (
       },
     });
 
-    // Get workspace name for system prompt
-    const workspace = await prisma.workspace.findUnique({
-      where: { id: workspaceId },
-      select: { name: true },
-    });
+    // Get workspace name + alerts in parallel
+    const [workspace, overdueFollowupCount, activeCallListCount] = await Promise.all([
+      prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
+      prisma.followup.count({
+        where: { workspaceId, status: 'PENDING', dueAt: { lt: new Date() } },
+      }),
+      prisma.callList.count({ where: { workspaceId, status: 'active' } }),
+    ]);
+
+    const alertParts: string[] = [];
+    if (overdueFollowupCount > 0) {
+      alertParts.push(`- ${overdueFollowupCount} follow-up${overdueFollowupCount !== 1 ? 's' : ''} are overdue (past due date)`);
+    }
+    if (activeCallListCount > 0) {
+      alertParts.push(`- ${activeCallListCount} call list${activeCallListCount !== 1 ? 's' : ''} are currently active`);
+    }
+    const workspaceAlerts = alertParts.length > 0 ? alertParts.join('\n') : undefined;
 
     // Load recent chat history for THIS CHAT (last 20 messages for context)
     const history = await prisma.chatMessage.findMany({
@@ -490,7 +619,7 @@ export const sendMessage = async (
     const messages: AIChatMessage[] = [
       {
         role: 'system',
-        content: getSystemPrompt(workspace?.name || 'Workspace'),
+        content: getSystemPrompt(workspace?.name || 'Workspace', workspaceAlerts),
       },
       ...history
         .reverse()
@@ -512,7 +641,7 @@ export const sendMessage = async (
       messages,
       functions,
       workspaceId,
-      executeFunction
+      (name, args, wId) => executeFunction(name, args, wId, userId)
     );
 
     if (!aiResponse || !aiResponse.content) {
@@ -655,7 +784,108 @@ export const clearChatHistory = async (
 };
 
 /**
- * Export chat history to CSV
+ * Build an export in the requested format from headers + rows
+ */
+function buildExport(
+  headers: string[],
+  rows: string[][],
+  title: string,
+  exportFormat: 'csv' | 'excel' | 'markdown' | 'pdf',
+  baseFilename: string
+): Promise<{ data: Buffer | string; filename: string; contentType: string }> {
+  const timestamp = new Date().toISOString().split('T')[0];
+
+  if (exportFormat === 'excel') {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Export');
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    return Promise.resolve({
+      data: buffer,
+      filename: `${baseFilename}-${timestamp}.xlsx`,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  }
+
+  if (exportFormat === 'markdown') {
+    const sep = headers.map(() => '---').join(' | ');
+    const headerRow = headers.join(' | ');
+    const dataRows = rows.map(row => row.join(' | '));
+    const md = [`# ${title}`, '', headerRow, sep, ...dataRows].join('\n');
+    return Promise.resolve({
+      data: md,
+      filename: `${baseFilename}-${timestamp}.md`,
+      contentType: 'text/markdown; charset=utf-8',
+    });
+  }
+
+  if (exportFormat === 'pdf') {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve({
+        data: Buffer.concat(chunks),
+        filename: `${baseFilename}-${timestamp}.pdf`,
+        contentType: 'application/pdf',
+      }));
+      doc.on('error', reject);
+
+      // Title
+      doc.fontSize(16).font('Helvetica-Bold').text(title, { align: 'center' });
+      doc.moveDown(0.5);
+      doc.fontSize(9).font('Helvetica').text(`Exported: ${new Date().toLocaleString()}`, { align: 'center' });
+      doc.moveDown(1);
+
+      // Calculate column widths
+      const pageWidth = doc.page.width - 80;
+      const colWidth = Math.floor(pageWidth / headers.length);
+
+      // Header row
+      doc.fontSize(9).font('Helvetica-Bold');
+      let x = 40;
+      headers.forEach((h) => {
+        doc.text(h, x, doc.y, { width: colWidth, ellipsis: true, continued: false, lineBreak: false });
+        x += colWidth;
+      });
+      doc.moveDown(0.3);
+      doc.moveTo(40, doc.y).lineTo(40 + pageWidth, doc.y).stroke();
+      doc.moveDown(0.3);
+
+      // Data rows
+      doc.font('Helvetica').fontSize(8);
+      rows.forEach((row) => {
+        const rowY = doc.y;
+        // Add new page if needed
+        if (rowY > doc.page.height - 60) {
+          doc.addPage();
+        }
+        let rx = 40;
+        row.forEach((cell) => {
+          doc.text(String(cell ?? ''), rx, doc.y, { width: colWidth, ellipsis: true, continued: false, lineBreak: false });
+          rx += colWidth;
+        });
+        doc.moveDown(0.4);
+      });
+
+      doc.end();
+    });
+  }
+
+  // Default: CSV
+  const csvRows = [
+    headers.join(','),
+    ...rows.map(row => row.map(v => escapeCSVValue(String(v ?? ''))).join(',')),
+  ];
+  return Promise.resolve({
+    data: csvRows.join('\n'),
+    filename: `${baseFilename}-${timestamp}.csv`,
+    contentType: 'text/csv; charset=utf-8',
+  });
+}
+
+/**
+ * Export chat history
  */
 export const exportChatHistory = async (
   workspaceId: string,
@@ -665,8 +895,9 @@ export const exportChatHistory = async (
     dateFrom?: string;
     dateTo?: string;
     role?: 'user' | 'assistant';
+    format?: 'csv' | 'excel' | 'markdown' | 'pdf';
   }
-): Promise<{ csv: string; filename: string }> => {
+): Promise<{ data: Buffer | string; filename: string; contentType: string }> => {
   // Verify chat ownership
   const chat = await prisma.chat.findFirst({
     where: {
@@ -714,29 +945,18 @@ export const exportChatHistory = async (
     },
   });
 
-  // Generate CSV
+  const exportFormat = filters?.format ?? 'csv';
   const headers = ['Timestamp', 'Role', 'Message', 'Message ID'];
-  const rows = messages.map((msg: any) => ({
-    Timestamp: msg.createdAt.toISOString(),
-    Role: msg.role,
-    Message: escapeCSVValue(msg.content),
-    'Message ID': msg.id,
-  }));
+  const rows = messages.map((msg: any) => [
+    msg.createdAt.toISOString(),
+    msg.role,
+    msg.content,
+    msg.id,
+  ]);
 
-  const csvRows = [
-    headers.join(','),
-    ...rows.map((row: any) =>
-      headers.map((header) => row[header as keyof typeof row] || '').join(',')
-    ),
-  ];
+  logger.info({ workspaceId, userId, messageCount: messages.length, exportFormat }, 'Chat history exported');
 
-  const csv = csvRows.join('\n');
-  const timestamp = new Date().toISOString().split('T')[0];
-  const filename = `chat-history-${timestamp}.csv`;
-
-  logger.info({ workspaceId, userId, messageCount: messages.length }, 'Chat history exported');
-
-  return { csv, filename };
+  return buildExport(headers, rows, 'Chat History Export', exportFormat, 'chat-history');
 };
 
 /**
@@ -748,67 +968,65 @@ export const exportAIData = async (
   userId: string,
   dataType: 'students' | 'callLogs' | 'followups' | 'callLists' | 'stats',
   filters?: any
-): Promise<{ csv: string; filename: string }> => {
-  let rows: any[] = [];
+): Promise<{ data: Buffer | string; filename: string; contentType: string }> => {
+  const exportFormat: 'csv' | 'excel' | 'markdown' | 'pdf' = filters?.format ?? 'csv';
+  let rawRows: any[] = [];
   let headers: string[] = [];
 
   switch (dataType) {
     case 'students': {
       const result = await contextService.searchStudents('', workspaceId, 1000);
       headers = ['Name', 'Email', 'Tags'];
-      rows = result.students.map((s: any) => ({
-        Name: escapeCSVValue(s.name || ''),
-        Email: escapeCSVValue(s.email || ''),
-        Tags: escapeCSVValue((s.tags || []).join(', ')),
-      }));
+      rawRows = result.students.map((s: any) => [
+        s.name || '',
+        s.email || '',
+        (s.tags || []).join(', '),
+      ]);
       break;
     }
     case 'callLogs': {
       const result = await contextService.getCallLogs(filters || {}, workspaceId);
       headers = ['Student Name', 'Status', 'Call Date', 'Caller Name', 'Summary', 'Sentiment'];
-      rows = result.callLogs.map((log: any) => ({
-        'Student Name': escapeCSVValue(log.studentName || ''),
-        Status: escapeCSVValue(log.status || ''),
-        'Call Date': log.callDate ? new Date(log.callDate).toISOString() : '',
-        'Caller Name': escapeCSVValue(log.callerName || ''),
-        Summary: escapeCSVValue(log.summaryNote || ''),
-        Sentiment: escapeCSVValue(log.sentiment || ''),
-      }));
+      rawRows = result.callLogs.map((log: any) => [
+        log.studentName || '',
+        log.status || '',
+        log.callDate ? new Date(log.callDate).toISOString() : '',
+        log.callerName || '',
+        log.summaryNote || '',
+        log.sentiment || '',
+      ]);
       break;
     }
     case 'followups': {
       const result = await contextService.getFollowups(filters || {}, workspaceId);
       headers = ['Student Name', 'Group Name', 'Status', 'Due Date', 'Notes'];
-      rows = result.followups.map((f: any) => ({
-        'Student Name': escapeCSVValue(f.studentName || ''),
-        'Group Name': escapeCSVValue(f.groupName || ''),
-        Status: escapeCSVValue(f.status || ''),
-        'Due Date': f.dueDate ? new Date(f.dueDate).toISOString() : '',
-        Notes: escapeCSVValue(f.notes || ''),
-      }));
+      rawRows = result.followups.map((f: any) => [
+        f.studentName || '',
+        f.groupName || '',
+        f.status || '',
+        f.dueDate ? new Date(f.dueDate).toISOString() : '',
+        f.notes || '',
+      ]);
       break;
     }
     case 'callLists': {
       const result = await contextService.getCallLists(filters || {}, workspaceId);
       headers = ['List Name', 'Group Name', 'Status', 'Item Count'];
-      rows = result.callLists.map((list: any) => ({
-        'List Name': escapeCSVValue(list.name || ''),
-        'Group Name': escapeCSVValue(list.groupName || ''),
-        Status: escapeCSVValue(list.status || ''),
-        'Item Count': list.itemCount || 0,
-      }));
+      rawRows = result.callLists.map((list: any) => [
+        list.name || '',
+        list.groupName || '',
+        list.status || '',
+        String(list.itemCount || 0),
+      ]);
       break;
     }
     case 'stats': {
       const result = await contextService.getWorkspaceStats(workspaceId);
       headers = ['Metric', 'Value'];
-      rows = [];
+      rawRows = [];
       if (result.overview) {
         Object.entries(result.overview).forEach(([key, value]) => {
-          rows.push({
-            Metric: escapeCSVValue(key),
-            Value: String(value || ''),
-          });
+          rawRows.push([key, String(value ?? '')]);
         });
       }
       break;
@@ -817,21 +1035,9 @@ export const exportAIData = async (
       throw new AppError(400, 'Invalid data type for export');
   }
 
-  // Generate CSV
-  const csvRows = [
-    headers.join(','),
-    ...rows.map((row: any) =>
-      headers.map((header) => row[header as keyof typeof row] || '').join(',')
-    ),
-  ];
+  logger.info({ workspaceId, userId, dataType, rowCount: rawRows.length, exportFormat }, 'AI data exported');
 
-  const csv = csvRows.join('\n');
-  const timestamp = new Date().toISOString().split('T')[0];
-  const filename = `ai-data-${dataType}-${timestamp}.csv`;
-
-  logger.info({ workspaceId, userId, dataType, rowCount: rows.length }, 'AI data exported');
-
-  return { csv, filename };
+  return buildExport(headers, rawRows, `AI Data Export — ${dataType}`, exportFormat, `ai-data-${dataType}`);
 };
 
 /**

@@ -162,13 +162,22 @@ export const searchStudents = async (
       name: true,
       email: true,
       tags: true,
+      phones: {
+        select: { phone: true, isPrimary: true },
+      },
     },
     orderBy: { name: 'asc' },
   });
 
   return {
     count: students.length,
-    students: students,
+    students: students.map(s => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      tags: s.tags,
+      primaryPhone: s.phones?.find(p => p.isPrimary)?.phone || s.phones?.[0]?.phone || null,
+    })),
   };
 };
 
@@ -254,6 +263,9 @@ export const getCallLogs = async (
       }
     }
 
+    // Get the real total count (not limited by the take)
+    const totalCount = await prisma.callLog.count({ where });
+
     const callLogs = await prisma.callLog.findMany({
       where,
       take: limit,
@@ -296,6 +308,7 @@ export const getCallLogs = async (
     }
 
     return {
+      total: totalCount,
       count: callLogs.length,
       uniqueStudentsCount,
       callLogs: callLogs.map(log => ({
@@ -321,12 +334,48 @@ export const getCallLogs = async (
  */
 export const getWorkspaceStats = async (workspaceId: string): Promise<any> => {
   try {
-    const kpis = await dashboardService.getKPIs(workspaceId);
+    const [kpis, studentCount, callLogCount, groupBreakdown, studentsWithTags] = await Promise.all([
+      dashboardService.getKPIs(workspaceId),
+      prisma.student.count({ where: { workspaceId, isDeleted: false } }),
+      prisma.callLog.count({ where: { workspaceId } }),
+      prisma.group.findMany({
+        where: { workspaceId, isActive: true },
+        select: { name: true, _count: { select: { enrollments: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.student.findMany({
+        where: { workspaceId, isDeleted: false },
+        select: { tags: true },
+      }),
+    ]);
+
+    // Top groups by student count
+    const topGroups = groupBreakdown
+      .sort((a, b) => b._count.enrollments - a._count.enrollments)
+      .slice(0, 10)
+      .map(g => ({ name: g.name, studentCount: g._count.enrollments }));
+
+    // Top tags by frequency
+    const tagCounts = new Map<string, number>();
+    for (const s of studentsWithTags) {
+      for (const tag of s.tags || []) {
+        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+      }
+    }
+    const topTags = Array.from(tagCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([tag, count]) => ({ tag, count }));
+
     return {
+      studentCount,
+      totalCallsAllTime: callLogCount,
       overview: kpis.overview,
       activity: kpis.activity,
       followups: kpis.followups,
       metrics: kpis.metrics,
+      topGroups,
+      topTags,
     };
   } catch (error) {
     return { error: 'Failed to retrieve workspace statistics' };
@@ -451,6 +500,182 @@ export const getFollowups = async (
 };
 
 /**
+ * Get groups in the workspace
+ */
+export const getGroups = async (workspaceId: string): Promise<any> => {
+  const groups = await prisma.group.findMany({
+    where: { workspaceId, isActive: true },
+    select: {
+      id: true,
+      name: true,
+      _count: {
+        select: {
+          enrollments: true,
+          callLists: true,
+        },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+
+  return {
+    count: groups.length,
+    groups: groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      studentCount: g._count.enrollments,
+      callListCount: g._count.callLists,
+    })),
+  };
+};
+
+/**
+ * Get caller (counselor) performance stats
+ */
+export const getCallerPerformance = async (
+  workspaceId: string,
+  limit: number = 10,
+  dateFrom?: string,
+  dateTo?: string
+): Promise<any> => {
+  const where: any = { workspaceId };
+
+  if (dateFrom || dateTo) {
+    where.callDate = {};
+    if (dateFrom) where.callDate.gte = new Date(dateFrom);
+    if (dateTo) where.callDate.lte = new Date(dateTo);
+  }
+
+  const callLogs = await prisma.callLog.findMany({
+    where,
+    select: {
+      assignedTo: true,
+      status: true,
+      assignee: {
+        include: {
+          user: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  // Aggregate by caller in memory
+  const callerMap = new Map<string, {
+    name: string;
+    total: number;
+    completed: number;
+    missed: number;
+    noAnswer: number;
+    voicemail: number;
+  }>();
+
+  for (const log of callLogs) {
+    const callerId = log.assignedTo;
+    const callerName = log.assignee?.user?.name || 'Unknown';
+
+    if (!callerMap.has(callerId)) {
+      callerMap.set(callerId, { name: callerName, total: 0, completed: 0, missed: 0, noAnswer: 0, voicemail: 0 });
+    }
+
+    const caller = callerMap.get(callerId)!;
+    caller.total++;
+    if (log.status === 'completed') caller.completed++;
+    else if (log.status === 'missed') caller.missed++;
+    else if (log.status === 'no_answer') caller.noAnswer++;
+    else if (log.status === 'voicemail') caller.voicemail++;
+  }
+
+  const callers = Array.from(callerMap.entries())
+    .map(([, data]) => ({
+      name: data.name,
+      totalCalls: data.total,
+      completed: data.completed,
+      missed: data.missed,
+      noAnswer: data.noAnswer,
+      voicemail: data.voicemail,
+      completionRate: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+    }))
+    .sort((a, b) => b.totalCalls - a.totalCalls)
+    .slice(0, limit);
+
+  return {
+    count: callers.length,
+    totalCallsInRange: callLogs.length,
+    callers,
+  };
+};
+
+/**
+ * Get call volume trends by day for a date range
+ */
+export const getCallTrends = async (
+  filters: {
+    dateFrom: string;
+    dateTo: string;
+  },
+  workspaceId: string
+): Promise<any> => {
+  const from = new Date(filters.dateFrom);
+  const to = new Date(filters.dateTo);
+  // Extend 'to' to end of that day
+  to.setHours(23, 59, 59, 999);
+
+  const callLogs = await prisma.callLog.findMany({
+    where: {
+      workspaceId,
+      callDate: { gte: from, lte: to },
+    },
+    select: {
+      callDate: true,
+      status: true,
+    },
+    orderBy: { callDate: 'asc' },
+  });
+
+  // Bucket by date key (YYYY-MM-DD)
+  const buckets = new Map<string, { total: number; completed: number; missed: number; noAnswer: number }>();
+  for (const log of callLogs) {
+    const dateKey = log.callDate.toISOString().split('T')[0];
+    if (!buckets.has(dateKey)) {
+      buckets.set(dateKey, { total: 0, completed: 0, missed: 0, noAnswer: 0 });
+    }
+    const b = buckets.get(dateKey)!;
+    b.total++;
+    if (log.status === 'completed') b.completed++;
+    else if (log.status === 'missed') b.missed++;
+    else if (log.status === 'no_answer') b.noAnswer++;
+  }
+
+  // Build array covering every day in the range (fill gaps with 0)
+  const trends: Array<{ date: string; total: number; completed: number; missed: number; noAnswer: number }> = [];
+  const current = new Date(filters.dateFrom);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(filters.dateTo);
+  end.setHours(0, 0, 0, 0);
+
+  while (current <= end) {
+    const dateKey = current.toISOString().split('T')[0];
+    const b = buckets.get(dateKey) || { total: 0, completed: 0, missed: 0, noAnswer: 0 };
+    trends.push({ date: dateKey, ...b });
+    current.setDate(current.getDate() + 1);
+  }
+
+  const totalCalls = callLogs.length;
+  const peakDay = trends.reduce((max, t) => (t.total > max.total ? t : max), trends[0] || { date: '', total: 0, completed: 0, missed: 0, noAnswer: 0 });
+
+  return {
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    totalCalls,
+    days: trends.length,
+    peakDay: peakDay.total > 0 ? { date: peakDay.date, total: peakDay.total } : null,
+    trends,
+  };
+};
+
+/**
  * Get call lists with filters
  */
 export const getCallLists = async (
@@ -501,6 +726,38 @@ export const getCallLists = async (
       status: list.status,
       itemCount: list._count.items,
     })),
+  };
+};
+
+/**
+ * Create a call list from the AI (Brain) interface
+ */
+export const createCallListForAI = async (
+  workspaceId: string,
+  userId: string,
+  data: {
+    name: string;
+    groupId: string;
+    studentIds: string[];
+    description?: string;
+  }
+): Promise<any> => {
+  const callListService = await import('../call-lists/call-list.service');
+  const result = await callListService.createCallList(workspaceId, userId, {
+    name: data.name,
+    groupId: data.groupId,
+    studentIds: data.studentIds,
+    source: 'FILTER',
+    description: data.description,
+    skipDuplicates: true,
+    matchBy: 'email_or_phone',
+  } as any);
+  return {
+    id: result.id,
+    name: result.name,
+    groupName: (result as any).group?.name,
+    studentCount: (result as any).items?.length ?? data.studentIds.length,
+    status: result.status,
   };
 };
 

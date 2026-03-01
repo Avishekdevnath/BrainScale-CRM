@@ -29,13 +29,15 @@ model User {
   updatedAt                  DateTime  @updatedAt
 
   // Relations
-  memberships        WorkspaceMember[]
-  callsCreated       Call[]
-  followupsCreated   Followup[]
-  auditLogs          AuditLog[]
-  emailVerifications EmailVerification[]
-  chatMessages       ChatMessage[]
-  chats              Chat[]
+  memberships             WorkspaceMember[]
+  callsCreated            Call[]
+  followupsCreated        Followup[]
+  auditLogs               AuditLog[]
+  emailVerifications      EmailVerification[]
+  chatMessages            ChatMessage[]
+  chats                   Chat[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 }
 
 model Workspace {
@@ -57,23 +59,25 @@ model Workspace {
   updatedAt                DateTime @updatedAt
 
   // Relations
-  members      WorkspaceMember[]
-  groups       Group[]
-  batches      Batch[]
-  courses      Course[]
-  students     Student[]
-  calls        Call[]
-  followups    Followup[]
-  callLists    CallList[]
-  callListItems CallListItem[]
-  callLogs     CallLog[]
-  imports      Import[]
-  auditLogs    AuditLog[]
-  invitations  Invitation[]
-  customRoles  CustomRole[]
-  payments     Payment[]
-  chatMessages ChatMessage[]
-  chats        Chat[]
+  members                 WorkspaceMember[]
+  groups                  Group[]
+  batches                 Batch[]
+  courses                 Course[]
+  students                Student[]
+  calls                   Call[]
+  followups               Followup[]
+  callLists               CallList[]
+  callListItems           CallListItem[]
+  callLogs                CallLog[]
+  imports                 Import[]
+  auditLogs               AuditLog[]
+  invitations             Invitation[]
+  customRoles             CustomRole[]
+  payments                Payment[]
+  chatMessages            ChatMessage[]
+  chats                   Chat[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 }
 
 model WorkspaceMember {
@@ -611,4 +615,44 @@ model Payment {
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
   batch     Batch?    @relation(fields: [batchId], references: [id], onDelete: SetNull)
+}
+
+// ============================================
+// Notifications System
+// ============================================
+
+model Notification {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  userId      String   // recipient User.id
+  type        String   // FOLLOWUP_ASSIGNED | FOLLOWUP_DUE_SOON | FOLLOWUP_OVERDUE | CALL_LOG_COMPLETED
+  title       String
+  body        String
+  meta        Json?    // { entityId, entityType, studentName, groupName, dueAt }
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId, isRead])
+  @@index([workspaceId, userId, createdAt])
+}
+
+model NotificationPreference {
+  id               String  @id @default(cuid()) @map("_id")
+  workspaceId      String
+  userId           String
+  followupAssigned Boolean @default(true)
+  followupDueSoon  Boolean @default(true)
+  followupOverdue  Boolean @default(true)
+  callLogCompleted Boolean @default(false)
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
 }

@@ -800,7 +800,12 @@ export const login = async (data: LoginInput) => {
 
 export const refreshAccessToken = async (refreshToken: string) => {
   // Verify refresh token
-  const payload = verifyRefreshToken(refreshToken);
+  let payload: { sub: string };
+  try {
+    payload = verifyRefreshToken(refreshToken);
+  } catch {
+    throw new AppError(401, 'Refresh token missing or expired. Please log in again.');
+  }
 
   // Get user with workspace
   const user = await prisma.user.findUnique({

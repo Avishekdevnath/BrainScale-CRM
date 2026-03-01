@@ -171,7 +171,9 @@ export class ApiClient {
     }
 
     const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
-    if (res.status === 401) {
+    // Only try refresh when we actually sent an access token.
+    // This preserves original 401 messages for public endpoints like /auth/login.
+    if (res.status === 401 && this.accessToken) {
       // Try refresh once
       await this.refreshAccessToken();
       const retryHeaders: HeadersInit = {
@@ -225,7 +227,8 @@ export class ApiClient {
     }
 
     const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
-    if (res.status === 401) {
+    // Only try refresh when we actually sent an access token.
+    if (res.status === 401 && this.accessToken) {
       // Try refresh once
       await this.refreshAccessToken();
       const retryHeaders: HeadersInit = {

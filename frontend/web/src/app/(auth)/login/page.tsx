@@ -83,7 +83,11 @@ export default function LoginPage() {
         router.push("/create-workspace");
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "Login failed");
+      if (e?.status === 401) {
+        toast.error("Incorrect email or password. Please try again.");
+      } else {
+        toast.error(e?.message ?? "Login failed");
+      }
     } finally {
       setSubmitting(false);
     }

@@ -79,7 +79,7 @@ function CallListsPageContent() {
   const archivedCount = archivedData?.callLists?.length || 0;
 
   // Use the active tab's data for the main table
-  const { data: callListsData, error, isLoading, mutate: mutateCallLists } = useCallLists({
+  const { data: callListsData, error, isLoading, isValidating, mutate: mutateCallLists } = useCallLists({
     batchId: batchId || undefined,
     groupId: groupId || undefined,
     status: activeTab === 'completed' ? 'COMPLETED' : activeTab === 'archived' ? 'ARCHIVED' : 'ACTIVE',
@@ -88,7 +88,8 @@ function CallListsPageContent() {
   // Helper to mutate all call list queries
   const mutateAllCallLists = async () => {
     await mutate(
-      (key) => typeof key === "string" && key.startsWith("call-lists"),
+      // SWR keys are namespaced as `${workspaceId}:call-lists...`
+      (key) => typeof key === "string" && key.includes(":call-lists"),
       undefined,
       { revalidate: true }
     );
@@ -333,10 +334,10 @@ function CallListsPageContent() {
                 size="sm"
                 onClick={handleRefresh}
                 className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
-                disabled={isLoading}
+                disabled={isLoading || isValidating}
                 aria-label="Refresh call lists"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={cn("w-4 h-4", (isLoading || isValidating) && "animate-spin")} />
               </Button>
             </div>
             <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
@@ -374,9 +375,9 @@ function CallListsPageContent() {
               size="sm"
               onClick={handleRefresh}
               className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
-              disabled={isLoading}
+              disabled={isLoading || isValidating}
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={cn("w-4 h-4", (isLoading || isValidating) && "animate-spin")} />
             </Button>
           </div>
           <p className="text-sm text-[var(--groups1-text-secondary)]">

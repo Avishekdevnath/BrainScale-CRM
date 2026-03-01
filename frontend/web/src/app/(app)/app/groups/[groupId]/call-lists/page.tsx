@@ -105,7 +105,8 @@ export default function GroupCallListsPage() {
     
     // Invalidate all call list caches to ensure fresh data
     await mutate(
-      (key) => typeof key === "string" && key.startsWith("call-lists"),
+      // SWR keys are namespaced as `${workspaceId}:call-lists...`
+      (key) => typeof key === "string" && key.includes(":call-lists"),
       undefined,
       { revalidate: true }
     );

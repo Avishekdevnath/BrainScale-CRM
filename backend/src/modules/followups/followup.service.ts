@@ -2,6 +2,7 @@ import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { logger } from '../../config/logger';
 import { sendFollowupAssignmentEmail } from '../emails/email.service';
+import { createNotification } from '../notifications/notification.service';
 import { CreateFollowupInput, UpdateFollowupInput, ListFollowupsInput } from './followup.schemas';
 
 /**
@@ -122,6 +123,23 @@ export const createFollowup = async (
       // Log error but don't fail follow-up creation
       logger.error({ error }, 'Failed to send follow-up email');
     }
+
+    // In-app notification for the assignee
+    const assigneeUserId = followup.assignee.userId;
+    await createNotification({
+      workspaceId,
+      userId: assigneeUserId,
+      type: 'FOLLOWUP_ASSIGNED',
+      title: 'Follow-up Assigned',
+      body: `You have a new follow-up for ${followup.student.name} in ${followup.group.name}`,
+      meta: {
+        entityId: followup.id,
+        entityType: 'followup',
+        studentName: followup.student.name,
+        groupName: followup.group.name,
+        dueAt: followup.dueAt.toISOString(),
+      },
+    });
   }
 
   return followup;

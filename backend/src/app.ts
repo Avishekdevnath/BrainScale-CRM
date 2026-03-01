@@ -262,6 +262,7 @@ import invitationRouter, { publicInvitationRouter } from './modules/invitations/
 import roleRouter from './modules/roles/role.router';
 import callRouter, { studentCallRouter, groupCallRouter } from './modules/calls/call.router';
 import followupRouter, { groupFollowupRouter } from './modules/followups/followup.router';
+import notificationRouter from './modules/notifications/notification.router';
 import callListRouter, { callListItemRouter } from './modules/call-lists/call-list.router';
 import callLogRouter from './modules/call-lists/call-log.router';
 import myCallsRouter from './modules/call-lists/my-calls.router';
@@ -295,6 +296,7 @@ app.use('/api/v1/groups', groupFollowupRouter); // Group follow-ups nested route
 app.use('/api/v1/batches', batchRouter); // Batches routes
 app.use('/api/v1/batches', batchGroupRouter); // Batch-Group alignment routes
 app.use('/api/v1/followups', followupRouter); // Follow-ups routes
+app.use('/api/v1/notifications', notificationRouter); // Notifications routes
 app.use('/api/v1/call-lists', callListRouter); // Call lists routes
 app.use('/api/v1/call-list-items', callListItemRouter); // Call list items routes
 app.use('/api/v1/call-logs', callLogRouter); // Call logs routes

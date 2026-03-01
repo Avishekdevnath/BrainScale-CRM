@@ -1,17 +1,22 @@
-import { Response } from 'express';
+import { CookieOptions, Response } from 'express';
 import { AuthRequest } from '../../middleware/auth-guard';
 import * as authService from './auth.service';
-import { asyncHandler } from '../../middleware/error-handler';
+import { AppError, asyncHandler } from '../../middleware/error-handler';
 import { env } from '../../config/env';
+
+const getRefreshTokenCookieOptions = (): CookieOptions => ({
+  httpOnly: true,
+  secure: env.NODE_ENV === 'production',
+  // Production frontend and API are on different origins, so cross-site cookie is required.
+  sameSite: env.NODE_ENV === 'production' ? ('none' as const) : ('lax' as const),
+  path: '/',
+});
 
 // Helper to set httpOnly refresh token cookie
 const setRefreshTokenCookie = (res: Response, token: string) => {
   res.cookie('refreshToken', token, {
-    httpOnly: true,
-    secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    ...getRefreshTokenCookieOptions(),
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    path: '/',
   });
 };
 
@@ -32,7 +37,7 @@ export const refresh = asyncHandler(async (req: AuthRequest, res: Response) => {
   // Get refreshToken from httpOnly cookie instead of body
   const refreshToken = (req.cookies as any)?.refreshToken || req.validatedData?.refreshToken;
   if (!refreshToken) {
-    throw new Error('Refresh token not found in cookies');
+    throw new AppError(401, 'Refresh token missing or expired. Please log in again.');
   }
   const result = await authService.refreshAccessToken(refreshToken);
   // Set new refresh token cookie
@@ -58,7 +63,7 @@ export const completeMemberSetup = asyncHandler(async (req: AuthRequest, res: Re
 
 export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
   // Clear the httpOnly refresh token cookie
-  res.clearCookie('refreshToken', { path: '/', httpOnly: true, secure: env.NODE_ENV === 'production', sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax' });
+  res.clearCookie('refreshToken', getRefreshTokenCookieOptions());
   res.json({ message: 'Logged out successfully' });
 });
 

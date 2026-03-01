@@ -1,4 +1,5 @@
 import { prisma } from '../../db/client';
+import type { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error-handler';
 import { logger } from '../../config/logger';
 import type { ListNotificationsInput, UpdatePreferencesInput } from './notification.schemas';
@@ -19,6 +20,19 @@ async function shouldNotify(workspaceId: string, userId: string, type: string): 
     case 'FOLLOWUP_OVERDUE':   return prefs.followupOverdue;
     case 'CALL_LOG_COMPLETED': return prefs.callLogCompleted;
     default:                   return true;
+  }
+}
+
+/** Convert unknown metadata into a Prisma-compatible JSON value. */
+function toPrismaJson(meta?: Record<string, unknown>): Prisma.InputJsonValue | null {
+  if (!meta) return null;
+
+  try {
+    // Round-trip to ensure only JSON-serializable data is persisted.
+    const normalized = JSON.parse(JSON.stringify(meta));
+    return (normalized ?? null) as Prisma.InputJsonValue | null;
+  } catch {
+    return null;
   }
 }
 
@@ -47,7 +61,7 @@ export async function createNotification(data: {
         type: data.type,
         title: data.title,
         body: data.body,
-        meta: data.meta ?? null,
+        meta: toPrismaJson(data.meta),
       },
     });
   } catch (error) {

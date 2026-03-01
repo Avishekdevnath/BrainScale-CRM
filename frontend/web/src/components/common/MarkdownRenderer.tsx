@@ -259,7 +259,7 @@ export function MarkdownRenderer({ content, className = "" }: MarkdownRendererPr
     if (headerMatch) {
       const level = headerMatch[1].length;
       const text = processInlineMarkdown(headerMatch[2]);
-      const HeaderTag = `h${Math.min(level, 6)}` as keyof JSX.IntrinsicElements;
+      const HeaderTag = `h${Math.min(level, 6)}` as keyof React.JSX.IntrinsicElements;
       return [
         ...closedLists,
         codeBlock,

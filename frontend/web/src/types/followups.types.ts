@@ -51,6 +51,9 @@ export interface FollowupPreviousCallLog {
   callerNote: string | null;
   summaryNote: string | null;
   callDuration: number | null;
+  followUpRequired?: boolean;
+  followUpDate?: string | null;
+  followUpNote?: string | null;
   caller?: {
     id: string;
     name: string;

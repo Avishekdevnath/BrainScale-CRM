@@ -132,6 +132,7 @@ export interface CallListItem {
     callerNote?: string | null;
     summaryNote?: string | null;
     followUpDate?: string | null;
+    followUpNote?: string | null;
   } | null;
 }
 

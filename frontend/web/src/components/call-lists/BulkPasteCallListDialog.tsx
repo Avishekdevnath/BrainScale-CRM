@@ -20,6 +20,10 @@ export interface BulkPasteCallListDialogProps {
 }
 
 type MappingMode = "simple" | "flexible";
+type ParsedCsvData = {
+  headers: string[];
+  rows: Array<Record<string, unknown>>;
+};
 
 export function BulkPasteCallListDialog({
   open,
@@ -62,23 +66,26 @@ export function BulkPasteCallListDialog({
   const [skipDuplicates, setSkipDuplicates] = useState(true);
 
   // Parse CSV text
-  const parsedData = useMemo(() => {
+  const parsedData = useMemo<ParsedCsvData | null>(() => {
     if (!csvText.trim()) return null;
 
     try {
       const result = Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
-        transformHeader: (header) => header.trim(),
+        transformHeader: (header: string) => header.trim(),
       });
 
-      if (result.errors.length > 0 && result.errors.some(e => e.type !== 'Quotes')) {
+      if (
+        result.errors.length > 0 &&
+        result.errors.some((e: { type?: string }) => e.type !== "Quotes")
+      ) {
         return null;
       }
 
       return {
         headers: result.meta.fields || [],
-        rows: result.data as Array<Record<string, any>>,
+        rows: result.data as Array<Record<string, unknown>>,
       };
     } catch {
       return null;
@@ -729,4 +736,3 @@ export function BulkPasteCallListDialog({
     </Dialog>
   );
 }
-

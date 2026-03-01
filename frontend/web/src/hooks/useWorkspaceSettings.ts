@@ -18,19 +18,18 @@ export interface WorkspaceSettings {
   updatedAt: string;
 }
 
+type WorkspaceSettingsUpdate = Parameters<typeof apiClient.updateWorkspace>[1];
+
 export function useWorkspaceSettings() {
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const [isUpdating, setIsUpdating] = useState(false);
 
   const { data, error, isLoading, mutate } = useSWR<WorkspaceSettings>(
     workspaceId ? `workspace-settings-${workspaceId}` : null,
-    async () => {
-      if (!workspaceId) return null;
-      return apiClient.getWorkspace(workspaceId);
-    }
+    () => apiClient.getWorkspace(workspaceId!)
   );
 
-  const updateSettings = async (updates: Partial<WorkspaceSettings>) => {
+  const updateSettings = async (updates: WorkspaceSettingsUpdate) => {
     if (!workspaceId) {
       toast.error("No workspace selected");
       return;

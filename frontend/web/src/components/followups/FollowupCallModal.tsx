@@ -102,18 +102,17 @@ export function FollowupCallModal({
     if (!callList) return true; // Skip validation if no call list
     
     // Prepare answers array for validation
-    const answersArray: Answer[] = Object.keys(answers)
-      .map((questionId) => {
-        const question = questions.find((q) => q.id === questionId);
-        if (!question) return null;
-        return {
-          questionId,
-          question: question.question,
-          answer: answers[questionId],
-          answerType: question.type,
-        };
-      })
-      .filter((a): a is Answer => a !== null);
+    const answersArray: Answer[] = Object.keys(answers).reduce<Answer[]>((acc, questionId) => {
+      const question = questions.find((q) => q.id === questionId);
+      if (!question) return acc;
+      acc.push({
+        questionId,
+        question: question.question,
+        answer: answers[questionId],
+        answerType: question.type,
+      });
+      return acc;
+    }, []);
     
     // validateCallLog expects answers array as first parameter, questions as second
     const validation = validateCallLog(answersArray, questions);
@@ -237,14 +236,18 @@ export function FollowupCallModal({
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-500">Name:</span>{" "}
-                  <Link
-                    href={`/app/students/${student.id}`}
-                    className="font-medium text-[var(--groups1-primary)] hover:underline"
-                  >
-                    {student.name}
-                  </Link>
+                  {student ? (
+                    <Link
+                      href={`/app/students/${student.id}`}
+                      className="font-medium text-[var(--groups1-primary)] hover:underline"
+                    >
+                      {student.name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-[var(--groups1-text)]">Unknown Student</span>
+                  )}
                 </div>
-                {student.email && (
+                {student?.email && (
                   <div>
                     <span className="text-gray-500">Email:</span>{" "}
                     <span className="font-medium text-[var(--groups1-text)]">{student.email}</span>
@@ -591,4 +594,3 @@ export function FollowupCallModal({
     </Dialog>
   );
 }
-

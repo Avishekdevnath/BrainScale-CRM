@@ -21,7 +21,7 @@ export function MetricsBar() {
               className="text-3xl font-bold sm:text-4xl"
               style={{
                 background:
-                  "linear-gradient(135deg, var(--groups1-primary) 0%, var(--color-teal-300) 100%)",
+                  "linear-gradient(135deg, var(--groups1-primary) 0%, var(--groups1-text-gradient-end) 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",

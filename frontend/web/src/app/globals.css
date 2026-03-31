@@ -88,6 +88,11 @@
   --groups1-info: var(--color-slate-500);
   --groups1-focus-ring: rgba(var(--color-teal-500-rgb), 0.4);
 
+  /* Gradient helpers (Light Mode) */
+  --groups1-text-gradient-end: var(--color-teal-300);
+  --groups1-cta-gradient-start: var(--color-slate-900);
+  --groups1-star-color: #facc15;
+
   /* RGB versions for opacity control */
   --groups1-success-rgb: 33, 128, 141;
   --groups1-error-rgb: 192, 21, 47;
@@ -116,6 +121,8 @@
     --card-foreground: 210 40% 98%;
     --border: 215 19% 27%;
     --ring: 217 91% 60%;
+    --primary: 174 60% 49%;
+    --accent: 174 70% 45%;
 
     /* RGB versions for opacity control (Dark Mode) - Groups1 */
     --color-gray-400-rgb: 119, 124, 124;
@@ -160,12 +167,84 @@
     --groups1-btn-ghost-hover-bg: rgba(var(--color-gray-400-rgb), 0.15);
     --groups1-btn-disabled-opacity: 0.5;
 
+    /* Gradient helpers (Dark Mode) */
+    --groups1-text-gradient-end: rgba(200, 240, 245, 1);
+    --groups1-cta-gradient-start: rgba(10, 55, 65, 1);
+    --groups1-star-color: #fde047;
+
     /* RGB versions for dark mode - Groups1 */
     --groups1-success-rgb: var(--color-teal-300-rgb);
     --groups1-error-rgb: var(--color-red-400-rgb);
     --groups1-warning-rgb: var(--color-orange-400-rgb);
     --groups1-info-rgb: var(--color-gray-300-rgb);
   }
+}
+
+/* Class-based dark mode (next-themes uses class="dark" on <html>) */
+.dark {
+  /* RGB versions for opacity control (dark mode) */
+  --color-gray-400-rgb: 119, 124, 124;
+  --color-teal-300-rgb: 50, 184, 198;
+  --color-gray-300-rgb: 167, 169, 169;
+  --color-gray-200-rgb: 245, 245, 245;
+
+  /* Background color tokens - Dark Mode */
+  --color-bg-1: rgba(29, 78, 216, 0.15);
+  --color-bg-2: rgba(180, 83, 9, 0.15);
+  --color-bg-3: rgba(21, 128, 61, 0.15);
+  --color-bg-4: rgba(185, 28, 28, 0.15);
+  --color-bg-5: rgba(107, 33, 168, 0.15);
+  --color-bg-6: rgba(194, 65, 12, 0.15);
+  --color-bg-7: rgba(190, 24, 93, 0.15);
+  --color-bg-8: rgba(8, 145, 178, 0.15);
+
+  /* Semantic Color Tokens (Dark Mode) - Groups1 */
+  --groups1-background: var(--color-charcoal-700);
+  --groups1-surface: var(--color-charcoal-800);
+  --groups1-text: var(--color-gray-200);
+  --groups1-text-secondary: rgba(var(--color-gray-300-rgb), 0.7);
+  --groups1-primary: var(--color-teal-300);
+  --groups1-primary-hover: var(--color-teal-400);
+  --groups1-primary-active: var(--color-teal-800);
+  --groups1-secondary: rgba(var(--color-gray-400-rgb), 0.15);
+  --groups1-secondary-hover: rgba(var(--color-gray-400-rgb), 0.25);
+  --groups1-secondary-active: rgba(var(--color-gray-400-rgb), 0.3);
+  --groups1-border: rgba(var(--color-gray-400-rgb), 0.5);
+  --groups1-error: var(--color-red-400);
+  --groups1-success: var(--color-teal-300);
+  --groups1-warning: var(--color-orange-400);
+  --groups1-info: var(--color-gray-300);
+  --groups1-focus-ring: rgba(var(--color-teal-300-rgb), 0.4);
+  --groups1-btn-primary-text: var(--color-white);
+  --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
+  --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
+  --groups1-btn-outline-border: rgba(var(--color-gray-400-rgb), 0.5);
+  --groups1-btn-outline-hover-bg: rgba(var(--color-gray-400-rgb), 0.2);
+  --groups1-btn-ghost-hover-bg: rgba(var(--color-gray-400-rgb), 0.15);
+  --groups1-btn-disabled-opacity: 0.5;
+
+  /* Gradient helpers (Dark Mode) */
+  --groups1-text-gradient-end: rgba(200, 240, 245, 1);
+  --groups1-cta-gradient-start: rgba(10, 55, 65, 1);
+  --groups1-star-color: #fde047;
+
+  /* RGB versions for dark mode */
+  --groups1-success-rgb: var(--color-teal-300-rgb);
+  --groups1-error-rgb: var(--color-red-400-rgb);
+  --groups1-warning-rgb: var(--color-orange-400-rgb);
+  --groups1-info-rgb: var(--color-gray-300-rgb);
+
+  /* HSL tokens for dark mode */
+  --background: 224 71% 4%;
+  --foreground: 210 40% 98%;
+  --muted: 215 16% 16%;
+  --muted-foreground: 217 15% 65%;
+  --card: 224 71% 4%;
+  --card-foreground: 210 40% 98%;
+  --border: 215 19% 27%;
+  --ring: 217 91% 60%;
+  --primary: 174 60% 49%;
+  --accent: 174 70% 45%;
 }
 
 /* Data attribute for manual theme switching - Groups1 */
@@ -212,6 +291,11 @@
     --groups1-btn-outline-hover-bg: rgba(var(--color-gray-400-rgb), 0.2);
     --groups1-btn-ghost-hover-bg: rgba(var(--color-gray-400-rgb), 0.15);
     --groups1-btn-disabled-opacity: 0.5;
+
+  /* Gradient helpers (Dark Mode) */
+  --groups1-text-gradient-end: rgba(200, 240, 245, 1);
+  --groups1-cta-gradient-start: rgba(10, 55, 65, 1);
+  --groups1-star-color: #fde047;
 
   /* RGB versions for dark mode */
   --groups1-success-rgb: var(--color-teal-300-rgb);
@@ -263,6 +347,26 @@ body {
     radial-gradient(800px 500px at 50% 120%, hsl(var(--primary) / .16), transparent 60%),
     linear-gradient(135deg, hsl(220 40% 97%), hsl(210 60% 96%) 40%, hsl(190 55% 95%) 70%, hsl(170 60% 94%));
   overflow-x: hidden;
+}
+
+/* Dark mode body background */
+@media (prefers-color-scheme: dark) {
+  body {
+    background:
+      radial-gradient(1200px 600px at 10% -10%, hsl(var(--ring) / .12), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, hsl(var(--accent) / .10), transparent 60%),
+      radial-gradient(800px 500px at 50% 120%, hsl(var(--primary) / .08), transparent 60%),
+      linear-gradient(135deg, hsl(224 20% 6%), hsl(222 18% 8%) 40%, hsl(200 15% 8%) 70%, hsl(180 12% 7%));
+  }
+}
+
+/* Class-based dark mode (next-themes) */
+.dark body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, hsl(var(--ring) / .12), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, hsl(var(--accent) / .10), transparent 60%),
+    radial-gradient(800px 500px at 50% 120%, hsl(var(--primary) / .08), transparent 60%),
+    linear-gradient(135deg, hsl(224 20% 6%), hsl(222 18% 8%) 40%, hsl(200 15% 8%) 70%, hsl(180 12% 7%));
 }
 
 /* Futuristic utilities */

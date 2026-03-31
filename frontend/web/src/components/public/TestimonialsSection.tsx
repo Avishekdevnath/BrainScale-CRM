@@ -32,7 +32,7 @@ function StarRating() {
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((i) => (
-        <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        <Star key={i} className="h-4 w-4" style={{ fill: "var(--groups1-star-color)", color: "var(--groups1-star-color)" }} />
       ))}
     </div>
   );

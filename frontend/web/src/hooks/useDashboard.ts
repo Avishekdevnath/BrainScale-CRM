@@ -11,6 +11,7 @@ import type {
   StatusDistributionItem,
   StudentsByGroupItem,
   CallsTrendItem,
+  FollowupsTrendItem,
   ActivityItemAPI,
 } from "@/types/dashboard.types";
 
@@ -92,6 +93,18 @@ export function useCallsTrend(period?: "day" | "week" | "month" | "year") {
     ? `${workspaceId}:dashboard/calls-trend${period ? `?period=${period}` : ""}`
     : null;
   return useSWR<CallsTrendItem[]>(cacheKey, async () => apiClient.getCallsTrend(period), {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+  });
+}
+
+export function useFollowupsTrend(filters?: DashboardFilters) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const cacheKey = workspaceId && accessToken
+    ? `${workspaceId}:${buildCacheKey("dashboard/followups-trend", filters)}`
+    : null;
+  return useSWR<FollowupsTrendItem[]>(cacheKey, async () => apiClient.getFollowupsTrend(filters), {
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
   });

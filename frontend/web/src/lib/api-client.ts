@@ -508,6 +508,28 @@ export class ApiClient {
     );
   }
 
+  getFollowupsTrend(filters?: {
+    groupId?: string;
+    batchId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    period?: "day" | "week" | "month" | "year";
+  }) {
+    const queryString = buildQueryString({
+      groupId: filters?.groupId,
+      batchId: filters?.batchId,
+      dateFrom: filters?.dateFrom,
+      dateTo: filters?.dateTo,
+      period: filters?.period,
+    });
+    return this.request<Array<{ date: string; pending: number; overdue: number }>>(
+      `/dashboard/followups-trend${queryString}`,
+      {
+        method: "GET",
+      }
+    );
+  }
+
   getRecentActivity(limit?: number) {
     const queryString = buildQueryString({
       limit: limit,

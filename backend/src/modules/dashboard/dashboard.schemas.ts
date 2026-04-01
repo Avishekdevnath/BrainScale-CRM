@@ -10,3 +10,9 @@ export const DashboardFiltersSchema = z.object({
 
 export type DashboardFiltersInput = z.infer<typeof DashboardFiltersSchema>;
 
+export interface FollowupsTrendItem {
+  date: string; // "2024-03", "2024-04", etc. (format matches period)
+  pending: number;
+  overdue: number;
+}
+

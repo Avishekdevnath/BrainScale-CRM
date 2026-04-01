@@ -14,7 +14,11 @@ import { Button } from "@/components/ui/button";
 import { UserPlus, Users, RefreshCw, AlertCircle, Phone, Filter } from "lucide-react";
 import { WorkspaceCallListCreator } from "@/components/call-lists/WorkspaceCallListCreator";
 import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
-import { useDashboardSummary, useStudentsByGroup } from "@/hooks/useDashboard";
+import { useDashboardSummary, useStudentsByGroup, useFollowupsTrend } from "@/hooks/useDashboard";
+import { CallsTrendChart } from "@/components/dashboard/CallsTrendChart";
+import { StatusDistributionChart } from "@/components/dashboard/StatusDistributionChart";
+import { FollowupsTrendChart } from "@/components/dashboard/FollowupsTrendChart";
+import { CallDensityHeatmap } from "@/components/dashboard/CallDensityHeatmap";
 import { useCallList } from "@/hooks/useCallLists";
 import { apiClient } from "@/lib/api-client";
 import { useBatches } from "@/hooks/useBatches";
@@ -83,6 +87,14 @@ export default function WorkspaceDashboardPage() {
     isLoading: isDashboardLoading,
     mutate: refetchDashboard,
   } = useDashboardSummary(filters);
+
+  // Fetch followups trend for charts
+  const {
+    data: followupsTrendData,
+    error: followupsTrendError,
+    isLoading: isFollowupsTrendLoading,
+    mutate: refetchFollowupsTrend,
+  } = useFollowupsTrend(filters);
 
   // Fetch groups for filter dropdown
   const { data: groupsData } = useStudentsByGroup();
@@ -402,64 +414,28 @@ export default function WorkspaceDashboardPage() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle>Calls Over Time</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            {isDashboardLoading ? (
-              <div className="h-64 flex items-center justify-center">
-                <div className="text-sm text-[var(--groups1-text-secondary)] animate-pulse">
-                  Loading chart...
-                </div>
-              </div>
-            ) : dashboardData?.trends?.callsTrend?.length ? (
-              <div className="h-64 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-                Chart placeholder (data ready)
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-                No data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle>Follow-ups Over Time</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            <div className="h-64 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-              Chart placeholder
-            </div>
-          </CardContent>
-        </Card>
+        <CallsTrendChart
+          data={dashboardData?.trends?.callsTrend}
+          isLoading={isDashboardLoading}
+          error={dashboardError}
+          onRetry={refetchDashboard}
+        />
+        <FollowupsTrendChart
+          data={followupsTrendData}
+          isLoading={isFollowupsTrendLoading}
+          error={followupsTrendError}
+          onRetry={refetchFollowupsTrend}
+        />
       </div>
 
       {/* Insights Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle>Status Distribution</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            {isDashboardLoading ? (
-              <div className="h-52 flex items-center justify-center">
-                <div className="text-sm text-[var(--groups1-text-secondary)] animate-pulse">
-                  Loading chart...
-                </div>
-              </div>
-            ) : dashboardData?.distributions?.callsByStatus?.length ? (
-              <div className="h-52 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-                Chart placeholder (data ready)
-              </div>
-            ) : (
-              <div className="h-52 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-                No data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <StatusDistributionChart
+          data={dashboardData?.distributions?.callsByStatus}
+          isLoading={isDashboardLoading}
+          error={dashboardError}
+          onRetry={refetchDashboard}
+        />
         <Card variant="groups1">
           <CardHeader variant="groups1">
             <CardTitle>Assignee Performance</CardTitle>
@@ -512,16 +488,12 @@ export default function WorkspaceDashboardPage() {
           </Card>
 
           {/* Call Density Heatmap */}
-          <Card variant="groups1">
-            <CardHeader variant="groups1">
-              <CardTitle>Call Density Heatmap</CardTitle>
-            </CardHeader>
-            <CardContent variant="groups1">
-              <div className="h-48 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)]">
-                Heatmap placeholder
-              </div>
-            </CardContent>
-          </Card>
+          <CallDensityHeatmap
+            callLogs={undefined}
+            isLoading={isDashboardLoading}
+            error={dashboardError}
+            onRetry={refetchDashboard}
+          />
         </div>
 
         {/* Footer CTA */}

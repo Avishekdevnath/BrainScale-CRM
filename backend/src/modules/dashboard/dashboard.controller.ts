@@ -45,6 +45,12 @@ export const getCallsTrend = asyncHandler(async (req: AuthRequest, res: Response
   res.json(result);
 });
 
+export const getFollowupsTrend = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const period = (req.query.period as 'day' | 'week' | 'month' | 'year') || 'month';
+  const result = await dashboardService.getFollowupsTrend(req.user!.workspaceId!, req.validatedData, period);
+  res.json(result);
+});
+
 export const getRecentActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 20;
   const result = await dashboardService.getRecentActivity(req.user!.workspaceId!, limit);

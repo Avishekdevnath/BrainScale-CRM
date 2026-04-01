@@ -217,6 +217,52 @@ router.get(
 
 /**
  * @openapi
+ * /dashboard/followups-trend:
+ *   get:
+ *     summary: Get followups trend over time (pending vs overdue)
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: groupId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: batchId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: dateFrom
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: dateTo
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month, year]
+ *           default: month
+ *     responses:
+ *       200:
+ *         description: Followups trend data (pending and overdue)
+ */
+router.get(
+  '/followups-trend',
+  authGuard,
+  tenantGuard,
+  requirePermission('workspace', 'read'),
+  zodValidator(DashboardFiltersSchema, 'query'),
+  dashboardController.getFollowupsTrend
+);
+
+/**
+ * @openapi
  * /dashboard/recent-activity:
  *   get:
  *     summary: Get recent activity (calls and followups)

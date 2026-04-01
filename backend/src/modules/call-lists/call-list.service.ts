@@ -1188,6 +1188,7 @@ export const listCallListItems = async (
     orderBy: [
       { priority: 'desc' },
       { createdAt: 'asc' },
+      { id: 'asc' },
     ],
     skip,
     take: size,

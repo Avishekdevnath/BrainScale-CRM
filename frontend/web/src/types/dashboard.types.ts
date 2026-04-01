@@ -53,6 +53,23 @@ export interface CallsTrendItem {
   count: number;
 }
 
+export interface FollowupsTrendItem {
+  date: string;
+  pending: number;
+  overdue: number;
+}
+
+export interface CallDensityItem {
+  assignee: string;
+  monday: number;
+  tuesday: number;
+  wednesday: number;
+  thursday: number;
+  friday: number;
+  saturday: number;
+  sunday: number;
+}
+
 export interface ActivityItemAPI {
   type: 'call' | 'followup';
   id: string;
@@ -72,6 +89,7 @@ export interface DashboardSummaryResponse {
   };
   trends: {
     callsTrend: CallsTrendItem[];
+    followupsTrend: FollowupsTrendItem[];
   };
   recentActivity: ActivityItemAPI[];
   callLists?: Array<{

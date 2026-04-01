@@ -149,7 +149,7 @@ export function CallListItemsTable({
   // Fetch call logs for follow-up filter
   // Server already returns paginated + filtered items.
   const paginatedItems = React.useMemo(() => data?.items ?? [], [data?.items]);
-  const totalItems = data?.pagination?.total ?? 0;
+  const serverTotalItems = data?.pagination?.total ?? 0;
 
   // Filter items by search query
   const filteredItems = React.useMemo(() => {
@@ -162,6 +162,8 @@ export function CallListItemsTable({
     });
   }, [paginatedItems, searchQuery]);
 
+  // When search is active, show filtered count; otherwise use server total
+  const totalItems = searchQuery.trim() ? filteredItems.length : serverTotalItems;
   const totalPages = Math.ceil(totalItems / pageSize);
 
   const questions = React.useMemo(() => {

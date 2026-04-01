@@ -16,7 +16,7 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { extractQuestions, getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical, Download } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical, Download, Search, Users } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
@@ -68,6 +68,7 @@ export function CallListItemsTable({
   const [showFilters, setShowFilters] = React.useState(false);
   const [hoveredRowId, setHoveredRowId] = React.useState<string | null>(null);
   const [isExportingExcel, setIsExportingExcel] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
   // Get current user's member ID to check if they're assigned
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember } = useCurrentMember(workspaceId);
@@ -150,6 +151,17 @@ export function CallListItemsTable({
   const paginatedItems = React.useMemo(() => data?.items ?? [], [data?.items]);
   const totalItems = data?.pagination?.total ?? 0;
 
+  // Filter items by search query
+  const filteredItems = React.useMemo(() => {
+    if (!searchQuery.trim()) return paginatedItems;
+    const q = searchQuery.toLowerCase();
+    return paginatedItems.filter(item => {
+      const studentName = item.student?.name?.toLowerCase().includes(q);
+      const studentPhone = item.student?.phones?.some(p => p.phone?.includes(q));
+      return studentName || studentPhone;
+    });
+  }, [paginatedItems, searchQuery]);
+
   const totalPages = Math.ceil(totalItems / pageSize);
 
   const questions = React.useMemo(() => {
@@ -176,7 +188,7 @@ export function CallListItemsTable({
     let unassigned = 0;
     let assignedToOthers = 0;
 
-    for (const item of paginatedItems) {
+    for (const item of filteredItems) {
       if (!selectedItemIds.has(item.id)) continue;
       if (!item.assignedTo) {
         unassigned += 1;
@@ -188,7 +200,7 @@ export function CallListItemsTable({
     }
 
     return { assignedToMe, unassigned, assignedToOthers };
-  }, [currentMember?.id, paginatedItems, selectedItemIds]);
+  }, [currentMember?.id, filteredItems, selectedItemIds]);
 
   const onSelectionMetaChangeRef = React.useRef(onSelectionMetaChange);
   onSelectionMetaChangeRef.current = onSelectionMetaChange;
@@ -198,20 +210,20 @@ export function CallListItemsTable({
   }, [selectionMeta]);
 
   const handleSelectAll = React.useCallback(() => {
-    if (!paginatedItems) return;
+    if (!filteredItems) return;
     const selectableItemIds = isAdmin
-      ? paginatedItems.map((item) => item.id)
-      : paginatedItems
+      ? filteredItems.map((item) => item.id)
+      : filteredItems
           .filter((item) => !item.assignedTo || (currentMember?.id && item.assignedTo === currentMember.id))
           .map((item) => item.id);
-    
+
     if (selectableItemIds.length === 0) {
       toast.info(isAdmin ? "No items on this page" : "No unassigned items on this page");
       return;
     }
 
     const allSelected = selectableItemIds.every((id) => selectedItemIds.has(id));
-    
+
     if (allSelected) {
       // Deselect all selectable items on current page
       setSelectedItemIds((prev) => {
@@ -227,7 +239,7 @@ export function CallListItemsTable({
         return next;
       });
     }
-  }, [paginatedItems, selectedItemIds, isAdmin, currentMember?.id]);
+  }, [filteredItems, selectedItemIds, isAdmin, currentMember?.id]);
 
   const handleSelectItem = React.useCallback((itemId: string, assignedTo: string | null) => {
     if (assignedTo && !isAdmin && assignedTo !== currentMember?.id) {
@@ -561,8 +573,8 @@ export function CallListItemsTable({
                 variant="outline"
                 size="sm"
                 onClick={handleExportExcel}
-                disabled={isLoading || isExportingExcel}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                disabled={isLoading || isExportingExcel || filteredItems.length === 0}
+                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isExportingExcel ? (
                   <>
@@ -628,6 +640,18 @@ export function CallListItemsTable({
             />
           </CollapsibleFilters>
 
+          {/* Quick Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+            <input
+              type="search"
+              placeholder="Search students..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+            />
+          </div>
+
           {isLoading ? (
             <div className="py-8 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-[var(--groups1-text-secondary)]" />
@@ -639,9 +663,19 @@ export function CallListItemsTable({
                 {error instanceof Error ? error.message : "Failed to load items"}
               </p>
             </div>
-          ) : paginatedItems.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-sm text-[var(--groups1-text-secondary)]">No items found</p>
+          ) : filteredItems.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="mx-auto w-12 h-12 rounded-full bg-[var(--groups1-secondary)] flex items-center justify-center mb-3">
+                <Users className="w-6 h-6 text-[var(--groups1-text-secondary)]" />
+              </div>
+              <p className="text-sm font-medium text-[var(--groups1-text)]">No students found</p>
+              <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                {searchQuery.trim()
+                  ? "No students match your search"
+                  : activeFilter !== "all" || assignmentFilter !== "all"
+                  ? "Try adjusting your filters"
+                  : "No students have been added to this call list yet"}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -662,7 +696,7 @@ export function CallListItemsTable({
               </div>
 
               <div className="md:hidden space-y-2">
-                {paginatedItems.map((item, index) => {
+                {filteredItems.map((item, index) => {
                   const primaryPhone = item.student?.phones?.find((p) => p.isPrimary) || item.student?.phones?.[0];
                   const isUpdating = updatingItemId === item.id;
                   const callLog = getCallLogData(item);
@@ -845,13 +879,13 @@ export function CallListItemsTable({
                       </div>
 
                       {questions.length > 0 && (
-                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {questions.map((q) => {
                             const answerObj = getAnswer(item, q);
                             const displayValue = formatAnswerValue(answerObj?.answer);
                             return (
                               <div key={q.id} className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
-                                <div className="text-[10px] text-[var(--groups1-text-secondary)] truncate">
+                                <div className="text-[10px] text-[var(--groups1-text-secondary)]" title={getQuestionHeaderLabel(q)}>
                                   {getQuestionHeaderLabel(q)}
                                 </div>
                                 <div className="mt-0.5 text-xs text-[var(--groups1-text)]">{displayValue}</div>
@@ -868,7 +902,7 @@ export function CallListItemsTable({
               {/* Desktop table view */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse">
-                <thead>
+                <thead className="sticky top-0 z-20">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10 bg-[var(--groups1-surface)]">
                       <input
@@ -896,10 +930,10 @@ export function CallListItemsTable({
                     {questions.map((q) => (
                       <th
                         key={q.id}
-                        className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]"
-                        title={q.question}
+                        title={getQuestionHeaderLabel(q)}
+                        className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] bg-[var(--groups1-secondary)] max-w-[120px]"
                       >
-                        <span className="truncate block pr-3 normal-case">
+                        <span className="truncate block max-w-[110px] normal-case">
                           {getQuestionHeaderLabel(q)}
                         </span>
                       </th>
@@ -913,7 +947,7 @@ export function CallListItemsTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedItems.map((item, index) => {
+                  {filteredItems.map((item, index) => {
                     const primaryPhone = item.student?.phones?.find((p) => p.isPrimary) || item.student?.phones?.[0];
                     const isUpdating = updatingItemId === item.id;
                     const callLog = getCallLogData(item);
@@ -1031,20 +1065,15 @@ export function CallListItemsTable({
                           "px-3 py-2 border-b border-l border-[var(--groups1-card-border-inner)] text-right sticky right-0 z-10",
                           isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
                         )}>
-                          <div className={cn(
-                            "flex items-center justify-end gap-2 transition-opacity duration-200",
-                            (hoveredRowId === item.id || isSelected) ? "opacity-100" : "opacity-0"
-                          )}>
+                          <div className="flex items-center justify-end gap-2">
                             <DropdownMenu.Root>
                               <DropdownMenu.Trigger asChild>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className={cn(
-                                    "h-7 w-7 p-0",
-                                    hoveredRowId !== item.id && !isSelected && "pointer-events-none"
-                                  )}
+                                  className="h-7 w-7 p-0"
                                   disabled={isUpdating || deletingItemId === item.id}
+                                  aria-label="Item actions"
                                 >
                                   <MoreVertical className="w-4 h-4" />
                                 </Button>
@@ -1130,13 +1159,18 @@ export function CallListItemsTable({
           )}
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex flex-col md:flex-row md:items-center justify-between mt-2 pt-2 border-t border-[var(--groups1-border)] gap-2">
-              <div className="text-xs md:text-sm text-[var(--groups1-text-secondary)]">
-                Showing {paginatedItems.length > 0 ? (filters.page! - 1) * pageSize + 1 : 0} to{" "}
-                {Math.min(filters.page! * pageSize, totalItems)} of {totalItems}
-              </div>
-              <div className="flex items-center gap-2 justify-between md:justify-start">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mt-2 pt-2 border-t border-[var(--groups1-border)] gap-2">
+            {/* Record count - always visible */}
+            <div className="text-xs md:text-sm text-[var(--groups1-text-secondary)]">
+              {filteredItems.length === 0
+                ? "No records"
+                : totalItems <= pageSize
+                ? `${totalItems} record${totalItems !== 1 ? "s" : ""}`
+                : `Showing ${(filters.page! - 1) * pageSize + 1}–${Math.min(filters.page! * pageSize, totalItems)} of ${totalItems}`}
+            </div>
+            {/* Pagination buttons - only when multiple pages */}
+            {totalPages > 1 && (
+            <div className="flex items-center gap-2 justify-between md:justify-start">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1161,8 +1195,8 @@ export function CallListItemsTable({
                   <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 

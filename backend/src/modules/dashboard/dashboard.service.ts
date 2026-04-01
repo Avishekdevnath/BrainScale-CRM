@@ -608,6 +608,116 @@ export const getCallsTrend = async (
 };
 
 /**
+ * Get follow-ups trend over time (pending vs overdue)
+ * Groups followups by period and separates pending vs overdue status
+ */
+export const getFollowupsTrend = async (
+  workspaceId: string,
+  filters?: DashboardFiltersInput,
+  period: 'day' | 'week' | 'month' | 'year' = 'month'
+) => {
+  // Calculate date range based on period (same as getCallsTrend)
+  const now = new Date();
+  let startDate: Date;
+
+  switch (period) {
+    case 'day':
+      startDate = new Date(now.setDate(now.getDate() - 30));
+      break;
+    case 'week':
+      startDate = new Date(now.setDate(now.getDate() - 12 * 7));
+      break;
+    case 'month':
+      startDate = new Date(now.setFullYear(now.getFullYear() - 12));
+      break;
+    case 'year':
+      startDate = new Date(now.setFullYear(now.getFullYear() - 5));
+      break;
+  }
+
+  // Build where clause for followups with filters
+  const followupWhere: any = { workspaceId };
+  if (filters?.groupId) followupWhere.groupId = filters.groupId;
+
+  // Handle batchId filter by finding groups first
+  if (filters?.batchId && !filters?.groupId) {
+    const groups = await prisma.group.findMany({
+      where: {
+        workspaceId,
+        batchId: filters.batchId,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    const groupIds = groups.map(g => g.id);
+    if (groupIds.length > 0) {
+      followupWhere.groupId = { in: groupIds };
+    } else {
+      followupWhere.groupId = { in: [] };
+    }
+  }
+
+  // Fetch followups in date range
+  const followups = await prisma.followup.findMany({
+    where: {
+      ...followupWhere,
+      dueAt: {
+        gte: startDate,
+      },
+    },
+    select: {
+      dueAt: true,
+      status: true,
+    },
+  });
+
+  // Group by period and separate pending vs overdue
+  const grouped: Record<string, { pending: number; overdue: number }> = {};
+  const currentTime = new Date();
+
+  followups.forEach((followup) => {
+    const dueDate = new Date(followup.dueAt);
+    let key: string;
+
+    switch (period) {
+      case 'day':
+        key = dueDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        break;
+      case 'week':
+        const weekStart = new Date(dueDate);
+        weekStart.setDate(dueDate.getDate() - dueDate.getDay());
+        key = `Week ${weekStart.toISOString().split('T')[0]}`;
+        break;
+      case 'month':
+        key = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+        break;
+      case 'year':
+        key = String(dueDate.getFullYear());
+        break;
+    }
+
+    // Determine if pending or overdue
+    const isOverdue = followup.status === 'PENDING' && dueDate < currentTime;
+    const isPending = followup.status === 'PENDING' && dueDate >= currentTime;
+
+    if (!grouped[key]) {
+      grouped[key] = { pending: 0, overdue: 0 };
+    }
+
+    if (isOverdue) grouped[key].overdue++;
+    if (isPending) grouped[key].pending++;
+  });
+
+  // Convert to array and sort by date
+  return Object.entries(grouped)
+    .map(([date, data]) => ({
+      date,
+      ...data,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+};
+
+/**
  * Get recent activity
  */
 export const getRecentActivity = async (workspaceId: string, limit: number = 20) => {
@@ -774,7 +884,7 @@ export const getDashboardSummary = async (
   workspaceId: string,
   filters?: DashboardFiltersInput
 ) => {
-  const [kpis, callsByStatus, followupsByStatus, studentsByGroup, studentsByBatch, callsTrend, recentActivity, callLists] =
+  const [kpis, callsByStatus, followupsByStatus, studentsByGroup, studentsByBatch, callsTrend, followupsTrend, recentActivity, callLists] =
     await Promise.all([
       getKPIs(workspaceId, filters),
       getCallsByStatus(workspaceId, filters),
@@ -782,6 +892,7 @@ export const getDashboardSummary = async (
       getStudentsByGroup(workspaceId),
       getStudentsByBatch(workspaceId),
       getCallsTrend(workspaceId, filters?.period),
+      getFollowupsTrend(workspaceId, filters, filters?.period),
       getRecentActivity(workspaceId),
       getCallLists(workspaceId, filters),
     ]);
@@ -796,6 +907,7 @@ export const getDashboardSummary = async (
     },
     trends: {
       callsTrend,
+      followupsTrend,
     },
     recentActivity,
     callLists,

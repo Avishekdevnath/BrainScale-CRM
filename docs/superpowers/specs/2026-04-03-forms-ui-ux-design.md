@@ -1145,12 +1145,38 @@ The `Form.fields` JSON field currently stores a flat array. For v1, migrate to t
 
 **Migration strategy:** Wrap existing flat arrays in a single default section. Backward-compatible read: if `sections` exists use it, else wrap `fields` in a default section.
 
-### File Upload Storage
+### File Upload Storage — Vercel Blob
 
-- Use existing workspace file storage pattern (S3 or local)
-- File upload endpoint: validates type, size, virus scan (if available)
-- Returns URL for storage in form settings or response answers
-- Max sizes: header image 2MB, logo 1MB, field uploads configurable (default 10MB)
+**Provider:** `@vercel/blob` (serverless-native, no S3 config needed)
+
+**Install:** `npm install @vercel/blob` (backend)
+
+**How it works:**
+1. Client uploads file to backend endpoint
+2. Backend validates (type, size, MIME check)
+3. Backend calls `put()` from `@vercel/blob` → returns public URL
+4. URL stored in form settings (header image, logo) or response answers (file field)
+
+**Endpoints:**
+- `POST /forms/:id/upload` — upload header image or logo (auth required)
+- `POST /forms/:slug/upload-response` — upload file field attachment (public, rate-limited)
+- `DELETE /forms/blob/:url` — delete blob (auth required, cleanup)
+
+**Constraints:**
+- Header image: max 2MB, image types only (jpeg, png, webp, gif)
+- Logo: max 1MB, image types only
+- File field uploads: configurable per field (default 10MB, max 50MB)
+- Signature: converted to PNG on client, uploaded as image (typically <100KB)
+
+**Vercel Blob limits (Pro plan):**
+- 500MB storage included, $0.15/GB after
+- 1GB bandwidth included
+- Max single file: 500MB
+- No cold start, instant URLs
+
+**Environment variable:** `BLOB_READ_WRITE_TOKEN` (from Vercel dashboard)
+
+**Cleanup strategy:** When a form is deleted, queue blob deletions for all associated files (header, logo, response attachments). Use a background job or immediate cleanup.
 
 ### Security Hardening (Critical)
 
@@ -1240,17 +1266,20 @@ The `Form.fields` JSON field currently stores a flat array. For v1, migrate to t
 ## 18. Dependencies to Install
 
 ```bash
-# Drag-and-drop for form builder
+# Frontend — drag-and-drop for form builder
 npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 
-# Signature pad for signature field
+# Frontend — signature pad for signature field
 npm install signature_pad
 
-# CAPTCHA (optional, for form security)
+# Frontend — CAPTCHA (optional, for form security)
 npm install @hcaptcha/react-hcaptcha
+
+# Backend — file storage
+npm install @vercel/blob
 ```
 
-All other dependencies (`recharts`, `react-hook-form`, `zod`, `react-dropzone`, `@tanstack/react-virtual`, `framer-motion`, `xlsx`, `papaparse`) are already installed.
+**Already installed (no action needed):** `recharts`, `react-hook-form`, `zod`, `react-dropzone`, `@tanstack/react-virtual`, `framer-motion`, `xlsx`, `papaparse`, `multer`, `dompurify`.
 
 ---
 

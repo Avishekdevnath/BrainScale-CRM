@@ -188,7 +188,12 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
           onFieldDelete={(fieldId) => {
             setFields(fields.filter(f => f.id !== fieldId));
           }}
-          onFieldMove={() => {}}
+          onFieldMove={(fromIndex, toIndex) => {
+            const newFields = [...fields];
+            const [movedField] = newFields.splice(fromIndex, 1);
+            newFields.splice(toIndex, 0, movedField);
+            setFields(newFields);
+          }}
           onAddField={() => {}}
           onAddSection={() => {}}
           onFormTitleChange={setTitle}

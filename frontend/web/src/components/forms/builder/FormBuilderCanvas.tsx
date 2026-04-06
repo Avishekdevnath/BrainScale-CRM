@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,9 @@ export function FormBuilderCanvas({
   onFormTitleChange,
   onFormDescriptionChange,
 }: Props) {
+  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
       {/* Form Header Card */}
@@ -79,7 +83,40 @@ export function FormBuilderCanvas({
       {/* Sections and Fields */}
       {form.fields && Array.isArray(form.fields) && form.fields.length > 0 ? (
         (form.fields as any[]).map((field, index) => (
-          <Card key={field.id || index} variant="groups1">
+          <Card
+            key={field.id || index}
+            variant="groups1"
+            draggable
+            onDragStart={(e) => {
+              setDraggedFieldId(field.id || String(index));
+              e.dataTransfer!.effectAllowed = "move";
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverIndex(index);
+            }}
+            onDragLeave={() => setDragOverIndex(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (draggedFieldId) {
+                const fromIndex = (form.fields as any[]).findIndex(
+                  f => (f.id || (form.fields as any[]).indexOf(f)) === draggedFieldId
+                );
+                if (fromIndex !== -1 && fromIndex !== index) {
+                  onFieldMove(fromIndex, index);
+                }
+              }
+              setDraggedFieldId(null);
+              setDragOverIndex(null);
+            }}
+            style={{
+              opacity: draggedFieldId === (field.id || String(index)) ? 0.5 : 1,
+              backgroundColor: dragOverIndex === index
+                ? `hsl(var(--groups1-primary) / 0.1)`
+                : `hsl(var(--groups1-surface))`,
+              cursor: 'grab',
+              borderColor: `hsl(var(--groups1-border))`
+            }}>
             <CardContent variant="groups1" className="pt-6 space-y-3">
               <div className="flex items-start gap-3">
                 <GripVertical className="h-5 w-5 mt-1 cursor-grab text-muted-foreground flex-shrink-0" />

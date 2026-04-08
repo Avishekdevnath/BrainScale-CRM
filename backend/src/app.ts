@@ -259,6 +259,7 @@ app.get('/api/v1', (req, res) => {
 import authRouter from './modules/auth/auth.router';
 import workspaceRouter from './modules/workspaces/workspace.router';
 import invitationRouter, { publicInvitationRouter } from './modules/invitations/invitation.router';
+import formsRouter, { publicFormsRouter } from './modules/forms/forms.router';
 import roleRouter from './modules/roles/role.router';
 import callRouter, { studentCallRouter, groupCallRouter } from './modules/calls/call.router';
 import followupRouter, { groupFollowupRouter } from './modules/followups/followup.router';
@@ -279,11 +280,14 @@ import emailRouter from './modules/emails/email.router';
 import revenueRouter from './modules/revenue/revenue.router';
 import aiChatRouter from './modules/ai-chat/ai-chat.router';
 import userRouter from './modules/users/user.router';
+import taskRouter from './modules/tasks/task.router';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/workspaces', workspaceRouter);
 app.use('/api/v1/workspaces', invitationRouter); // Nested under workspaces
 app.use('/api/v1', publicInvitationRouter); // Public invitation endpoint
+app.use('/api/v1/workspaces', formsRouter); // Forms management (workspace-scoped)
+app.use('/api/v1', publicFormsRouter); // Public forms submit endpoint
 app.use('/api/v1/workspaces', roleRouter); // Nested under workspaces
 // Note: /permissions endpoint is handled by roleRouter above
 app.use('/api/v1/calls', callRouter); // Calls routes
@@ -313,6 +317,7 @@ app.use('/api/v1/emails', emailRouter); // Email routes
 app.use('/api/v1/revenue', revenueRouter); // Revenue routes
 app.use('/api/v1/ai-chat', aiChatRouter); // AI Chat routes
 app.use('/api/v1/users', userRouter); // User account routes
+app.use('/api/v1/tasks', taskRouter); // Tasks routes
 
 // 404 handler
 app.use((req, res) => {

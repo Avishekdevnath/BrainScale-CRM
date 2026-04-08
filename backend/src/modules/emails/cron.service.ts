@@ -186,3 +186,50 @@ export const processScheduledDigests = async () => {
   return results;
 };
 
+/**
+ * Send TASK_DUE_SOON notifications for tasks due within 24 hours.
+ * Deduplicates using dueSoonNotifiedAt — skips tasks already notified.
+ * Call this from a scheduled cron job (e.g., every hour).
+ */
+export const processTaskDueSoonNotifications = async () => {
+  const now = new Date();
+  const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const tasks = await prisma.task.findMany({
+    where: {
+      status: { in: ['ACCEPTED', 'IN_PROGRESS'] },
+      dueDate: { gte: now, lte: in24h },
+      dueSoonNotifiedAt: null,
+    },
+    include: {
+      assignedTo: { select: { userId: true } },
+    },
+  });
+
+  let notified = 0;
+  for (const task of tasks) {
+    try {
+      await createNotification({
+        workspaceId: task.workspaceId,
+        userId: task.assignedTo.userId,
+        type: 'TASK_DUE_SOON',
+        title: 'Task Due Soon',
+        body: `Your task "${task.title}" is due within 24 hours`,
+        meta: { taskId: task.id, dueDate: task.dueDate.toISOString() },
+      });
+
+      await prisma.task.update({
+        where: { id: task.id },
+        data: { dueSoonNotifiedAt: now },
+      });
+
+      notified++;
+    } catch (error) {
+      logger.error({ error, taskId: task.id }, 'Failed to send TASK_DUE_SOON notification');
+    }
+  }
+
+  logger.info({ notified }, 'Task due-soon notifications processed');
+  return { notified };
+};
+

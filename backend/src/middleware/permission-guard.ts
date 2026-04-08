@@ -27,6 +27,24 @@ export const requirePermission = (resource: string, action: string) => {
       return next();
     }
 
+    // Product rule: all workspace members can create and read groups.
+    if (
+      req.user.role?.toUpperCase() === 'MEMBER' &&
+      resource === 'groups' &&
+      (action === 'create' || action === 'read')
+    ) {
+      return next();
+    }
+
+    // Product rule: all workspace members can create, read, and update tasks.
+    if (
+      req.user.role?.toUpperCase() === 'MEMBER' &&
+      resource === 'tasks' &&
+      (action === 'create' || action === 'read' || action === 'update' || action === 'delete')
+    ) {
+      return next();
+    }
+
     // Get user permissions (loaded by tenantGuard)
     const permissions = req.user.permissions || [];
 

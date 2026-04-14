@@ -79,6 +79,9 @@ model Workspace {
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
   tasks                   Task[]
+  taskTypes               TaskType[]
+  weeklyScheduleTemplates WeeklyScheduleTemplate[]
+  scheduleExceptions      ScheduleException[]
 }
 
 model WorkspaceMember {
@@ -103,6 +106,9 @@ model WorkspaceMember {
   callLogs              CallLog[]
   tasksAssignedTo       Task[]        @relation("TaskAssignee")
   tasksAssignedBy       Task[]        @relation("TaskAssigner")
+  scheduleAssignments   ScheduleAssignment[]
+  offDayExceptions      ScheduleException[] @relation("ScheduleExceptionMember")
+  overrideExceptions    ScheduleException[] @relation("ScheduleExceptionOverrideMember")
 
   @@unique([userId, workspaceId])
 }
@@ -123,6 +129,7 @@ model Batch {
   groups         Group[]
   studentBatches StudentBatch[]
   payments       Payment[]
+  scheduleSlots  ScheduleSlot[]
 
   @@unique([workspaceId, name])
 }
@@ -645,13 +652,17 @@ model Notification {
 }
 
 model NotificationPreference {
-  id               String  @id @default(cuid()) @map("_id")
-  workspaceId      String
-  userId           String
-  followupAssigned Boolean @default(true)
-  followupDueSoon  Boolean @default(true)
-  followupOverdue  Boolean @default(true)
-  callLogCompleted Boolean @default(false)
+  id                   String  @id @default(cuid()) @map("_id")
+  workspaceId          String
+  userId               String
+  followupAssigned     Boolean @default(true)
+  followupDueSoon      Boolean @default(true)
+  followupOverdue      Boolean @default(true)
+  callLogCompleted     Boolean @default(false)
+  taskAssigned         Boolean @default(true)
+  taskDueSoon          Boolean @default(true)
+  taskUpdated          Boolean @default(true)
+  formResponseReceived Boolean @default(true)
 
   // Relations
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -702,32 +713,200 @@ model FormResponse {
   @@index([workspaceId, submittedAt])
 }
 
+model TaskType {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  color       String   @default("#6366f1")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([workspaceId])
+}
+
 model Task {
-  id                 String    @id @default(cuid()) @map("_id")
-  workspaceId        String
-  title              String
-  description        String?
-  assignedToId       String
-  assignedById       String
-  referredByMemberId String?
-  referredByName     String?
-  dueDate            DateTime
-  priority           String    @default("NORMAL")
-  status             String    @default("AWAITING_ACCEPTANCE")
-  completionNote     String?
-  completedAt        DateTime?
-  declineNote        String?
-  linkedEntityType   String?
-  linkedEntityId     String?
-  dueSoonNotifiedAt  DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                    String    @id @default(cuid()) @map("_id")
+  workspaceId           String
+  title                 String
+  description           String?
+  assignedToId          String
+  assignedById          String
+  scheduleTemplateId    String?           // Links task back to source schedule
+  referredByMemberId    String?
+  referredByName        String?
+  dueDate               DateTime
+  priority              String    @default("NORMAL")
+  status                String    @default("AWAITING_ACCEPTANCE")
+  completionNote        String?
+  completedAt           DateTime?
+  declineNote           String?
+  linkedEntityType      String?
+  linkedEntityId        String?
+  taskTypeId            String?
+  dueSoonNotifiedAt     DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   assignedTo WorkspaceMember @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: Cascade)
   assignedBy WorkspaceMember @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+  taskType   TaskType?       @relation(fields: [taskTypeId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, assignedToId, dueDate])
   @@index([workspaceId, assignedById, dueDate])
   @@index([workspaceId, status, dueDate])
+  @@index([workspaceId, taskTypeId])
+  @@index([scheduleTemplateId])
+}
+
+model WeeklyScheduleTemplate {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String   @default("Default Schedule")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  slots     ScheduleSlot[]
+
+  @@index([workspaceId, isActive])
+}
+
+model ScheduleSlot {
+  id         String @id @default(cuid()) @map("_id")
+  templateId String
+  dayOfWeek  Int
+  batchId    String?
+  slotGroup  String
+  slotLabel  String
+  startTime  String
+  endTime    String
+  order      Int
+
+  template    WeeklyScheduleTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  batch       Batch?                 @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  assignments ScheduleAssignment[]
+  exceptions  ScheduleException[]
+
+  @@index([templateId, dayOfWeek, batchId])
+}
+
+model ScheduleAssignment {
+  id        String  @id @default(cuid()) @map("_id")
+  slotId    String
+  memberId  String
+  roleLabel String?
+
+  slot   ScheduleSlot   @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  member WorkspaceMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([slotId, memberId])
+  @@index([slotId])
+}
+
+model ScheduleException {
+  id               String   @id @default(cuid()) @map("_id")
+  workspaceId      String
+  date             DateTime
+  memberId         String?
+  type             String
+  slotId           String?
+  overrideMemberId String?
+  note             String?
+  createdAt        DateTime @default(now())
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  member         WorkspaceMember? @relation("ScheduleExceptionMember", fields: [memberId], references: [id], onDelete: SetNull)
+  slot           ScheduleSlot?    @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  overrideMember WorkspaceMember? @relation("ScheduleExceptionOverrideMember", fields: [overrideMemberId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, date, memberId])
+}
+
+// ============================================
+// Email Queue System
+// ============================================
+
+model EmailQueue {
+  id              String   @id @default(cuid()) @map("_id")
+  workspaceId     String
+  userId          String?
+  to              String
+  subject         String
+  html            String
+  text            String?
+
+  type            String   @default("TRANSACTIONAL") // TRANSACTIONAL, BULK, REMINDER
+  priority        Int      @default(10) // 1=highest, 20=lowest
+  status          String   @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, RETRYING
+
+  retryCount      Int      @default(0)
+  maxRetries      Int      @default(3)
+  lastRetryAt     DateTime?
+  nextRetryAt     DateTime?
+  error           String?
+
+  metadata        Json? // Custom data (followupId, batchId, etc.)
+  messageId       String? // From Resend provider
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sentAt          DateTime?
+  expiresAt       DateTime? // Auto-delete after TTL
+
+  @@index([workspaceId, status])
+  @@index([status, nextRetryAt])
+  @@index([priority, createdAt])
+}
+
+model EmailRateLimit {
+  id              String   @id @default(cuid()) @map("_id")
+  provider        String   // "resend", "smtp"
+
+  requestCount    Int      @default(0)
+  windowStart     DateTime
+  windowEnd       DateTime
+
+  updatedAt       DateTime @updatedAt
+
+  @@unique([provider, windowStart])
+}
+
+model EmailLog {
+  id              String   @id @default(cuid()) @map("_id")
+  queueId         String?  @unique
+
+  workspaceId     String
+  userId          String?
+  to              String
+
+  type            String // TRANSACTIONAL, BULK, REMINDER
+  subject         String
+
+  status          String // SENT, FAILED, BOUNCED
+  messageId       String?
+
+  sentAt          DateTime @default(now())
+  attempts        Int      @default(1)
+  errorMessage    String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([workspaceId, sentAt])
+  @@index([status, sentAt])
+}
+
+model ProcessingLock {
+  id              String   @id @default(cuid()) @map("_id")
+  name            String   @unique // "email-queue-worker"
+  lockedBy        String   // Worker instance ID
+  lockedAt        DateTime @default(now())
+  expiresAt       DateTime // Auto-release after timeout
+
+  @@index([expiresAt])
 }

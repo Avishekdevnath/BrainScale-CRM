@@ -13,10 +13,9 @@ import {
   UserCog,
   Settings,
   HelpCircle,
-  Sun,
-  Moon,
   Menu,
   LogOut,
+  CheckSquare,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -31,6 +30,7 @@ const navItems: NavItem[] = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/students", label: "Students", icon: Users },
   { href: "/app/followups", label: "Follow-ups", icon: Clock },
+  { href: "/app/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
   { href: "/app/imports", label: "Imports / Exports", icon: Download },
   { href: "/app/members", label: "Members & Roles", icon: UserCog },

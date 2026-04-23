@@ -108,6 +108,20 @@ export const listCourseModules = async (courseId: string, workspaceId: string) =
 };
 
 /**
+ * List all modules across all courses for a workspace (for dropdowns)
+ */
+export const listAllModules = async (workspaceId: string) => {
+  return prisma.module.findMany({
+    where: { course: { workspaceId } },
+    include: {
+      course: { select: { id: true, name: true } },
+      _count: { select: { enrollments: true, progress: true } },
+    },
+    orderBy: [{ course: { name: 'asc' } }, { orderIndex: 'asc' }],
+  });
+};
+
+/**
  * Get module details
  */
 export const getModule = async (moduleId: string, workspaceId: string) => {

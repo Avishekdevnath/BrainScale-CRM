@@ -48,7 +48,7 @@ export const updateCallList = asyncHandler(async (req: AuthRequest, res: Respons
 
 export const deleteCallList = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { listId } = req.params;
-  const result = await callListService.deleteCallList(listId, req.user!.workspaceId!);
+  const result = await callListService.deleteCallList(listId, req.user!.workspaceId!, req.user!.sub);
   res.json(result);
 });
 
@@ -134,7 +134,7 @@ export const createCallListFromFollowups = asyncHandler(async (req: AuthRequest,
 
 export const deleteCallListItem = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { itemId } = req.params;
-  const result = await callListService.deleteCallListItem(itemId, req.user!.workspaceId!);
+  const result = await callListService.deleteCallListItem(itemId, req.user!.workspaceId!, req.user!.sub);
   res.json(result);
 });
 

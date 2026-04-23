@@ -15,7 +15,7 @@ interface FollowupsTrendChartProps {
 export function FollowupsTrendChart({ data, isLoading, error, onRetry }: FollowupsTrendChartProps) {
   const [tableVisible, setTableVisible] = useState(false);
   const isEmpty = useMemo(() => !data || data.length === 0, [data]);
-  const tableData = useMemo(() => (data || []).map((item) => ({ date: item.date, pending: item.pending, overdue: item.overdue, total: item.pending + item.overdue })), [data]);
+  const tableData = useMemo(() => (Array.isArray(data) ? data : []).map((item) => ({ date: item.date, pending: item.pending, overdue: item.overdue, total: item.pending + item.overdue })), [data]);
   const tableColumns = [
     { key: "date", label: "Date", sortable: true },
     { key: "pending", label: "Pending", sortable: true, format: (value: number) => value.toLocaleString() },

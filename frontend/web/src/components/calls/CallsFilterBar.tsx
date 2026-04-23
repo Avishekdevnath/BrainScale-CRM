@@ -4,14 +4,18 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCallLists } from "@/hooks/useCallLists";
+import { useWorkspaceMembers } from "@/hooks/useMembers";
+import { useWorkspaceStore } from "@/store/workspace";
 import { Search, X, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface CallsFilterBarProps {
   selectedCallListId: string | null;
   searchQuery: string;
+  selectedMemberId: string | null;
   onCallListChange: (callListId: string | null) => void;
   onSearchChange: (query: string) => void;
+  onMemberChange: (memberId: string | null) => void;
   onClearFilters: () => void;
   onSaveFilter?: () => void;
 }
@@ -19,12 +23,16 @@ export interface CallsFilterBarProps {
 export function CallsFilterBar({
   selectedCallListId,
   searchQuery,
+  selectedMemberId,
   onCallListChange,
   onSearchChange,
+  onMemberChange,
   onClearFilters,
   onSaveFilter,
 }: CallsFilterBarProps) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id ?? null);
   const { data: callListsData, isLoading: callListsLoading } = useCallLists();
+  const { members } = useWorkspaceMembers(workspaceId);
 
   const callLists = callListsData?.callLists || [];
 
@@ -51,6 +59,30 @@ export function CallsFilterBar({
           {callLists.map((list) => (
             <option key={list.id} value={list.id}>
               {list.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Caller / Member Dropdown */}
+      <div className="flex-1 min-w-[180px]">
+        <label className="block text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
+          Caller
+        </label>
+        <select
+          value={selectedMemberId || ""}
+          onChange={(e) => onMemberChange(e.target.value || null)}
+          className={cn(
+            "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+            "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+            "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+          )}
+          aria-label="Filter by caller"
+        >
+          <option value="">All Callers</option>
+          {members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.user.name?.trim() || m.user.email}
             </option>
           ))}
         </select>

@@ -26,6 +26,7 @@ export const CreateTaskSchema = z.object({
   assignedToId: z.string().min(1, 'Assignee is required'),
   dueDate: z.string().datetime({ message: 'Invalid due date' }),
   priority: z.enum(['NORMAL', 'URGENT']).default('NORMAL'),
+  taskTypeId: z.string().optional().nullable(),
   linkedEntityType: z.enum(['call_list', 'group', 'student', 'form']).optional().nullable(),
   linkedEntityId: z.string().optional().nullable(),
   referredByMemberId: z.string().optional().nullable(),
@@ -39,6 +40,7 @@ export const UpdateTaskSchema = z.object({
   description: z.string().optional().nullable(),
   dueDate: z.string().datetime().optional(),
   priority: z.enum(['NORMAL', 'URGENT']).optional(),
+  taskTypeId: z.string().optional().nullable(),
   linkedEntityType: z.enum(['call_list', 'group', 'student', 'form']).optional().nullable(),
   linkedEntityId: z.string().optional().nullable(),
 });
@@ -64,6 +66,12 @@ export const ListTasksSchema = z.object({
   priority: z.enum(['NORMAL', 'URGENT']).optional(),
   assignedToId: z.string().optional(),
   assignedById: z.string().optional(),
+  taskTypeId: z.string().optional(),
+  search: z.string().optional(),
+  sortBy: z.enum(['dueDate', 'updatedAt']).default('dueDate'),
+  sortOrder: z.enum(['asc', 'desc']).default('asc'),
+  dueDateFrom: z.string().optional(),
+  dueDateTo: z.string().optional(),
 });
 
 export type ListTasksInput = z.infer<typeof ListTasksSchema>;

@@ -9,6 +9,7 @@ import {
   UpdateWorkspaceSchema,
   InviteMemberSchema,
   UpdateMemberSchema,
+  UpdateMemberUserSchema,
   GrantGroupAccessSchema,
   CreateMemberWithAccountSchema,
 } from './workspace.schemas';
@@ -378,6 +379,15 @@ router.patch(
   requirePermission('members', 'update'),
   zodValidator(UpdateMemberSchema),
   workspaceController.updateMember
+);
+
+router.patch(
+  '/:workspaceId/members/:memberId/user',
+  authGuard,
+  tenantGuard,
+  requirePermission('members', 'update'),
+  zodValidator(UpdateMemberUserSchema),
+  workspaceController.updateMemberUser
 );
 
 /**

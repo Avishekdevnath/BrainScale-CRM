@@ -1,9 +1,21 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { authGuard } from '../../middleware/auth-guard';
 import { asyncHandler } from '../../middleware/error-handler';
+import { zodValidator } from '../../middleware/validate';
 import * as userController from './user.controller';
 
 const router = Router();
+
+const UpdateMyProfileSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  email: z.string().email().optional(),
+}).refine(
+  (d) => d.name !== undefined || d.email !== undefined,
+  { message: 'At least one of name or email must be provided' }
+);
+
+router.patch('/me', authGuard, zodValidator(UpdateMyProfileSchema), userController.updateMyProfile);
 
 /**
  * @openapi

@@ -1,6 +1,40 @@
 import { env } from '../config/env';
 
 /**
+ * Team Chat mention notification template
+ */
+export const teamChatMentionTemplate = (params: {
+  senderName: string;
+  channelName: string;
+  messagePreview: string;
+  teamChatUrl: string;
+}): string => {
+  const subject = `${params.senderName} mentioned you in #${params.channelName}`;
+
+  const content = `
+    <h2 style="color: #4F46E5;">📢 ${subject}</h2>
+    <p>Hi there,</p>
+    <p>You've been mentioned in a channel message:</p>
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4F46E5;">
+      <p style="margin: 0; color: #666; font-size: 14px;">
+        <strong>${params.senderName}</strong> in <strong>#${params.channelName}</strong>
+      </p>
+      <p style="margin: 10px 0 0 0; color: #333;">
+        ${params.messagePreview}
+      </p>
+    </div>
+    <p style="margin-top: 30px;">
+      <a href="${params.teamChatUrl}"
+         style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        View in Team Chat
+      </a>
+    </p>
+  `;
+
+  return baseTemplate(content, subject);
+};
+
+/**
  * Base email template wrapper
  */
 const baseTemplate = (content: string, title?: string): string => {
@@ -117,6 +151,71 @@ export const followupReminderTemplate = (
   `;
 
   return baseTemplate(content, 'Follow-up Reminder');
+};
+
+export const taskAssignmentTemplate = (params: {
+  title: string;
+  dueDate: Date;
+  priority: string;
+  status: string;
+  description?: string | null;
+  taskTypeName?: string | null;
+  assigneeName?: string | null;
+  assignerName?: string | null;
+  referredBy?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+}): string => {
+  const formattedDate = new Date(params.dueDate).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const isSelfAssigned =
+    Boolean(params.assigneeName) &&
+    Boolean(params.assignerName) &&
+    params.assigneeName === params.assignerName;
+
+  const intro = isSelfAssigned
+    ? 'You assigned yourself a new task.'
+    : params.assignerName
+      ? `${params.assignerName} assigned you a new task.`
+      : 'You have been assigned a new task.';
+
+  const linkedEntity =
+    params.linkedEntityType && params.linkedEntityId
+      ? `${params.linkedEntityType}: ${params.linkedEntityId}`
+      : null;
+
+  const content = `
+    <h2 style="color: #4F46E5;">New Task Assigned</h2>
+    <p>Hi${params.assigneeName ? ` ${params.assigneeName}` : ''},</p>
+    <p>${intro}</p>
+    <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+      <p style="margin: 0;"><strong>Title:</strong> ${params.title}</p>
+      ${params.description ? `<p style="margin: 10px 0 0 0;"><strong>Description:</strong> ${params.description}</p>` : ''}
+      <p style="margin: 10px 0 0 0;"><strong>Due Date:</strong> ${formattedDate}</p>
+      <p style="margin: 10px 0 0 0;"><strong>Priority:</strong> ${params.priority}</p>
+      <p style="margin: 10px 0 0 0;"><strong>Status:</strong> ${params.status}</p>
+      ${params.assigneeName ? `<p style="margin: 10px 0 0 0;"><strong>Assigned To:</strong> ${params.assigneeName}</p>` : ''}
+      ${params.assignerName ? `<p style="margin: 10px 0 0 0;"><strong>Assigned By:</strong> ${params.assignerName}</p>` : ''}
+      ${params.taskTypeName ? `<p style="margin: 10px 0 0 0;"><strong>Task Type:</strong> ${params.taskTypeName}</p>` : ''}
+      ${params.referredBy ? `<p style="margin: 10px 0 0 0;"><strong>Referred By:</strong> ${params.referredBy}</p>` : ''}
+      ${linkedEntity ? `<p style="margin: 10px 0 0 0;"><strong>Linked Entity:</strong> ${linkedEntity}</p>` : ''}
+    </div>
+    <p style="margin-top: 30px;">
+      <a href="${env.FRONTEND_URL}/app/tasks"
+         style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        View Tasks
+      </a>
+    </p>
+  `;
+
+  return baseTemplate(content, 'New Task Assigned');
 };
 
 /**

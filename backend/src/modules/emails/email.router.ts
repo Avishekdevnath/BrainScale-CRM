@@ -138,6 +138,12 @@ router.post(
   emailController.processScheduledDigestsEndpoint
 );
 
+router.post(
+  '/task-due-soon',
+  cronOrAuth,
+  emailController.processTaskDueSoonEndpoint
+);
+
 /**
  * @openapi
  * /emails/test:

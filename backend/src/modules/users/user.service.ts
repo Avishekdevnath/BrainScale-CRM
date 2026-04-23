@@ -15,6 +15,28 @@ function toISO(d: unknown): string {
   return '';
 }
 
+export const updateMyProfile = async (
+  userId: string,
+  data: { name?: string; email?: string }
+) => {
+  if (data.email) {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing && existing.id !== userId) {
+      throw new AppError(400, 'Email is already in use by another account');
+    }
+  }
+
+  const updateData: { name?: string; email?: string } = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+    select: { id: true, name: true, email: true },
+  });
+};
+
 export const exportMyAccountXlsx = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },

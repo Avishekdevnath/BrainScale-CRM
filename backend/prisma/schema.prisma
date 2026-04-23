@@ -38,6 +38,17 @@ model User {
   chats                   Chat[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+
+  // Team Chat relations
+  sentMessages            Message[]           @relation("MessageSender")
+  channelsCreated         Channel[]           @relation("ChannelCreator")
+  channelMemberships      UserChannel[]       @relation("UserChannelMember")
+  sentDMs                 DirectMessage[]     @relation("DMSender")
+  receivedDMs             DirectMessage[]     @relation("DMRecipient")
+  messageReactions        MessageReaction[]
+  readReceipts            ReadReceipt[]
+  typingStatuses          TypingStatus[]      @relation("TypingUser")
+  dmTypingStatuses        TypingStatus[]      @relation("DMTypingWith")
 }
 
 model Workspace {
@@ -55,6 +66,7 @@ model Workspace {
   followupRemindersEnabled Boolean  @default(true)
   aiFeaturesEnabled        Boolean  @default(false) // Master switch for AI features
   aiFeatures               Json? // Array of enabled AI features: ["summary", "sentiment"]
+  scheduleTaskSyncEnabled  Boolean  @default(false)  // Enable/disable auto task creation from schedule
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -82,6 +94,9 @@ model Workspace {
   taskTypes               TaskType[]
   weeklyScheduleTemplates WeeklyScheduleTemplate[]
   scheduleExceptions      ScheduleException[]
+
+  // Team Chat relations
+  channels                Channel[]           @relation("ChannelWorkspace")
 }
 
 model WorkspaceMember {
@@ -908,5 +923,162 @@ model ProcessingLock {
   lockedAt        DateTime @default(now())
   expiresAt       DateTime // Auto-release after timeout
 
+  @@index([expiresAt])
+}
+
+// ============================================
+// Team Chat System
+// ============================================
+
+model Channel {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  name        String
+  type        String   @default("custom") // "main" | "resources" | "custom"
+  description String?
+
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace      Workspace      @relation("ChannelWorkspace", fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdByUser  User           @relation("ChannelCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  messages       Message[]
+  members        UserChannel[]
+  typingStatuses TypingStatus[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@index([type])
+}
+
+model Message {
+  id            String   @id @default(cuid()) @map("_id")
+  channelId     String
+  userId        String
+
+  content       Json     // Tiptap JSON format
+  contentPlain  String?  // Plaintext for search indexing
+  attachments   Json?    @default("[]") // Future: file attachments
+  mentionedUsers String[] @default([]) // Array of user IDs mentioned
+
+  editedAt      DateTime?
+  deletedAt     DateTime? // Soft delete
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  channel       Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender        User              @relation("MessageSender", fields: [userId], references: [id], onDelete: Cascade)
+  reactions     MessageReaction[]
+  readReceipts  ReadReceipt[]     @relation("MessageReadReceipts")
+
+  @@index([channelId])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([channelId, createdAt, id])
+}
+
+model DirectMessage {
+  id           String   @id @default(cuid()) @map("_id")
+  senderId     String
+  recipientId  String
+
+  content      Json     // Tiptap JSON format
+  contentPlain String?
+  attachments  Json?    @default("[]")
+  mentionedUsers String[] @default([])
+
+  editedAt     DateTime?
+  deletedAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  sender        User          @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient     User          @relation("DMRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  readReceipts  ReadReceipt[] @relation("DMReadReceipts")
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([createdAt])
+  @@index([senderId, createdAt, id])
+  @@index([senderId, recipientId, createdAt])
+}
+
+model UserChannel {
+  id        String   @id @default(cuid()) @map("_id")
+  userId    String
+  channelId String
+
+  joinedAt  DateTime @default(now())
+  lastReadAt DateTime @default(now()) // Tracks where user left off
+
+  // Relations
+  user      User     @relation("UserChannelMember", fields: [userId], references: [id], onDelete: Cascade)
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Extend existing Notification model in the schema to support team chat
+// Add these fields to the existing Notification model:
+// - messageId: String? (FK to Message or DirectMessage)
+// - type: String (already exists - extend to include "mention", "dm")
+
+// ── Team Chat Extensions ─────────────────────────────────────────────────────
+
+model MessageReaction {
+  id        String   @id @default(cuid()) @map("_id")
+  messageId String
+  userId    String
+  emoji     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model ReadReceipt {
+  id          String   @id @default(cuid()) @map("_id")
+  messageId   String?
+  dmMessageId String?
+  userId      String
+  readAt      DateTime @default(now())
+
+  message   Message?       @relation("MessageReadReceipts", fields: [messageId], references: [id], onDelete: Cascade)
+  dmMessage DirectMessage? @relation("DMReadReceipts", fields: [dmMessageId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([dmMessageId])
+  @@index([userId])
+}
+
+model TypingStatus {
+  id        String   @id @default(cuid()) @map("_id")
+  channelId String?
+  dmUserId  String?
+  userId    String
+  expiresAt DateTime
+
+  channel    Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  dmWith     User?    @relation("DMTypingWith", fields: [dmUserId], references: [id], onDelete: Cascade)
+  typingUser User     @relation("TypingUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([dmUserId])
+  @@index([userId])
   @@index([expiresAt])
 }

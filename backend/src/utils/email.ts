@@ -3,11 +3,13 @@ import { env } from '../config/env';
 import { logger } from '../config/logger';
 import { sendEmailWithSendGrid } from './email-sendgrid';
 import { sendEmailWithResend } from './email-resend';
+import { queueTransactionalEmail } from '../modules/emails/helpers/queue-helpers';
 import {
   emailVerificationTemplate,
   resendVerificationTemplate,
   passwordChangeOtpTemplate,
   resetPasswordOtpTemplate,
+  teamChatMentionTemplate,
 } from './email-templates';
 
 // Validate SMTP configuration (warns but doesn't prevent server startup)
@@ -116,6 +118,27 @@ export interface EmailOptions {
 
 const BRAND_NAME = env.EMAIL_FROM_NAME || 'BrainScale CRM';
 const withBrand = (subject: string) => `${BRAND_NAME} – ${subject}`;
+
+const queueOrSendTransactionalEmail = async (
+  options: EmailOptions,
+  queueOptions: {
+    workspaceId?: string;
+    userId?: string;
+    metadata?: Record<string, any>;
+  },
+  subject: string
+) => {
+  if (env.EMAIL_QUEUE_ENABLED) {
+    await queueTransactionalEmail(options.to, subject, options.html, {
+      workspaceId: queueOptions.workspaceId || 'system',
+      userId: queueOptions.userId,
+      metadata: queueOptions.metadata,
+    });
+    return;
+  }
+
+  await sendEmail(options);
+};
 
 /**
  * Send email with retry logic for connection timeouts
@@ -302,7 +325,11 @@ export const sendInvitationEmail = async (
   email: string,
   workspaceName: string,
   invitationToken: string,
-  inviterName: string
+  inviterName: string,
+  options?: {
+    workspaceId?: string;
+    userId?: string;
+  }
 ): Promise<void> => {
   const invitationUrl = `${env.FRONTEND_URL}/accept-invitation?token=${invitationToken}`;
   
@@ -336,6 +363,25 @@ export const sendInvitationEmail = async (
     </html>
   `;
 
+  if (env.EMAIL_QUEUE_ENABLED && options?.workspaceId) {
+    await queueTransactionalEmail(
+      email,
+      withBrand(`Invitation to join ${workspaceName}`),
+      html,
+      {
+        workspaceId: options.workspaceId,
+        userId: options.userId,
+        metadata: {
+          invitationToken,
+          inviterName,
+          workspaceName,
+          type: 'INVITATION',
+        },
+      }
+    );
+    return;
+  }
+
   await sendEmail({
     to: email,
     subject: withBrand(`Invitation to join ${workspaceName}`),
@@ -364,11 +410,21 @@ export const sendVerificationEmail = async (
     userName
   );
 
-  await sendEmail({
-    to: email,
-    subject: withBrand('Verify your email address'),
-    html,
-  });
+  await queueOrSendTransactionalEmail(
+    {
+      to: email,
+      subject: withBrand('Verify your email address'),
+      html,
+    },
+    {
+      metadata: {
+        type: 'EMAIL_VERIFICATION',
+        userName,
+        isResend: Boolean(options.isResend),
+      },
+    },
+    withBrand('Verify your email address')
+  );
 };
 
 export const sendResendVerificationEmail = async (
@@ -449,11 +505,20 @@ export const sendPasswordChangeOtpEmail = async (
 ): Promise<void> => {
   const html = passwordChangeOtpTemplate(otpCode, otpExpiresAt, userName);
 
-  await sendEmail({
-    to: email,
-    subject: withBrand('Password change code'),
-    html,
-  });
+  await queueOrSendTransactionalEmail(
+    {
+      to: email,
+      subject: withBrand('Password change code'),
+      html,
+    },
+    {
+      metadata: {
+        type: 'PASSWORD_CHANGE_OTP',
+        userName,
+      },
+    },
+    withBrand('Password change code')
+  );
 };
 
 export const sendResetPasswordOtpEmail = async (
@@ -464,10 +529,56 @@ export const sendResetPasswordOtpEmail = async (
 ): Promise<void> => {
   const html = resetPasswordOtpTemplate(otpCode, otpExpiresAt, userName);
 
-  await sendEmail({
-    to: email,
-    subject: withBrand('Password reset code'),
-    html,
+  await queueOrSendTransactionalEmail(
+    {
+      to: email,
+      subject: withBrand('Password reset code'),
+      html,
+    },
+    {
+      metadata: {
+        type: 'PASSWORD_RESET_OTP',
+        userName,
+      },
+    },
+    withBrand('Password reset code')
+  );
+};
+
+export const sendTeamChatMentionEmail = async (
+  email: string,
+  senderName: string,
+  channelName: string,
+  messagePreview: string,
+  options?: {
+    workspaceId?: string;
+    userId?: string;
+  }
+): Promise<void> => {
+  const teamChatUrl = `${env.FRONTEND_URL}/app/team-chat`;
+  const html = teamChatMentionTemplate({
+    senderName,
+    channelName,
+    messagePreview,
+    teamChatUrl,
   });
+
+  await queueOrSendTransactionalEmail(
+    {
+      to: email,
+      subject: withBrand(`${senderName} mentioned you in #${channelName}`),
+      html,
+    },
+    {
+      workspaceId: options?.workspaceId,
+      userId: options?.userId,
+      metadata: {
+        type: 'TEAM_CHAT_MENTION',
+        senderName,
+        channelName,
+      },
+    },
+    withBrand(`${senderName} mentioned you in #${channelName}`)
+  );
 };
 

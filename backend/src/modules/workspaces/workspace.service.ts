@@ -10,9 +10,11 @@ import {
   UpdateWorkspaceInput,
   InviteMemberInput,
   UpdateMemberInput,
+  UpdateMemberUserInput,
   GrantGroupAccessInput,
   CreateMemberWithAccountInput,
 } from './workspace.schemas';
+import * as auditLogService from '../audit-logs/audit-log.service';
 
 export const createWorkspace = async (userId: string, data: CreateWorkspaceInput) => {
   // Current constraint: one admin can have only one workspace.
@@ -347,6 +349,7 @@ export const inviteMember = async (
   // If user doesn't exist yet, create an account on first invite and email a temporary password.
   // This removes the need for the user to signup before being invited.
   let temporaryPassword: string | null = null;
+  let emailSent = false;
   if (!user) {
     // Generate a secure random temporary password (base64url, no '+' so it is email-friendly)
     temporaryPassword = crypto.randomBytes(12).toString('base64url');
@@ -374,6 +377,8 @@ export const inviteMember = async (
         workspace.name,
         temporaryPassword
       );
+      emailSent = true;
+      temporaryPassword = null;
     } catch (error) {
       console.error('Failed to send temporary password email:', error);
       // Don't fail the invite if email sending fails; admin can share the password manually.
@@ -436,8 +441,11 @@ export const inviteMember = async (
     ...member,
     temporaryPassword,
     accountCreated,
+    emailSent,
     message: accountCreated
-      ? 'Member invited and account created. Share the temporary password with the member.'
+      ? emailSent
+        ? 'Member invited successfully. Login credentials were emailed to the user.'
+        : 'Member invited and account created. Email could not be sent. Share the temporary password manually.'
       : 'Member invited successfully',
   } as any;
 };
@@ -614,6 +622,42 @@ export const updateMember = async (
   return member;
 };
 
+export const updateMemberUser = async (
+  workspaceId: string,
+  memberId: string,
+  data: UpdateMemberUserInput
+) => {
+  // Resolve the member and ensure it belongs to this workspace
+  const member = await prisma.workspaceMember.findUnique({
+    where: { id: memberId },
+    select: { userId: true, workspaceId: true },
+  });
+
+  if (!member || member.workspaceId !== workspaceId) {
+    throw new AppError(404, 'Member not found');
+  }
+
+  // Check email uniqueness if changing email
+  if (data.email) {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing && existing.id !== member.userId) {
+      throw new AppError(400, 'Email is already in use by another account');
+    }
+  }
+
+  const updateData: { name?: string; email?: string } = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.email !== undefined) updateData.email = data.email;
+
+  const updatedUser = await prisma.user.update({
+    where: { id: member.userId },
+    data: updateData,
+    select: { id: true, name: true, email: true },
+  });
+
+  return updatedUser;
+};
+
 export const grantGroupAccess = async (
   memberId: string,
   data: GrantGroupAccessInput
@@ -667,7 +711,7 @@ export const grantGroupAccess = async (
   return { granted: groupAccess.count };
 };
 
-export const removeMember = async (memberId: string) => {
+export const removeMember = async (memberId: string, userId?: string) => {
   // Verify member exists and get their role
   const member = await prisma.workspaceMember.findUnique({
     where: { id: memberId },
@@ -750,6 +794,17 @@ export const removeMember = async (memberId: string) => {
     await prisma.workspaceMember.update({
       where: { id: remaining[0].id },
       data: { role: 'ADMIN' },
+    });
+  }
+
+  // Log audit event
+  if (userId) {
+    void auditLogService.createAuditLog({
+      workspaceId: member.workspaceId,
+      userId,
+      action: 'MEMBER_REMOVED',
+      entity: 'member',
+      entityId: memberId,
     });
   }
 

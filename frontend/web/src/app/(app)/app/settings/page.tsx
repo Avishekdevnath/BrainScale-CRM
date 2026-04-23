@@ -12,16 +12,18 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { Lock, User, Mail, Bot, Loader2, Download, Trash2 } from "lucide-react";
+import { Lock, User, Mail, Bot, Loader2, Download, Trash2, Pencil, X, Check } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 
 export default function SettingsPage() {
   usePageTitle("Settings");
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
+  const authUser = useAuthStore((state) => state.user);
+  const setAuthUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clear);
   const clearWorkspace = useWorkspaceStore((state) => state.clear);
   const clearGroup = useGroupStore((state) => state.clear);
@@ -33,10 +35,58 @@ export default function SettingsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [confirmText, setConfirmText] = React.useState("");
 
-  // Prevent hydration mismatch - user data comes from localStorage
+  // Inline edit state for profile
+  const [editingField, setEditingField] = React.useState<"name" | "email" | null>(null);
+  const [editValue, setEditValue] = React.useState("");
+  const [isSavingProfile, setIsSavingProfile] = React.useState(false);
+
+  // Fetch fresh user data from server
+  const { data: serverUser, mutate: mutateUser } = useSWR(
+    authUser ? "current-user-profile" : null,
+    () => apiClient.getMe(),
+    { revalidateOnFocus: false }
+  );
+
+  // Resolved user: server data takes priority over localStorage
+  const user = serverUser ?? authUser;
+
+  // Prevent hydration mismatch
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  const startEdit = (field: "name" | "email") => {
+    setEditingField(field);
+    setEditValue(field === "name" ? (user?.name ?? "") : (user?.email ?? ""));
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const saveEdit = async () => {
+    if (!editingField || !user) return;
+    const trimmed = editValue.trim();
+    if (!trimmed) return;
+    if (trimmed === (editingField === "name" ? user.name : user.email)) {
+      cancelEdit();
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const updated = await apiClient.updateMyProfile({ [editingField]: trimmed });
+      setAuthUser({ id: updated.id, name: updated.name, email: updated.email });
+      await mutateUser();
+      toast.success("Profile updated");
+      cancelEdit();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update profile");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleAIFeaturesToggle = async (enabled: boolean) => {
     try {
@@ -83,29 +133,80 @@ export default function SettingsPage() {
         <CardHeader className="gap-1 pb-1 pt-2">
           <CardTitle>Account Information</CardTitle>
         </CardHeader>
-        <CardContent variant="groups1" className="space-y-4 pt-1">
+        <CardContent variant="groups1" className="space-y-3 pt-1">
+          {/* Name row */}
           <div className="flex items-center gap-3">
-            <User className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
-            <div>
-              <p 
-                className="text-sm font-medium text-[var(--groups1-text)]"
-                suppressHydrationWarning
-              >
-                {mounted ? (user?.name || "No name set") : "No name set"}
-              </p>
-              <p className="text-xs text-[var(--groups1-text-secondary)]">Name</p>
+            <User className="w-5 h-5 flex-shrink-0 text-[var(--groups1-text-secondary)]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[var(--groups1-text-secondary)] mb-0.5">Name</p>
+              {mounted && editingField === "name" ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
+                    disabled={isSavingProfile}
+                    className="flex-1 rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1 text-sm text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-primary)] disabled:opacity-60"
+                  />
+                  <button onClick={saveEdit} disabled={isSavingProfile} className="text-green-600 hover:text-green-700 disabled:opacity-50">
+                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </button>
+                  <button onClick={cancelEdit} disabled={isSavingProfile} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <p className="text-sm font-medium text-[var(--groups1-text)]" suppressHydrationWarning>
+                    {mounted ? (user?.name || <span className="text-[var(--groups1-text-secondary)] italic">No name set</span>) : "…"}
+                  </p>
+                  {mounted && (
+                    <button onClick={() => startEdit("name")} className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Email row */}
           <div className="flex items-center gap-3">
-            <Mail className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
-            <div>
-              <p 
-                className="text-sm font-medium text-[var(--groups1-text)]"
-                suppressHydrationWarning
-              >
-                {mounted ? (user?.email || "No email") : "No email"}
-              </p>
-              <p className="text-xs text-[var(--groups1-text-secondary)]">Email</p>
+            <Mail className="w-5 h-5 flex-shrink-0 text-[var(--groups1-text-secondary)]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[var(--groups1-text-secondary)] mb-0.5">Email</p>
+              {mounted && editingField === "email" ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    type="email"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
+                    disabled={isSavingProfile}
+                    className="flex-1 rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1 text-sm text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-primary)] disabled:opacity-60"
+                  />
+                  <button onClick={saveEdit} disabled={isSavingProfile} className="text-green-600 hover:text-green-700 disabled:opacity-50">
+                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </button>
+                  <button onClick={cancelEdit} disabled={isSavingProfile} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 group">
+                  <p className="text-sm font-medium text-[var(--groups1-text)]" suppressHydrationWarning>
+                    {mounted ? (user?.email || <span className="text-[var(--groups1-text-secondary)] italic">No email</span>) : "…"}
+                  </p>
+                  {mounted && (
+                    <button onClick={() => startEdit("email")} className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

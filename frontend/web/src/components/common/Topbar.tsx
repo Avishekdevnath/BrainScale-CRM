@@ -1,9 +1,10 @@
 "use client";
 
-import { Search, Building2, Users, Brain, Menu, Check, ChevronDown, Plus, X } from "lucide-react";
+import { Search, Building2, Users, Brain, Menu, Check, ChevronDown, Plus, X, MessageSquare } from "lucide-react";
 import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/common/UserMenu";
+import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
@@ -71,6 +72,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   const isGroupsRoute = pathname?.startsWith("/app/groups");
   const showGroupsButton = mounted && (hasGroups || isGroupsRoute || groupsLoading);
   const isChatRoute = pathname?.startsWith("/app/ai-chat");
+  const isTeamChatRoute = pathname?.startsWith("/app/team-chat");
   
   // Use real groups data or fallback to current group
   const availableGroups = groups || [];
@@ -102,13 +104,13 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
 
   return (
     <header className="h-16 border-b border-[var(--groups1-border)] bg-[var(--groups1-surface)] sticky top-0 z-40 shadow-sm flex items-center justify-between md:justify-start px-4 gap-4 flex-shrink-0">
-      {/* Mobile: Menu + Brand (from guides/ui/mobile_tobbar.jsx) */}
-      <div className="flex items-center gap-3 md:hidden min-w-0 flex-1">
+      {/* Mobile: Menu + Brand */}
+      <div className="flex items-center gap-2 md:hidden min-w-0 flex-1">
         <button
           type="button"
           onClick={onMenuClick}
           className={cn(
-            "w-10 h-10 flex items-center justify-center rounded-lg",
+            "w-10 h-10 flex items-center justify-center rounded-lg flex-shrink-0",
             "text-[var(--groups1-text,#0f172a)] hover:bg-[var(--groups1-secondary,#eef2ff)] transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--groups1-focus-ring,#a5b4fc)]"
           )}
@@ -116,7 +118,10 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div className="min-w-0">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm bg-[var(--groups1-primary,#4f46e5)] flex-shrink-0">
+          <span className="text-[var(--groups1-btn-primary-text,#ffffff)] font-bold text-xs italic">BS</span>
+        </div>
+        <div className="hidden sm:block min-w-0">
           <div className="text-base font-bold tracking-tight text-[var(--groups1-text,#0f172a)] whitespace-nowrap pr-1">
             BrainScale
           </div>
@@ -176,6 +181,21 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
               >
                 <Brain className="w-4 h-4" />
                 <span className="hidden sm:inline">Brain</span>
+              </Button>
+            </Link>
+            <Link href="/app/team-chat">
+              <Button
+                size="sm"
+                variant={isTeamChatRoute ? "default" : "ghost"}
+                className={cn(
+                  "gap-2",
+                  isTeamChatRoute
+                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                    : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+                )}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="hidden sm:inline">Team</span>
               </Button>
             </Link>
           </>
@@ -272,11 +292,6 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
-        {/* Mobile: Logo on the right */}
-        <div className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center shadow-sm bg-[var(--groups1-primary,#4f46e5)] flex-shrink-0">
-          <span className="text-[var(--groups1-btn-primary-text,#ffffff)] font-bold text-xs italic">BS</span>
-        </div>
-
         {/* Mobile: Single context toggle (Workspace / Groups / Brain) */}
         <div className="md:hidden flex items-center gap-2">
           {hasWorkspace ? (
@@ -426,6 +441,18 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
                       <Brain className="w-4 h-4" />
                       Brain
                     </DropdownMenu.Item>
+
+                    <DropdownMenu.Item
+                      className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        setContextMenuOpen(false);
+                        router.push("/app/team-chat");
+                      }}
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      Team
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>
@@ -454,6 +481,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
         >
           <Search className="w-5 h-5" />
         </button>
+        <ThemeToggle />
         <div className="hidden md:flex">
           <NotificationDropdown />
         </div>

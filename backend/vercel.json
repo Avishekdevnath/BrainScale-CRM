@@ -6,6 +6,10 @@
       "dest": "/api/cron/process-scheduled.ts"
     },
     {
+      "src": "/api/cron/email-worker",
+      "dest": "/api/cron/email-worker.ts"
+    },
+    {
       "src": "/(.*)",
       "dest": "/api/index.ts"
     }
@@ -16,7 +20,16 @@
     },
     "api/cron/process-scheduled.ts": {
       "maxDuration": 60
+    },
+    "api/cron/email-worker.ts": {
+      "maxDuration": 9
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/email-worker",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
 

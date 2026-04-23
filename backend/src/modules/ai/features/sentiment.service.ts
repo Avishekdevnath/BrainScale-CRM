@@ -1,6 +1,6 @@
 import { analyzeSentiment } from '../../../utils/ai-client';
 import { logger } from '../../../config/logger';
-import { CallLog } from '@prisma/client';
+import type { CallLog } from '@prisma/client';
 
 export interface SentimentResult {
   sentiment: 'positive' | 'neutral' | 'negative' | 'concerned';

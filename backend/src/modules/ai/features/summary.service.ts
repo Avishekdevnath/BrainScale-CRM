@@ -1,6 +1,6 @@
 import { generateSummary } from '../../../utils/ai-client';
 import { logger } from '../../../config/logger';
-import { CallLog } from '@prisma/client';
+import type { CallLog } from '@prisma/client';
 
 /**
  * Generate a summary for a call log

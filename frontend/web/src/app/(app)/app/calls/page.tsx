@@ -20,6 +20,7 @@ interface SavedFilters {
   selectedCallListId: string | null;
   searchQuery: string;
   state?: CallListItemState | null;
+  selectedMemberId?: string | null;
 }
 
 export default function CallsPage() {
@@ -48,6 +49,7 @@ export default function CallsPage() {
   const [selectedCallListId, setSelectedCallListId] = useState<string | null>(savedFilters.selectedCallListId);
   const [searchQuery, setSearchQuery] = useState<string>(savedFilters.searchQuery);
   const [selectedState, setSelectedState] = useState<CallListItemState | null>(savedFilters.state ?? null);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(savedFilters.selectedMemberId ?? null);
   const [showFollowUps, setShowFollowUps] = useState(false);
 
   const handleCallListChange = (callListId: string | null) => {
@@ -70,11 +72,16 @@ export default function CallsPage() {
     }
   };
 
+  const handleMemberChange = (memberId: string | null) => {
+    setSelectedMemberId(memberId);
+  };
+
   const handleClearFilters = () => {
     setSelectedCallListId(null);
     setSearchQuery("");
-    setSelectedState(null); // Show all calls
-    setShowFollowUps(false); // Clear follow-ups filter
+    setSelectedState(null);
+    setSelectedMemberId(null);
+    setShowFollowUps(false);
     // Clear saved filters
     if (typeof window !== "undefined") {
       try {
@@ -94,6 +101,7 @@ export default function CallsPage() {
         selectedCallListId,
         searchQuery,
         state: selectedState,
+        selectedMemberId,
       };
       localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
       toast.success("Filters saved");
@@ -203,8 +211,10 @@ export default function CallsPage() {
         <CallsFilterBar
           selectedCallListId={selectedCallListId}
           searchQuery={searchQuery}
+          selectedMemberId={selectedMemberId}
           onCallListChange={handleCallListChange}
           onSearchChange={handleSearchChange}
+          onMemberChange={handleMemberChange}
           onClearFilters={handleClearFilters}
           onSaveFilter={handleSaveFilter}
         />
@@ -216,6 +226,7 @@ export default function CallsPage() {
         searchQuery={searchQuery}
         state={selectedState}
         followUpRequired={showFollowUps}
+        assignedTo={selectedMemberId}
         onItemsUpdated={handleItemsUpdated}
       />
     </div>

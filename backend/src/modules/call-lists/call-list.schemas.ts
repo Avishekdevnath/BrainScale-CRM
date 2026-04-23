@@ -169,6 +169,7 @@ export const GetMyCallsSchema = z.object({
   batchId: z.string().optional(),
   groupId: z.string().optional(),
   callListId: z.string().optional(),
+  assignedTo: z.string().optional(), // Filter by WorkspaceMember ID
   state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']).optional(),
   // Comma-separated list of states e.g. "QUEUED,CALLING"
   states: z.string().optional().transform((val) =>

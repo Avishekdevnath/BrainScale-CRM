@@ -5,9 +5,13 @@ import {
   followupReminderTemplate,
   dailyDigestTemplate,
   weeklyDigestTemplate,
+  taskAssignmentTemplate,
 } from '../../utils/email-templates';
+import { renderScheduleTaskSyncEmail } from '../../utils/schedule-task-sync-email-template';
 import { logger } from '../../config/logger';
 import { getTomorrow, getStartOfDay, getEndOfDay, getDaysAgo } from '../../utils/date-helpers';
+import { queueBulkEmail, queueReminderEmail, queueTransactionalEmail } from './helpers/queue-helpers';
+import { env } from '../../config/env';
 
 /**
  * Send followup assignment notification
@@ -57,15 +61,111 @@ export const sendFollowupAssignmentEmail = async (followupId: string) => {
       followup.creator.name || undefined
     );
 
-    await sendEmail({
-      to: followup.assignee.user.email,
-      subject: `New Follow-up: ${followup.student.name} - ${followup.group.name}`,
-      html,
-    });
+    if (env.EMAIL_QUEUE_ENABLED) {
+      await queueTransactionalEmail(
+        followup.assignee.user.email,
+        `New Follow-up: ${followup.student.name} - ${followup.group.name}`,
+        html,
+        {
+          workspaceId: followup.workspaceId,
+          userId: followup.assignee.userId,
+          metadata: { followupId: followup.id, type: 'FOLLOWUP_ASSIGNMENT' },
+        }
+      );
+    } else {
+      await sendEmail({
+        to: followup.assignee.user.email,
+        subject: `New Follow-up: ${followup.student.name} - ${followup.group.name}`,
+        html,
+      });
+    }
 
     logger.info({ followupId, email: followup.assignee.user.email }, 'Followup assignment email sent');
   } catch (error) {
     logger.error({ error, followupId }, 'Failed to send followup assignment email');
+    throw error;
+  }
+};
+
+export const sendTaskAssignmentEmail = async (taskId: string) => {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      assignedTo: {
+        include: {
+          user: {
+            select: {
+              email: true,
+              name: true,
+            },
+          },
+        },
+      },
+      assignedBy: {
+        include: {
+          user: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      taskType: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  });
+
+  if (!task?.assignedTo?.user?.email) {
+    return;
+  }
+
+  let referredBy: string | null = task.referredByName ?? null;
+
+  if (task.referredByMemberId) {
+    const referredByMember = await prisma.workspaceMember.findFirst({
+      where: {
+        id: task.referredByMemberId,
+        workspaceId: task.workspaceId,
+      },
+      select: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    referredBy = referredByMember?.user?.name ?? referredBy;
+  }
+
+  try {
+    const html = taskAssignmentTemplate({
+      title: task.title,
+      description: task.description,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+      taskTypeName: task.taskType?.name ?? null,
+      assigneeName: task.assignedTo.user.name ?? null,
+      assignerName: task.assignedBy.user.name ?? null,
+      referredBy,
+      linkedEntityType: task.linkedEntityType,
+      linkedEntityId: task.linkedEntityId,
+    });
+
+    await sendEmail({
+      to: task.assignedTo.user.email,
+      subject: `New Task Assigned: ${task.title}`,
+      html,
+    });
+
+    logger.info({ taskId, email: task.assignedTo.user.email }, 'Task assignment email sent');
+  } catch (error) {
+    logger.error({ error, taskId }, 'Failed to send task assignment email');
     throw error;
   }
 };
@@ -131,13 +231,26 @@ export const sendFollowupReminders = async (workspaceId: string) => {
         followup.notes
       );
 
-      await sendEmail({
-        to: followup.assignee.user.email,
-        subject: isOverdue
-          ? `⚠️ Overdue Follow-up: ${followup.student.name}`
-          : `Reminder: Follow-up due soon - ${followup.student.name}`,
-        html,
-      });
+      const subject = isOverdue
+        ? `⚠️ Overdue Follow-up: ${followup.student.name}`
+        : `Reminder: Follow-up due soon - ${followup.student.name}`;
+
+      if (env.EMAIL_QUEUE_ENABLED) {
+        await queueReminderEmail(
+          workspaceId,
+          followup.assignee.userId,
+          followup.assignee.user.email,
+          subject,
+          html,
+          { followupId: followup.id, isOverdue, type: 'FOLLOWUP_REMINDER' }
+        );
+      } else {
+        await sendEmail({
+          to: followup.assignee.user.email,
+          subject,
+          html,
+        });
+      }
 
       results.sent++;
       logger.info(
@@ -252,14 +365,35 @@ export const sendDailyDigest = async (workspaceId: string, userId?: string) => {
     failed: 0,
   };
 
-  // Send digest to each member
+  const subject = `Daily Summary - ${workspace.name}`;
+  if (env.EMAIL_QUEUE_ENABLED) {
+    const emails = members.map((member) => ({
+      to: member.user.email,
+      html: dailyDigestTemplate(workspace.name, stats, recentActivity),
+    }));
+
+    try {
+      const ids = await queueBulkEmail(workspaceId, emails, subject, {
+        type: 'DAILY_DIGEST',
+        workspaceName: workspace.name,
+      });
+      results.sent += ids.length;
+      logger.info({ workspaceId, queued: ids.length }, 'Daily digest emails queued');
+    } catch (error) {
+      results.failed += members.length;
+      logger.error({ error, workspaceId }, 'Failed to queue daily digest emails');
+    }
+    return results;
+  }
+
+  // Send digest to each member (legacy direct send)
   for (const member of members) {
     try {
       const html = dailyDigestTemplate(workspace.name, stats, recentActivity);
 
       await sendEmail({
         to: member.user.email,
-        subject: `Daily Summary - ${workspace.name}`,
+        subject,
         html,
       });
 
@@ -397,14 +531,35 @@ export const sendWeeklyDigest = async (workspaceId: string, userId?: string) => 
     failed: 0,
   };
 
-  // Send digest to each member
+  const subject = `Weekly Summary - ${workspace.name}`;
+  if (env.EMAIL_QUEUE_ENABLED) {
+    const emails = members.map((member) => ({
+      to: member.user.email,
+      html: weeklyDigestTemplate(workspace.name, stats, weekStart, weekEnd),
+    }));
+
+    try {
+      const ids = await queueBulkEmail(workspaceId, emails, subject, {
+        type: 'WEEKLY_DIGEST',
+        workspaceName: workspace.name,
+      });
+      results.sent += ids.length;
+      logger.info({ workspaceId, queued: ids.length }, 'Weekly digest emails queued');
+    } catch (error) {
+      results.failed += members.length;
+      logger.error({ error, workspaceId }, 'Failed to queue weekly digest emails');
+    }
+    return results;
+  }
+
+  // Send digest to each member (legacy direct send)
   for (const member of members) {
     try {
       const html = weeklyDigestTemplate(workspace.name, stats, weekStart, weekEnd);
 
       await sendEmail({
         to: member.user.email,
-        subject: `Weekly Summary - ${workspace.name}`,
+        subject,
         html,
       });
 
@@ -474,4 +629,49 @@ export const sendTestEmail = async (
     subject: safeSubject,
     sentAt,
   };
+};
+
+/**
+ * Send schedule task sync emails to members
+ */
+export const sendScheduleTaskSyncEmails = async (
+  workspaceId: string,
+  templateName: string,
+  workspaceUrl: string,
+  tasksByMember: Array<{
+    memberName: string;
+    email: string;
+    tasks: Array<{
+      title: string;
+      description: string;
+      dueDate: string;
+    }>;
+  }>
+): Promise<{ sent: number; failed: number }> => {
+  let sent = 0;
+  let failed = 0;
+
+  for (const member of tasksByMember) {
+    try {
+      const html = renderScheduleTaskSyncEmail({
+        memberName: member.memberName,
+        templateName,
+        tasks: member.tasks,
+        workspaceUrl,
+      });
+
+      await sendEmail({
+        to: member.email,
+        subject: `Your Daily Tasks - ${templateName}`,
+        html,
+      });
+
+      sent++;
+    } catch (err) {
+      logger.error({ err, email: member.email }, 'Failed to send schedule sync email');
+      failed++;
+    }
+  }
+
+  return { sent, failed };
 };

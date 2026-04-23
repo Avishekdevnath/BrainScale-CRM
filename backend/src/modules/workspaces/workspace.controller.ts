@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth-guard';
 import * as workspaceService from './workspace.service';
+import * as auditLogService from '../audit-logs/audit-log.service';
 import { asyncHandler } from '../../middleware/error-handler';
 
 export const create = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -29,6 +30,16 @@ export const update = asyncHandler(async (req: AuthRequest, res: Response) => {
     req.params.workspaceId,
     req.validatedData
   );
+
+  // Log audit event
+  void auditLogService.createAuditLog({
+    workspaceId: req.params.workspaceId,
+    userId: req.user!.sub,
+    action: 'WORKSPACE_SETTINGS_UPDATED',
+    entity: 'workspace',
+    entityId: req.params.workspaceId,
+  });
+
   res.json(workspace);
 });
 
@@ -58,6 +69,15 @@ export const updateMember = asyncHandler(async (req: AuthRequest, res: Response)
   res.json(member);
 });
 
+export const updateMemberUser = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await workspaceService.updateMemberUser(
+    req.params.workspaceId,
+    req.params.memberId,
+    req.validatedData
+  );
+  res.json(result);
+});
+
 export const grantGroupAccess = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await workspaceService.grantGroupAccess(
     req.params.memberId,
@@ -67,7 +87,7 @@ export const grantGroupAccess = asyncHandler(async (req: AuthRequest, res: Respo
 });
 
 export const removeMember = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const result = await workspaceService.removeMember(req.params.memberId);
+  const result = await workspaceService.removeMember(req.params.memberId, req.user!.sub);
   res.json(result);
 });
 

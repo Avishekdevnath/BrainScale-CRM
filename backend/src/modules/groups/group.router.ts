@@ -12,7 +12,7 @@ const router = Router();
  * @openapi
  * /groups:
  *   post:
- *     summary: Create a new group
+ *     summary: Create a new group (all workspace members)
  *     tags: [Groups]
  *     requestBody:
  *       required: true
@@ -44,7 +44,7 @@ router.post(
  * @openapi
  * /groups:
  *   get:
- *     summary: List all groups (filtered by user access)
+ *     summary: List all workspace groups (all members)
  *     tags: [Groups]
  *     parameters:
  *       - in: query

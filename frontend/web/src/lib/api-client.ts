@@ -1,4 +1,23 @@
 import type {
+  Task,
+  TaskType,
+  TaskKpi,
+  ListTasksResponse,
+  ListTasksParams,
+  CreateTaskPayload,
+  UpdateTaskPayload,
+  CompleteTaskPayload,
+  DeclineTaskPayload,
+  CreateTaskTypePayload,
+  UpdateTaskTypePayload,
+} from "@/types/tasks.types";
+import type {
+  CreateScheduleExceptionPayload,
+  SaveScheduleTemplatePayload,
+  ScheduleException,
+  ScheduleTemplateResponse,
+} from "@/types/schedule.types";
+import type {
   StudentsListParams,
   StudentsListResponse,
   BulkPasteRequest,
@@ -104,11 +123,30 @@ import type {
   CreateFollowupCallLogRequest,
 } from "@/types/followups.types";
 import type {
-  Notification,
   NotificationPreference,
   NotificationsListResponse,
   NotificationCountResponse,
 } from "@/types/notifications.types";
+import type {
+  Channel,
+  DirectMessage,
+  DmConversation,
+  EditMessageRequest,
+  GetDirectMessagesResponse,
+  GetMessagesResponse,
+  Message,
+  MessageReaction,
+  Notification as TeamChatNotification,
+  SearchResults,
+  TiptapContent,
+} from "@/types/team-chat.types";
+import type {
+  CreateFormPayload,
+  FormItem,
+  FormResponseItem,
+  SubmitFormPayload,
+  UpdateFormPayload,
+} from "@/types/forms.types";
 import type {
   CustomRole,
   CustomRolesResponse,
@@ -117,11 +155,24 @@ import type {
   AssignPermissionsPayload,
   PermissionsResponse,
 } from "@/types/roles.types";
+import type {
+  AuditLog,
+  AuditLogsResponse,
+  GetAuditLogsParams,
+} from "@/types/audit-logs.types";
 import { mutate as swrMutate } from "swr";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export class AuthExpiredError extends Error {
+  status = 401;
+  constructor(message = "Session expired. Please log in again.") {
+    super(message);
+    this.name = "AuthExpiredError";
+  }
+}
 
 // Get workspace ID from store (lazy loaded to avoid circular dependencies)
 function getWorkspaceId(): string | null {
@@ -131,6 +182,28 @@ function getWorkspaceId(): string | null {
     return useWorkspaceStore.getState().getCurrentId();
   } catch {
     return null;
+  }
+}
+
+function clearAuthStores() {
+  if (typeof window === "undefined") return;
+  try {
+    const { useAuthStore } = require("@/store/auth");
+    useAuthStore.getState().clear();
+  } catch {}
+  try {
+    const { useWorkspaceStore } = require("@/store/workspace");
+    useWorkspaceStore.getState().clear();
+  } catch {}
+}
+
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (!payload?.exp) return false;
+    return Date.now() >= payload.exp * 1000 - 5_000;
+  } catch {
+    return true;
   }
 }
 
@@ -147,6 +220,8 @@ function buildQueryString(params: Record<string, string | number | boolean | und
 }
 
 export class ApiClient {
+  private refreshPromise: Promise<void> | null = null;
+
   private get accessToken(): string | null {
     // Read from Zustand store (in-memory only, not localStorage)
     try {
@@ -157,107 +232,117 @@ export class ApiClient {
     }
   }
 
+  /**
+   * Ensures a usable access token is present before dispatching an authed request.
+   * - If the in-memory token is expired (decoded exp < now), proactively refresh once.
+   * - If refresh fails, clears auth and throws AuthExpiredError so callers stop polling.
+   *
+   * Returns null for endpoints that don't require auth (login, refresh, etc).
+   */
+  private async ensureAuthToken(endpoint: string): Promise<string | null> {
+    // Public endpoints: never attempt refresh.
+    if (endpoint.startsWith("/auth/login") || endpoint.startsWith("/auth/refresh") || endpoint.startsWith("/auth/signup")) {
+      return null;
+    }
+
+    const current = this.accessToken;
+    if (!current) return null; // Let server respond 401; AuthGuard handles redirect.
+    if (!isJwtExpired(current)) return current;
+
+    // Token is expired — refresh proactively (deduped) before sending the request.
+    try {
+      await this.refreshAccessToken();
+    } catch {
+      throw new AuthExpiredError();
+    }
+    return this.accessToken;
+  }
+
+  private buildHeaders(init: RequestInit, token: string | null, isFormData: boolean): Headers {
+    const headers = new Headers(init.headers);
+    if (!isFormData && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const workspaceId = getWorkspaceId();
+    if (workspaceId && !headers.has("X-Workspace-Id")) {
+      headers.set("X-Workspace-Id", workspaceId);
+    }
+    return headers;
+  }
+
+  /**
+   * On 401 from server, refresh once and retry. If refresh itself fails, clear auth
+   * and throw AuthExpiredError — this is the ONLY place that handles auth loss,
+   * so every caller gets consistent behavior.
+   */
+  private async handle401AndRetry(
+    endpoint: string,
+    init: RequestInit,
+    isFormData: boolean,
+  ): Promise<Response> {
+    try {
+      await this.refreshAccessToken();
+    } catch {
+      throw new AuthExpiredError();
+    }
+    const retryHeaders = this.buildHeaders(init, this.accessToken, isFormData);
+    return fetch(`${API_BASE_URL}${endpoint}`, {
+      ...init,
+      headers: retryHeaders,
+      credentials: "include",
+    });
+  }
+
   private async request<T>(endpoint: string, init: RequestInit = {}): Promise<T> {
     const method = (init.method || "GET").toUpperCase();
-    // Don't set Content-Type for FormData - browser needs to set it with boundary
     const isFormData = init.body instanceof FormData;
-    const headers: HeadersInit = {
-      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
-      ...(init.headers || {}),
-    };
 
-    if (this.accessToken) {
-      (headers as Record<string, string>)["Authorization"] = `Bearer ${this.accessToken}`;
+    const token = await this.ensureAuthToken(endpoint);
+    const headers = this.buildHeaders(init, token, isFormData);
+
+    let res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+
+    // Server-side rejection (e.g., token revoked mid-session) — one refresh attempt then give up.
+    if (res.status === 401 && token) {
+      res = await this.handle401AndRetry(endpoint, init, isFormData);
     }
 
-    // Add X-Workspace-Id header if workspace ID is available
-    const workspaceId = getWorkspaceId();
-    if (workspaceId) {
-      (headers as Record<string, string>)["X-Workspace-Id"] = workspaceId;
-    }
-
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
-    // Only try refresh when we actually sent an access token.
-    // This preserves original 401 messages for public endpoints like /auth/login.
-    if (res.status === 401 && this.accessToken) {
-      // Try refresh once
-      await this.refreshAccessToken();
-      const retryHeaders: HeadersInit = {
-        ...(!isFormData ? { "Content-Type": "application/json" } : {}),
-        ...(init.headers || {}),
-      };
-      const newAccess = this.accessToken;
-      if (newAccess) {
-        (retryHeaders as Record<string, string>)["Authorization"] = `Bearer ${newAccess}`;
-      }
-      // Add workspace ID to retry headers as well
-      if (workspaceId) {
-        (retryHeaders as Record<string, string>)["X-Workspace-Id"] = workspaceId;
-      }
-      const retry = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers: retryHeaders });
-      if (!retry.ok) throw await this.parseError(retry);
-      const data = (await retry.json()) as T;
-
-      // After successful mutations, revalidate SWR caches so UI updates without manual reload.
-      if (typeof window !== "undefined" && method !== "GET") {
-        void swrMutate(() => true, undefined, { revalidate: true });
-      }
-
-      return data;
-    }
     if (!res.ok) throw await this.parseError(res);
     const data = (await res.json()) as T;
 
-    // After successful mutations, revalidate SWR caches so UI updates without manual reload.
     if (typeof window !== "undefined" && method !== "GET") {
       void swrMutate(() => true, undefined, { revalidate: true });
     }
-
     return data;
   }
 
   private async requestBlob(endpoint: string, init: RequestInit = {}): Promise<Blob> {
     const method = (init.method || "GET").toUpperCase();
-    const headers: HeadersInit = {
-      ...(init.headers || {}),
-    };
+    const isFormData = init.body instanceof FormData;
 
-    if (this.accessToken) {
-      (headers as Record<string, string>)["Authorization"] = `Bearer ${this.accessToken}`;
+    const token = await this.ensureAuthToken(endpoint);
+    const headers = this.buildHeaders(init, token, isFormData);
+
+    let res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...init,
+      headers,
+      credentials: "include",
+    });
+
+    if (res.status === 401 && token) {
+      res = await this.handle401AndRetry(endpoint, init, isFormData);
     }
 
-    // Add X-Workspace-Id header if workspace ID is available
-    const workspaceId = getWorkspaceId();
-    if (workspaceId) {
-      (headers as Record<string, string>)["X-Workspace-Id"] = workspaceId;
-    }
-
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers, credentials: 'include' });
-    // Only try refresh when we actually sent an access token.
-    if (res.status === 401 && this.accessToken) {
-      // Try refresh once
-      await this.refreshAccessToken();
-      const retryHeaders: HeadersInit = {
-        ...(init.headers || {}),
-      };
-      const newAccess = this.accessToken;
-      if (newAccess) {
-        (retryHeaders as Record<string, string>)["Authorization"] = `Bearer ${newAccess}`;
-      }
-      // Add workspace ID to retry headers as well
-      if (workspaceId) {
-        (retryHeaders as Record<string, string>)["X-Workspace-Id"] = workspaceId;
-      }
-      const retry = await fetch(`${API_BASE_URL}${endpoint}`, { ...init, headers: retryHeaders });
-      if (!retry.ok) throw await this.parseError(retry);
-      const blob = await retry.blob();
-      if (typeof window !== "undefined" && method !== "GET") {
-        void swrMutate(() => true, undefined, { revalidate: true });
-      }
-      return blob;
-    }
     if (!res.ok) throw await this.parseError(res);
     const blob = await res.blob();
+
     if (typeof window !== "undefined" && method !== "GET") {
       void swrMutate(() => true, undefined, { revalidate: true });
     }
@@ -285,18 +370,38 @@ export class ApiClient {
     }
   }
 
+  /**
+   * Single-flight refresh:
+   *  - Concurrent callers share the same in-flight promise (prevents refresh-token rotation races).
+   *  - On failure: clears the auth + workspace stores so the infinite 401 loop is broken
+   *    and AuthGuard can redirect to /login reactively.
+   */
   async refreshAccessToken(): Promise<void> {
-    const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    if (this.refreshPromise) return this.refreshPromise;
+
+    this.refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST" satisfies HttpMethod,
       headers: { "Content-Type": "application/json" },
-      credentials: 'include', // Send httpOnly refresh token cookie
-      // Don't send refreshToken in body - it's in the httpOnly cookie
-    });
-    if (!res.ok) throw await this.parseError(res);
-    const data = (await res.json()) as { accessToken: string };
-    // Store new accessToken in Zustand memory (not localStorage)
-    const { useAuthStore } = require("@/store/auth");
-    useAuthStore.getState().setTokens({ accessToken: data.accessToken });
+      credentials: "include",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await this.parseError(res);
+          throw err;
+        }
+        const data = (await res.json()) as { accessToken: string };
+        const { useAuthStore } = require("@/store/auth");
+        useAuthStore.getState().setTokens({ accessToken: data.accessToken });
+      })
+      .catch((err) => {
+        clearAuthStores();
+        throw err;
+      })
+      .finally(() => {
+        this.refreshPromise = null;
+      });
+
+    return this.refreshPromise;
   }
 
   // Auth
@@ -690,6 +795,16 @@ export class ApiClient {
     });
   }
 
+  updateMemberUser(workspaceId: string, memberId: string, data: { name?: string; email?: string }) {
+    return this.request<{ id: string; name: string | null; email: string }>(
+      `/workspaces/${workspaceId}/members/${memberId}/user`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
   grantGroupAccess(workspaceId: string, memberId: string, data: GrantGroupAccessPayload) {
     return this.request<WorkspaceMember>(
       `/workspaces/${workspaceId}/members/${memberId}/groups`,
@@ -757,6 +872,13 @@ export class ApiClient {
       message: string;
     }>(`/workspaces/${workspaceId}/invitations/${invitationId}/resend`, {
       method: "POST",
+    });
+  }
+
+  updateMyProfile(data: { name?: string; email?: string }) {
+    return this.request<{ id: string; name: string | null; email: string }>("/users/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
     });
   }
 
@@ -1134,6 +1256,23 @@ export class ApiClient {
     }>(`/courses/${courseId}`, {
       method: "DELETE",
     });
+  }
+
+  listAllModules() {
+    return this.request<
+      Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        orderIndex: number;
+        isActive: boolean;
+        courseId: string;
+        createdAt: string;
+        updatedAt: string;
+        course: { id: string; name: string };
+        _count: { enrollments: number; progress: number };
+      }>
+    >("/modules", { method: "GET" });
   }
 
   getCourseModules(courseId: string) {
@@ -2154,6 +2293,128 @@ export class ApiClient {
     triggerBlobDownload(blob, filename);
   }
 
+  // ─── Forms ───────────────────────────────────────────────────────────────
+
+  private requireWorkspaceIdForForms(): string {
+    const workspaceId = getWorkspaceId();
+    if (!workspaceId) {
+      throw new Error("Workspace ID is required for forms operations.");
+    }
+    return workspaceId;
+  }
+
+  async createForm(payload: CreateFormPayload): Promise<FormItem> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const res = await this.request<{ success: boolean; data: FormItem }>(
+      `/workspaces/${workspaceId}/forms`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+    return res.data;
+  }
+
+  async getForms(params?: { q?: string; page?: number; size?: number }): Promise<FormItem[]> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const queryString = buildQueryString({
+      q: params?.q,
+      page: params?.page,
+      size: params?.size,
+    });
+    const res = await this.request<{ success: boolean; data: FormItem[] }>(
+      `/workspaces/${workspaceId}/forms${queryString}`,
+      { method: "GET" }
+    );
+    return res.data;
+  }
+
+  async getFormById(formId: string): Promise<FormItem> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const res = await this.request<{ success: boolean; data: FormItem }>(
+      `/workspaces/${workspaceId}/forms/${formId}`,
+      { method: "GET" }
+    );
+    return res.data;
+  }
+
+  async updateForm(formId: string, payload: UpdateFormPayload): Promise<FormItem> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const res = await this.request<{ success: boolean; data: FormItem }>(
+      `/workspaces/${workspaceId}/forms/${formId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }
+    );
+    return res.data;
+  }
+
+  async publishForm(formId: string): Promise<FormItem> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const res = await this.request<{ success: boolean; data: FormItem }>(
+      `/workspaces/${workspaceId}/forms/${formId}/publish`,
+      { method: "POST" }
+    );
+    return res.data;
+  }
+
+  async archiveForm(formId: string): Promise<FormItem> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const res = await this.request<{ success: boolean; data: FormItem }>(
+      `/workspaces/${workspaceId}/forms/${formId}/archive`,
+      { method: "POST" }
+    );
+    return res.data;
+  }
+
+  async getFormResponses(formId: string, params?: { page?: number; size?: number }): Promise<FormResponseItem[]> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const queryString = buildQueryString({ page: params?.page, size: params?.size });
+    const res = await this.request<{ success: boolean; data: FormResponseItem[] }>(
+      `/workspaces/${workspaceId}/forms/${formId}/responses${queryString}`,
+      { method: "GET" }
+    );
+    return res.data;
+  }
+
+  async exportFormResponses(formId: string, format: "json" | "csv" = "csv"): Promise<Blob> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const queryString = buildQueryString({ format });
+    return this.requestBlob(
+      `/workspaces/${workspaceId}/forms/${formId}/responses/export${queryString}`,
+      { method: "GET" }
+    );
+  }
+
+  async checkFormSlugAvailability(slug: string, excludeFormId?: string): Promise<{ available: boolean }> {
+    const workspaceId = this.requireWorkspaceIdForForms();
+    const qs = buildQueryString({ slug, ...(excludeFormId ? { exclude: excludeFormId } : {}) });
+    const res = await this.request<{ success: boolean; data: { available: boolean } }>(
+      `/workspaces/${workspaceId}/forms/check-slug${qs}`,
+      { method: "GET" }
+    );
+    return res.data;
+  }
+
+  async getPublicFormBySlug(slug: string): Promise<FormItem> {
+    const res = await this.request<{ success: boolean; data: FormItem }>(`/forms/${slug}`, {
+      method: "GET",
+    });
+    return res.data;
+  }
+
+  async submitPublicForm(slug: string, payload: SubmitFormPayload): Promise<FormResponseItem> {
+    const res = await this.request<{ success: boolean; data: FormResponseItem }>(
+      `/forms/${slug}/submit`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+    return res.data;
+  }
+
   // ─── Notifications ────────────────────────────────────────────────────────
 
   getNotifications(params?: { page?: number; size?: number; unreadOnly?: boolean }) {
@@ -2181,12 +2442,287 @@ export class ApiClient {
     return this.request<NotificationPreference>("/notifications/preferences");
   }
 
-  updateNotificationPreferences(data: Partial<Pick<NotificationPreference, "followupAssigned" | "followupDueSoon" | "followupOverdue" | "callLogCompleted">>) {
+  updateNotificationPreferences(data: Partial<Pick<NotificationPreference, "followupAssigned" | "followupDueSoon" | "followupOverdue" | "callLogCompleted" | "taskAssigned" | "taskDueSoon" | "taskUpdated" | "formResponseReceived">>) {
     return this.request<NotificationPreference>("/notifications/preferences", {
       method: "PUT",
       body: JSON.stringify(data),
     });
   }
+
+  // ─── Tasks ───────────────────────────────────────────────────────────────
+
+  getTaskKpi() {
+    return this.request<TaskKpi>("/tasks/kpi");
+  }
+
+  listTasks(params?: ListTasksParams) {
+    const query = params ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : "";
+    return this.request<ListTasksResponse>(`/tasks${query}`);
+  }
+
+  getTask(taskId: string) {
+    return this.request<Task>(`/tasks/${taskId}`);
+  }
+
+  createTask(data: CreateTaskPayload) {
+    return this.request<Task>("/tasks", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  updateTask(taskId: string, data: UpdateTaskPayload) {
+    return this.request<Task>(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  acceptTask(taskId: string) {
+    return this.request<Task>(`/tasks/${taskId}/accept`, { method: "PATCH" });
+  }
+
+  startTask(taskId: string) {
+    return this.request<Task>(`/tasks/${taskId}/start`, { method: "PATCH" });
+  }
+
+  declineTask(taskId: string, data: DeclineTaskPayload) {
+    return this.request<Task>(`/tasks/${taskId}/decline`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  completeTask(taskId: string, data: CompleteTaskPayload) {
+    return this.request<Task>(`/tasks/${taskId}/complete`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  deleteTask(taskId: string) {
+    return this.request<{ message: string }>(`/tasks/${taskId}`, { method: "DELETE" });
+  }
+
+  // ─── Task Types ───────────────────────────────────────────────────────────────
+
+  listTaskTypes() {
+    return this.request<TaskType[]>("/tasks/types");
+  }
+
+  createTaskType(data: CreateTaskTypePayload) {
+    return this.request<TaskType>("/tasks/types", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  updateTaskType(typeId: string, data: UpdateTaskTypePayload) {
+    return this.request<TaskType>(`/tasks/types/${typeId}`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  deleteTaskType(typeId: string) {
+    return this.request<{ message: string }>(`/tasks/types/${typeId}`, { method: "DELETE" });
+  }
+
+  // Schedule
+  getScheduleTemplate() {
+    return this.request<ScheduleTemplateResponse>("/schedule/template");
+  }
+
+  saveScheduleTemplate(payload: SaveScheduleTemplatePayload) {
+    return this.request<ScheduleTemplateResponse>("/schedule/template", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  listScheduleExceptions(date: string) {
+    const query = buildQueryString({ date });
+    return this.request<ScheduleException[]>(`/schedule/exceptions${query}`);
+  }
+
+  createScheduleException(payload: CreateScheduleExceptionPayload) {
+    return this.request<ScheduleException>("/schedule/exceptions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteScheduleException(id: string) {
+    return this.request<{ message: string }>(`/schedule/exceptions/${id}`, { method: "DELETE" });
+  }
+
+  broadcastSchedule(recipientEmails: string[], formats: string[], scheduleName: string) {
+    return this.request<{ message: string; recipientCount: number; formats: string[] }>("/schedule/broadcast", {
+      method: "POST",
+      body: JSON.stringify({
+        recipientEmails,
+        formats,
+        scheduleName,
+      }),
+    });
+  }
+
+  getAuditLogs(params?: GetAuditLogsParams): Promise<AuditLogsResponse> {
+    const queryString = buildQueryString({
+      page: params?.page,
+      size: params?.size,
+      userId: params?.userId,
+      action: params?.action,
+      entity: params?.entity,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
+    });
+    return this.request<AuditLogsResponse>(`/audit-logs${queryString}`, {
+      method: "GET",
+    });
+  }
+
+  // Team Chat APIs
+  getTeamChatChannels(workspaceId?: string) {
+    return this.request<Channel[]>("/team-chat/channels", {
+      headers: workspaceId ? { "X-Workspace-Id": workspaceId } : undefined,
+    });
+  }
+
+  createTeamChatChannel(data: { name: string; description?: string }, workspaceId?: string) {
+    return this.request<Channel>("/team-chat/channels", {
+      method: "POST",
+      headers: workspaceId ? { "X-Workspace-Id": workspaceId } : undefined,
+      body: JSON.stringify(data),
+    });
+  }
+
+  markTeamChatChannelAsRead(channelId: string) {
+    return this.request<{ userId: string; channelId: string; joinedAt: string; lastReadAt: string }>(
+      `/team-chat/channels/${channelId}/read`,
+      { method: "PATCH" }
+    );
+  }
+
+  getTeamChatMessages(params: {
+    channelId: string;
+    limit?: number;
+    lastMessageId?: string;
+    lastCreatedAt?: string;
+  }) {
+    const queryString = buildQueryString({
+      channelId: params.channelId,
+      limit: params.limit,
+      lastMessageId: params.lastMessageId,
+      lastCreatedAt: params.lastCreatedAt,
+    });
+    return this.request<GetMessagesResponse>(`/team-chat/messages${queryString}`);
+  }
+
+  sendTeamChatMessage(data: {
+    channelId: string;
+    content: TiptapContent;
+    mentionedUsers?: string[];
+  }) {
+    return this.request<Message>("/team-chat/messages/send", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  getTeamChatNotifications(limit?: number) {
+    const queryString = buildQueryString({ limit });
+    return this.request<TeamChatNotification[]>(`/team-chat/notifications${queryString}`);
+  }
+
+  markTeamChatNotificationAsRead(notificationId: string) {
+    return this.request<TeamChatNotification>(`/team-chat/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    });
+  }
+
+  markAllTeamChatNotificationsAsRead() {
+    return this.request<{ success: boolean; updatedCount: number }>(
+      "/team-chat/notifications/read-all",
+      { method: "PATCH" }
+    );
+  }
+
+  getTeamChatDirectMessagesList() {
+    return this.request<DmConversation[]>("/team-chat/direct-messages/list");
+  }
+
+  getTeamChatDirectMessages(params: {
+    userId: string;
+    limit?: number;
+    lastMessageId?: string;
+    lastCreatedAt?: string;
+  }) {
+    const queryString = buildQueryString({
+      limit: params.limit,
+      lastMessageId: params.lastMessageId,
+      lastCreatedAt: params.lastCreatedAt,
+    });
+    return this.request<GetDirectMessagesResponse>(
+      `/team-chat/direct-messages/${params.userId}${queryString}`
+    );
+  }
+
+  sendTeamChatDirectMessage(data: {
+    recipientId: string;
+    content: TiptapContent;
+    mentionedUsers?: string[];
+  }) {
+    return this.request<DirectMessage>("/team-chat/direct-messages/send", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  getTeamChatTypingStatus(params: { channelId?: string; dmUserId?: string }) {
+    const queryString = buildQueryString({
+      channelId: params.channelId,
+      dmUserId: params.dmUserId,
+    });
+    return this.request<Array<{ userId: string; userName?: string | null }>>(
+      `/team-chat/typing${queryString}`
+    );
+  }
+
+  reportTeamChatTyping(data: { channelId?: string; dmUserId?: string }) {
+    return this.request<{ success: boolean }>("/team-chat/typing", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  searchTeamChat(query: string, limit: number = 20) {
+    const queryString = buildQueryString({ q: query, limit });
+    return this.request<SearchResults>(`/team-chat/search${queryString}`);
+  }
+
+  markTeamChatMessagesAsRead(messageIds: string[]) {
+    return this.request<{ success: boolean }>("/team-chat/messages/read", {
+      method: "PATCH",
+      body: JSON.stringify({ messageIds }),
+    });
+  }
+
+  addTeamChatReaction(messageId: string, emoji: string) {
+    return this.request<MessageReaction>(`/team-chat/messages/${messageId}/react`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    });
+  }
+
+  removeTeamChatReaction(messageId: string, emoji: string) {
+    return this.request<{ success: boolean }>(
+      `/team-chat/messages/${messageId}/react/${encodeURIComponent(emoji)}`,
+      { method: "DELETE" }
+    );
+  }
+
+  deleteTeamChatMessage(messageId: string) {
+    return this.request<Message | DirectMessage>(`/team-chat/messages/${messageId}`, {
+      method: "DELETE",
+    });
+  }
+
+  deleteTeamChatDirectMessage(messageId: string) {
+    return this.request<{ success: boolean; id: string }>(`/team-chat/direct-messages/${messageId}`, {
+      method: "DELETE",
+    });
+  }
+
+  editTeamChatMessage(messageId: string, data: EditMessageRequest) {
+    return this.request<Message>(`/team-chat/messages/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {

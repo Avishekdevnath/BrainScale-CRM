@@ -209,6 +209,13 @@ export const processTaskDueSoonNotifications = async () => {
   let notified = 0;
   for (const task of tasks) {
     try {
+      // Mark first — if notification send fails, we get a silent miss rather than a duplicate.
+      // Duplicates are worse than misses for dedup correctness.
+      await prisma.task.update({
+        where: { id: task.id },
+        data: { dueSoonNotifiedAt: now },
+      });
+
       await createNotification({
         workspaceId: task.workspaceId,
         userId: task.assignedTo.userId,
@@ -216,11 +223,6 @@ export const processTaskDueSoonNotifications = async () => {
         title: 'Task Due Soon',
         body: `Your task "${task.title}" is due within 24 hours`,
         meta: { taskId: task.id, dueDate: task.dueDate.toISOString() },
-      });
-
-      await prisma.task.update({
-        where: { id: task.id },
-        data: { dueSoonNotifiedAt: now },
       });
 
       notified++;

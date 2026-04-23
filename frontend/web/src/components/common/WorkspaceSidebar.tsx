@@ -10,6 +10,7 @@ import {
   Clock,
   Phone,
   PhoneCall,
+  ClipboardList,
   Download,
   UserCog,
   Settings,
@@ -29,6 +30,11 @@ import {
   Database,
   Shield,
   Bell,
+  CheckSquare,
+  XCircle,
+  LayoutGrid,
+  Tag,
+  CalendarDays,
 } from "lucide-react";
 import { useNotificationStore } from "@/store/notifications";
 import { cn } from "@/lib/utils";
@@ -89,11 +95,29 @@ const navSections: NavSection[] = [
       { href: "/app/calls-manager", label: "My Calls", icon: Phone },
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
+      { href: "/app/forms", label: "Forms", icon: ClipboardList },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
       { href: "/app/followups", label: "Follow-ups", icon: Clock },
     ],
   },
   
+  // Tasks
+  {
+    label: "Tasks",
+    icon: CheckSquare,
+    collapsible: true,
+    items: [
+      { href: "/app/tasks", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/app/schedule", label: "Duty Schedule", icon: CalendarDays },
+      { href: "/app/tasks/kanban", label: "Kanban Board", icon: LayoutGrid },
+      { href: "/app/tasks/my-tasks", label: "My Tasks", icon: Clock },
+      { href: "/app/tasks/assigned", label: "Assigned by Me", icon: Users },
+      { href: "/app/tasks/all", label: "All Tasks", icon: CheckSquare, adminOnly: true },
+      { href: "/app/tasks/rejected", label: "Rejected", icon: XCircle },
+      { href: "/app/tasks/types", label: "Task Types", icon: Tag },
+    ],
+  },
+
   // Data Management
   {
     label: "Data",
@@ -134,7 +158,7 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set([])
+    new Set()
   );
   const [workspaceName, setWorkspaceName] = useState("");
   const currentWorkspace = useWorkspaceStore((state) => state.current);
@@ -152,6 +176,10 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   const isActive = (href: string) => {
     if (href === "/app") {
       return pathname === "/app" || pathname === "/app/";
+    }
+    // Exact match for Tasks dashboard — prevent sub-pages from highlighting it
+    if (href === "/app/tasks") {
+      return pathname === "/app/tasks" || pathname === "/app/tasks/";
     }
     // Handle special case: /app/calls-manager vs /app/calls vs /app/my-calls vs /app/call-lists
     if (href === "/app/calls-manager") {

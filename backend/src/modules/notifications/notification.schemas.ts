@@ -7,11 +7,15 @@ export const ListNotificationsSchema = z.object({
 });
 
 export const UpdatePreferencesSchema = z.object({
-  followupAssigned: z.boolean().optional(),
-  followupDueSoon: z.boolean().optional(),
-  followupOverdue: z.boolean().optional(),
-  callLogCompleted: z.boolean().optional(),
+  followupAssigned:     z.boolean().optional(),
+  followupDueSoon:      z.boolean().optional(),
+  followupOverdue:      z.boolean().optional(),
+  callLogCompleted:     z.boolean().optional(),
+  taskAssigned:         z.boolean().optional(),
+  taskDueSoon:          z.boolean().optional(),
+  taskUpdated:          z.boolean().optional(),
+  formResponseReceived: z.boolean().optional(),
 });
 
-export type ListNotificationsInput = z.infer<typeof ListNotificationsSchema>;
-export type UpdatePreferencesInput = z.infer<typeof UpdatePreferencesSchema>;
+export type ListNotificationsInput  = z.infer<typeof ListNotificationsSchema>;
+export type UpdatePreferencesInput  = z.infer<typeof UpdatePreferencesSchema>;

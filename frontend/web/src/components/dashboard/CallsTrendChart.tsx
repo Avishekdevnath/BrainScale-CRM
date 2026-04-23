@@ -15,7 +15,7 @@ interface CallsTrendChartProps {
 export function CallsTrendChart({ data, isLoading, error, onRetry }: CallsTrendChartProps) {
   const [tableVisible, setTableVisible] = useState(false);
   const isEmpty = useMemo(() => !data || data.length === 0, [data]);
-  const tableData = useMemo(() => (data || []).map((item) => ({ date: item.date, count: item.count })), [data]);
+  const tableData = useMemo(() => (Array.isArray(data) ? data : []).map((item) => ({ date: item.date, count: item.count })), [data]);
   const tableColumns = [
     { key: "date", label: "Date", sortable: true },
     { key: "count", label: "Calls", sortable: true, format: (value: number) => value.toLocaleString() },

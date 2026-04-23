@@ -71,21 +71,12 @@ export function InviteMemberDialog({
     setIsSubmitting(true);
     try {
       const result = await inviteMember(payload);
-      const createdAccount =
-        typeof result.accountCreated === "boolean"
-          ? result.accountCreated
-          : Boolean(result.temporaryPassword);
 
-      if (createdAccount && result.temporaryPassword) {
+      if (result.accountCreated) {
         setInvitationResult(result);
         setShowPasswordModal(true);
         resetFormState();
         onOpenChange(false);
-      } else if (createdAccount && !result.temporaryPassword) {
-        toast.error("Account created but temporary password was not returned.");
-        resetFormState();
-        onOpenChange(false);
-        onSuccess();
       } else {
         toast.info(
           "User already has an account. No temporary password was generated. Use Re-invite to reset and get a new temporary password."
@@ -262,84 +253,104 @@ Please login from here: https://brain-scale-crm.vercel.app`;
               <Check className="w-5 h-5" />
               Member Invited Successfully
             </DialogTitle>
-          </DialogHeader>
+      </DialogHeader>
           
           <div className="space-y-4">
-            <p className="text-sm text-[var(--groups1-text-secondary)]">
-              A new account has been created for the invited member. Since email service is currently disabled, 
-              please copy the credentials below and send them manually.
-            </p>
+            {invitationResult?.emailSent ? (
+              <>
+                <p className="text-sm text-[var(--groups1-text-secondary)]">
+                  Login credentials were emailed to{" "}
+                  <span className="font-medium text-[var(--groups1-text)]">{invitedEmail}</span>.
+                </p>
 
-            {/* Email */}
-            <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
-              <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
-                <Mail className="w-3 h-3" /> Email Address
-              </Label>
-              <div className="flex items-center justify-between mt-1">
-                <span className="font-medium text-[var(--groups1-text)]">
-                  {invitedEmail}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(invitedEmail, "email")}
-                  className="h-8"
-                >
-                  {copiedField === "email" ? (
-                    <Check className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+                  The invited member should use the temporary password from the email to log in and complete setup.
+                </div>
 
-            {/* Temporary Password */}
-            <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
-              <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
-                <KeyRound className="w-3 h-3" /> Temporary Password
-              </Label>
-              <div className="flex items-center justify-between mt-1">
-                <span className="font-mono font-medium text-[var(--groups1-text)]">
-                  {invitationResult?.temporaryPassword}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => copyToClipboard(invitationResult?.temporaryPassword || "", "password")}
-                  className="h-8"
-                >
-                  {copiedField === "password" ? (
-                    <Check className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
+                <div className="flex justify-end pt-2">
+                  <Button onClick={closePasswordModal}>
+                    Done
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--groups1-text-secondary)]">
+                  Email delivery failed for this invite. Copy the credentials below and share them manually.
+                </p>
 
-            <p className="text-xs text-[var(--groups1-text-secondary)] bg-yellow-50 p-2 rounded border border-yellow-200">
-              Warning: This password will only be shown once. Please copy it now and share it securely with the invited member.
-            </p>
+                {/* Email */}
+                <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
+                  <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+                    <Mail className="w-3 h-3" /> Email Address
+                  </Label>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-medium text-[var(--groups1-text)]">
+                      {invitedEmail}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(invitedEmail, "email")}
+                      className="h-8"
+                    >
+                      {copiedField === "email" ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
-            <div className="flex justify-between pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={copyBothCredentials}
-                className="gap-2"
-              >
-                {copiedField === "both" ? (
-                  <Check className="w-4 h-4 text-green-600" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-                Copy Both
-              </Button>
-              <Button onClick={closePasswordModal}>
-                Done
-              </Button>
-            </div>
+                {/* Temporary Password */}
+                <div className="bg-[var(--groups1-secondary)] p-3 rounded-lg">
+                  <Label className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" /> Temporary Password
+                  </Label>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-mono font-medium text-[var(--groups1-text)]">
+                      {invitationResult?.temporaryPassword}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => copyToClipboard(invitationResult?.temporaryPassword || "", "password")}
+                      className="h-8"
+                    >
+                      {copiedField === "password" ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-[var(--groups1-text-secondary)] bg-yellow-50 p-2 rounded border border-yellow-200">
+                  Warning: This password will only be shown once. Please copy it now and share it securely with the invited member.
+                </p>
+
+                <div className="flex justify-between pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={copyBothCredentials}
+                    className="gap-2"
+                  >
+                    {copiedField === "both" ? (
+                      <Check className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                    Copy Both
+                  </Button>
+                  <Button onClick={closePasswordModal}>
+                    Done
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

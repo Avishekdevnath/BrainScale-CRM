@@ -1,10 +1,39 @@
-import type { Metadata } from "next";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Audit Logs | BrainScale CRM",
-};
+import type { Metadata } from "next";
+import { useState, useEffect } from "react";
+import { AuditLogsTable } from "@/components/audit-logs/AuditLogsTable";
+import type { GetAuditLogsParams } from "@/types/audit-logs.types";
+
+const FILTER_STORAGE_KEY = "audit-logs-filters";
 
 export default function AuditLogsPage() {
+  const [filters, setFilters] = useState<GetAuditLogsParams>({ page: 1, size: 20 });
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load filters from localStorage on mount
+  useEffect(() => {
+    const savedFilters = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (savedFilters) {
+      try {
+        setFilters(JSON.parse(savedFilters));
+      } catch {
+        // Ignore parse errors, use default filters
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save filters to localStorage when they change
+  const handleFiltersChange = (newFilters: GetAuditLogsParams) => {
+    setFilters(newFilters);
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(newFilters));
+  };
+
+  if (!isLoaded) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -13,9 +42,11 @@ export default function AuditLogsPage() {
           View system activity and audit trail
         </p>
       </div>
-      <div className="h-64 flex items-center justify-center text-sm text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]">
-        Audit Logs content placeholder
-      </div>
+
+      <AuditLogsTable
+        params={filters}
+        onParamsChange={handleFiltersChange}
+      />
     </div>
   );
 }

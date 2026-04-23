@@ -626,6 +626,11 @@ export const getAllCalls = async (
     };
   }
 
+  // Filter by assigned member (caller)
+  if (options.assignedTo) {
+    where.assignedTo = options.assignedTo;
+  }
+
   // Pagination
   const page = options.page || 1;
   const size = Math.min(options.size || 20, 100);

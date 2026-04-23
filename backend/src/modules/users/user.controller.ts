@@ -3,6 +3,11 @@ import { AuthRequest } from '../../middleware/auth-guard';
 import { asyncHandler } from '../../middleware/error-handler';
 import * as userService from './user.service';
 
+export const updateMyProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await userService.updateMyProfile(req.user!.sub, req.body);
+  res.json(result);
+});
+
 export const exportMyAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { buffer, filename } = await userService.exportMyAccountXlsx(req.user!.sub);
 

@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
+import { generateHTML } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +29,7 @@ type RenderField = {
   type: string;
   required?: boolean;
   helpText?: string;
+  placeholder?: string;
   options?: string[];
 };
 
@@ -38,9 +42,24 @@ function normalizeFormFields(form: { fields?: unknown } | null | undefined): Ren
       type: String(f.type || "short_text"),
       required: !!f.required,
       helpText: String(f.helpText || ""),
+      placeholder: String(f.placeholder || ""),
       options: Array.isArray(f.options) ? f.options.map(String) : [],
     }))
     .filter((f) => !!f.id);
+}
+
+function renderDescription(raw?: string): { isHtml: boolean; content: string } {
+  if (!raw?.trim()) return { isHtml: false, content: "" };
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.type === "doc") {
+      const html = generateHTML(parsed, [StarterKit, Link]);
+      return { isHtml: true, content: html };
+    }
+  } catch {
+    // not JSON, use plain text fallback
+  }
+  return { isHtml: false, content: raw };
 }
 
 export function FormRenderer({ slug }: Props) {
@@ -52,6 +71,7 @@ export function FormRenderer({ slug }: Props) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const fields = useMemo(() => normalizeFormFields(form), [form]);
+  const description = useMemo(() => renderDescription(form?.description ?? undefined), [form?.description]);
   const publicSettings = (form?.settings as PublicSettings | undefined) ?? {};
 
   const setValue = (fieldId: string, value: unknown) => {
@@ -198,44 +218,35 @@ export function FormRenderer({ slug }: Props) {
       backgroundColor: `hsl(var(--groups1-background))`
     }}>
       <div className="mx-auto max-w-3xl">
-        <div className="mb-5 flex items-center justify-between text-xs uppercase tracking-[0.28em]" style={{color: `hsl(var(--groups1-text-secondary))`}}>
-          <span>BrainScale Forms</span>
-          <span>{String(form?.type || "form")}</span>
-        </div>
-
         <Card variant="groups1" className="overflow-hidden">
           <div className="h-1" style={{
             backgroundColor: `hsl(var(--groups1-primary))`
           }} />
           <CardContent variant="groups1" className="space-y-6 p-6 sm:p-8">
             <header className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium" style={{
-                borderColor: `hsl(var(--groups1-primary) / 0.3)`,
-                backgroundColor: `hsl(var(--groups1-primary) / 0.1)`,
-                color: `hsl(var(--groups1-primary))`,
-                border: '1px solid'
-              }}>
-                Public form
-              </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight" style={{color: `hsl(var(--groups1-text))`}}>{form.title}</h1>
-                {form.description ? (
-                  <p className="mt-2 text-sm sm:text-base leading-6" style={{color: `hsl(var(--groups1-text-secondary))`}}>{form.description}</p>
+                {description.content ? (
+                  description.isHtml ? (
+                    <div
+                      className="prose-preview mt-2 text-sm sm:text-base leading-5"
+                      style={{ color: `hsl(var(--groups1-text-secondary))`, lineHeight: 1.45 }}
+                      dangerouslySetInnerHTML={{ __html: description.content }}
+                    />
+                  ) : (
+                    <p className="mt-2 text-sm sm:text-base leading-5" style={{color: `hsl(var(--groups1-text-secondary))`}}>{description.content}</p>
+                  )
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2 text-xs" style={{color: `hsl(var(--groups1-text-secondary))`}}>
                 {form.moduleName ? <span className="rounded-full px-3 py-1" style={{backgroundColor: `hsl(var(--groups1-border))`}}>Module: {form.moduleName}</span> : null}
                 {form.courseName ? <span className="rounded-full px-3 py-1" style={{backgroundColor: `hsl(var(--groups1-border))`}}>Course: {form.courseName}</span> : null}
-                {form.batchName ? <span className="rounded-full px-3 py-1" style={{backgroundColor: `hsl(var(--groups1-border))`}}>Batch: {form.batchName}</span> : null}
               </div>
             </header>
 
-            <form onSubmit={submit} className="space-y-5">
+            <form onSubmit={submit} className="space-y-3">
               {fields.length === 0 ? (
-                <div className="rounded-2xl border border-dashed p-6" style={{
-                  borderColor: `hsl(var(--groups1-border))`,
-                  backgroundColor: `hsl(var(--groups1-border) / 0.3)`
-                }}>
+                <div className="py-2">
                   <Label htmlFor="default-answer" className="text-sm font-medium" style={{color: `hsl(var(--groups1-text))`}}>Your response</Label>
                   <Textarea
                     id="default-answer"
@@ -244,7 +255,6 @@ export function FormRenderer({ slug }: Props) {
                     onChange={(e) => setValue("default", e.target.value)}
                     placeholder="Write your response"
                     style={{
-                      borderColor: `hsl(var(--groups1-border))`,
                       backgroundColor: `hsl(var(--groups1-surface))`,
                       color: `hsl(var(--groups1-text))`
                     }}
@@ -255,28 +265,25 @@ export function FormRenderer({ slug }: Props) {
                   const value = answers[field.id];
                   if (field.type === "section_break") {
                     return (
-                      <div key={field.id} className="rounded-[24px] p-5 sm:p-6 shadow-sm" style={{
-                        borderColor: `hsl(var(--groups1-primary) / 0.3)`,
-                        backgroundColor: `hsl(var(--groups1-primary) / 0.08)`,
-                        border: '1px solid'
+                      <div key={field.id} className="py-3 sm:py-4 border-t text-center" style={{
+                        backgroundColor: `transparent`,
+                        borderColor: `hsl(var(--groups1-border))`,
                       }}>
-                        <div className="text-xs font-medium uppercase tracking-[0.24em]" style={{color: `hsl(var(--groups1-primary))`}}>Section</div>
-                        <h2 className="mt-2 text-xl font-semibold tracking-tight" style={{color: `hsl(var(--groups1-text))`}}>{field.label}</h2>
+                        <h2 className="text-xl font-semibold tracking-tight" style={{color: `hsl(var(--groups1-text))`}}>{field.label}</h2>
                         {field.helpText ? <p className="mt-2 text-sm leading-6" style={{color: `hsl(var(--groups1-text-secondary))`}}>{field.helpText}</p> : null}
                       </div>
                     );
                   }
 
                   return (
-                    <div key={field.id} className="rounded-2xl border p-4 sm:p-5 shadow-sm space-y-3" style={{
-                      borderColor: `hsl(var(--groups1-border))`,
-                      backgroundColor: `hsl(var(--groups1-surface))`
+                    <div key={field.id} className="space-y-2 py-2 sm:py-3" style={{
+                      backgroundColor: `transparent`
                     }}>
                       <div>
                         <Label htmlFor={field.id} className="text-sm font-semibold" style={{color: `hsl(var(--groups1-text))`}}>
                           {field.label} {field.required ? <span style={{color: `hsl(var(--danger))`}}>*</span> : null}
                         </Label>
-                        <p className="mt-1 text-xs" style={{color: `hsl(var(--groups1-text-secondary))`}}>{field.type.replaceAll("_", " ")}</p>
+                        {field.helpText ? <p className="mt-1 text-xs" style={{color: `hsl(var(--groups1-text-secondary))`}}>{field.helpText}</p> : null}
                       </div>
 
                       {field.type === "long_text" ? (
@@ -285,9 +292,9 @@ export function FormRenderer({ slug }: Props) {
                           value={String(value ?? "")}
                           onChange={(e) => setValue(field.id, e.target.value)}
                           rows={5}
+                          placeholder={field.placeholder || "Your answer"}
                           style={{
-                            borderColor: `hsl(var(--groups1-border))`,
-                            backgroundColor: `hsl(var(--groups1-border) / 0.3)`,
+                            backgroundColor: `hsl(var(--groups1-surface))`,
                             color: `hsl(var(--groups1-text))`
                           }}
                         />
@@ -296,8 +303,7 @@ export function FormRenderer({ slug }: Props) {
                           id={field.id}
                           className="flex h-11 w-full rounded-xl border px-3 py-2 text-sm outline-none transition"
                           style={{
-                            borderColor: `hsl(var(--groups1-border))`,
-                            backgroundColor: `hsl(var(--groups1-border) / 0.3)`,
+                            backgroundColor: `hsl(var(--groups1-surface))`,
                             color: `hsl(var(--groups1-text))`
                           }}
                           value={String(value ?? "")}
@@ -313,9 +319,8 @@ export function FormRenderer({ slug }: Props) {
                           {field.options.map((option) => {
                             const checked = Array.isArray(value) ? value.includes(option) : false;
                             return (
-                              <label key={option} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm" style={{
-                                borderColor: `hsl(var(--groups1-border))`,
-                                backgroundColor: `hsl(var(--groups1-border) / 0.3)`,
+                              <label key={option} className="flex items-center gap-3 px-1 py-1.5 text-sm" style={{
+                                backgroundColor: `transparent`,
                                 color: `hsl(var(--groups1-text))`
                               }}>
                                 <input
@@ -337,9 +342,8 @@ export function FormRenderer({ slug }: Props) {
                       ) : field.type === "radio" && field.options?.length ? (
                         <div className="grid gap-2">
                           {field.options.map((option) => (
-                            <label key={option} className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm" style={{
-                              borderColor: `hsl(var(--groups1-border))`,
-                              backgroundColor: `hsl(var(--groups1-border) / 0.3)`,
+                            <label key={option} className="flex items-center gap-3 px-1 py-1.5 text-sm" style={{
+                              backgroundColor: `transparent`,
                               color: `hsl(var(--groups1-text))`
                             }}>
                               <input
@@ -358,10 +362,10 @@ export function FormRenderer({ slug }: Props) {
                           type={field.type === "number" ? "number" : field.type === "email" ? "email" : field.type === "date" ? "date" : field.type === "time" ? "time" : "text"}
                           value={String(value ?? "")}
                           onChange={(e) => setValue(field.id, e.target.value)}
+                          placeholder={field.placeholder || "Your answer"}
                           className="h-11 rounded-xl border"
                           style={{
-                            borderColor: `hsl(var(--groups1-border))`,
-                            backgroundColor: `hsl(var(--groups1-border) / 0.3)`,
+                            backgroundColor: `hsl(var(--groups1-surface))`,
                             color: `hsl(var(--groups1-text))`
                           }}
                         />
@@ -373,12 +377,12 @@ export function FormRenderer({ slug }: Props) {
                 })
               )}
 
-              <div className="pt-2 flex items-center justify-between gap-3">
-                <p className="text-xs" style={{color: `hsl(var(--groups1-text-secondary))`}}>By submitting, you confirm the information above is accurate.</p>
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-xs order-2 sm:order-1" style={{color: `hsl(var(--groups1-text-secondary))`}}>By submitting, you confirm the information above is accurate.</p>
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex min-w-40 items-center justify-center gap-2 rounded-full px-5 py-2.5 font-medium transition"
+                  className="inline-flex w-full sm:w-auto sm:min-w-40 items-center justify-center gap-2 rounded-full px-5 py-2.5 font-medium transition order-1 sm:order-2"
                   style={{
                     backgroundColor: `hsl(var(--groups1-primary))`,
                     color: `hsl(var(--groups1-btn-primary-text))`

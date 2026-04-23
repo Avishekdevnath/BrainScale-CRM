@@ -320,6 +320,7 @@ export interface GetMyCallsParams {
   batchId?: string; // Optional
   groupId?: string; // Optional
   callListId?: string; // Optional
+  assignedTo?: string; // Optional - filter by WorkspaceMember ID (caller)
   state?: CallListItemState; // Optional - single state filter
   states?: string; // Optional - comma-separated states e.g. "QUEUED,CALLING"
   followUpRequired?: boolean; // Optional - filter by follow-ups required

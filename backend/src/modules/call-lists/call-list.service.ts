@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { parseTextData } from '../../utils/file-parser';
+import * as auditLogService from '../audit-logs/audit-log.service';
 import {
   CreateCallListInput,
   UpdateCallListInput,
@@ -664,8 +665,26 @@ export const createCallList = async (
       },
     });
 
+    // Log audit event
+    void auditLogService.createAuditLog({
+      workspaceId,
+      userId,
+      action: 'CALL_LIST_CREATED',
+      entity: 'call_list',
+      entityId: callList.id,
+    });
+
     return updatedCallList || callList;
   }
+
+  // Log audit event
+  void auditLogService.createAuditLog({
+    workspaceId,
+    userId,
+    action: 'CALL_LIST_CREATED',
+    entity: 'call_list',
+    entityId: callList.id,
+  });
 
   return callList;
 };
@@ -892,6 +911,33 @@ export const updateCallList = async (
           items: true,
         },
       },
+    },
+  });
+
+  // Log audit event with detailed changes
+  const changes: Record<string, { from: any; to: any }> = {};
+  if (data.name !== undefined) {
+    changes.name = { from: callList.name, to: data.name };
+  }
+  if (data.description !== undefined) {
+    changes.description = { from: callList.description, to: data.description };
+  }
+  if (data.status !== undefined) {
+    changes.status = { from: callList.status, to: data.status };
+  }
+  if (data.messages !== undefined) {
+    changes.messages = { from: callList.messages, to: data.messages };
+  }
+
+  void auditLogService.createAuditLog({
+    workspaceId,
+    userId,
+    action: 'CALL_LIST_UPDATED',
+    entity: 'call_list',
+    entityId: listId,
+    metadata: {
+      callListName: updated.name,
+      changes,
     },
   });
 
@@ -1488,7 +1534,7 @@ export const updateCallListItem = async (
 /**
  * Delete a call list
  */
-export const deleteCallList = async (listId: string, workspaceId: string) => {
+export const deleteCallList = async (listId: string, workspaceId: string, userId?: string) => {
   const callList = await prisma.callList.findFirst({
     where: {
       id: listId,
@@ -1503,6 +1549,17 @@ export const deleteCallList = async (listId: string, workspaceId: string) => {
   await prisma.callList.delete({
     where: { id: listId },
   });
+
+  // Log audit event
+  if (userId) {
+    void auditLogService.createAuditLog({
+      workspaceId,
+      userId,
+      action: 'CALL_LIST_DELETED',
+      entity: 'call_list',
+      entityId: listId,
+    });
+  }
 
   return { message: 'Call list deleted successfully' };
 };
@@ -1755,7 +1812,7 @@ export const removeCallListItems = async (
 /**
  * Delete a call list item (remove student from call list)
  */
-export const deleteCallListItem = async (itemId: string, workspaceId: string) => {
+export const deleteCallListItem = async (itemId: string, workspaceId: string, userId?: string) => {
   // Verify item exists and belongs to workspace
   const item = await prisma.callListItem.findFirst({
     where: {
@@ -1765,6 +1822,11 @@ export const deleteCallListItem = async (itemId: string, workspaceId: string) =>
       },
     },
     include: {
+      callList: {
+        select: {
+          id: true,
+        },
+      },
       student: {
         select: {
           id: true,
@@ -1782,7 +1844,23 @@ export const deleteCallListItem = async (itemId: string, workspaceId: string) =>
     where: { id: itemId },
   });
 
-  return { 
+  // Log audit event
+  if (userId) {
+    void auditLogService.createAuditLog({
+      workspaceId,
+      userId,
+      action: 'CALL_LIST_ITEM_REMOVED',
+      entity: 'call_list_item',
+      entityId: itemId,
+      metadata: {
+        callListId: item.callList.id,
+        studentId: item.student?.id,
+        studentName: item.student?.name,
+      },
+    });
+  }
+
+  return {
     message: 'Call list item deleted successfully',
     deletedItem: {
       id: item.id,

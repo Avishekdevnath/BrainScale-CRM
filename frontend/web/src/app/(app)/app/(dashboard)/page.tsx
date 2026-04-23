@@ -19,6 +19,7 @@ import { CallsTrendChart } from "@/components/dashboard/CallsTrendChart";
 import { StatusDistributionChart } from "@/components/dashboard/StatusDistributionChart";
 import { FollowupsTrendChart } from "@/components/dashboard/FollowupsTrendChart";
 import { CallDensityHeatmap } from "@/components/dashboard/CallDensityHeatmap";
+import { TestEmailCard } from "@/components/dashboard/TestEmailCard";
 import { useCallList } from "@/hooks/useCallLists";
 import { apiClient } from "@/lib/api-client";
 import { useBatches } from "@/hooks/useBatches";
@@ -494,6 +495,9 @@ export default function WorkspaceDashboardPage() {
             error={dashboardError}
             onRetry={refetchDashboard}
           />
+
+          {/* Test Email Card */}
+          <TestEmailCard />
         </div>
 
         {/* Footer CTA */}

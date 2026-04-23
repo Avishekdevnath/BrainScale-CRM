@@ -175,6 +175,22 @@ export const healthCheckLimiter = createRateLimiter({
 });
 
 /**
+ * Rate limiter for public form submission endpoint
+ *
+ * Limits: 300 submissions per 15 minutes per IP
+ */
+export const formsSubmitLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  message: {
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many form submissions, please try again later',
+    },
+  },
+});
+
+/**
  * Check if rate limiting is currently enabled
  * 
  * @returns true if rate limiting is enabled, false otherwise

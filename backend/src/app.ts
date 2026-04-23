@@ -135,17 +135,11 @@ if (env.NODE_ENV === 'production' && env.IS_VERCEL) {
   });
 }
 
-// Request logging
+// Request logging (only for team-chat in development)
 app.use((req, res, next) => {
-  logger.info({
-    method: req.method,
-    originalUrl: req.originalUrl,
-    url: req.url,
-    baseUrl: req.baseUrl,
-    path: req.path,
-    ip: req.ip,
-    isVercel: process.env.VERCEL === '1',
-  }, 'Express received request');
+  if (env.NODE_ENV === 'development' && req.path.includes('team-chat')) {
+    logger.debug(`${req.method} ${req.path}`);
+  }
   next();
 });
 
@@ -277,10 +271,14 @@ import importRouter from './modules/imports/import.router';
 import exportRouter from './modules/exports/export.router';
 import dashboardRouter from './modules/dashboard/dashboard.router';
 import emailRouter from './modules/emails/email.router';
+import emailQueueRouter from './modules/emails/email-queue.router';
 import revenueRouter from './modules/revenue/revenue.router';
 import aiChatRouter from './modules/ai-chat/ai-chat.router';
 import userRouter from './modules/users/user.router';
 import taskRouter from './modules/tasks/task.router';
+import scheduleRouter from './modules/schedule/schedule.router';
+import auditLogRouter from './modules/audit-logs/audit-log.router';
+import teamChatRouter from './modules/team-chat/team-chat.router';
 
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/workspaces', workspaceRouter);
@@ -314,10 +312,14 @@ app.use('/api/v1/imports', importRouter); // Imports routes
 app.use('/api/v1/exports', exportRouter); // Exports routes
 app.use('/api/v1/dashboard', dashboardRouter); // Dashboard routes
 app.use('/api/v1/emails', emailRouter); // Email routes
+app.use('/api/v1/admin/email-queue', emailQueueRouter); // Email queue admin routes
 app.use('/api/v1/revenue', revenueRouter); // Revenue routes
 app.use('/api/v1/ai-chat', aiChatRouter); // AI Chat routes
 app.use('/api/v1/users', userRouter); // User account routes
 app.use('/api/v1/tasks', taskRouter); // Tasks routes
+app.use('/api/v1/schedule', scheduleRouter); // Weekly schedule + exceptions routes
+app.use('/api/v1/audit-logs', auditLogRouter); // Audit logs routes
+app.use('/api/v1/team-chat', teamChatRouter); // Team Chat routes
 
 // 404 handler
 app.use((req, res) => {

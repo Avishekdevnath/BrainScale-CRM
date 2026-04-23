@@ -1,8 +1,20 @@
 export type NotificationType =
+  // Follow-ups
   | 'FOLLOWUP_ASSIGNED'
   | 'FOLLOWUP_DUE_SOON'
   | 'FOLLOWUP_OVERDUE'
-  | 'CALL_LOG_COMPLETED';
+  // Call logs
+  | 'CALL_LOG_COMPLETED'
+  // Tasks
+  | 'TASK_ASSIGNED'
+  | 'TASK_DUE_SOON'
+  | 'TASK_ACCEPTED'
+  | 'TASK_STARTED'
+  | 'TASK_DECLINED'
+  | 'TASK_COMPLETED'
+  | 'TASK_CANCELLED'
+  // Forms
+  | 'FORM_RESPONSE_RECEIVED';
 
 export interface NotificationMeta {
   entityId?: string;
@@ -10,6 +22,12 @@ export interface NotificationMeta {
   studentName?: string;
   groupName?: string;
   dueAt?: string;
+  taskId?: string;
+  callLogId?: string;
+  callListId?: string;
+  formId?: string;
+  responseId?: string;
+  formTitle?: string;
 }
 
 export interface Notification {
@@ -29,10 +47,14 @@ export interface NotificationPreference {
   id: string;
   workspaceId: string;
   userId: string;
-  followupAssigned: boolean;
-  followupDueSoon: boolean;
-  followupOverdue: boolean;
-  callLogCompleted: boolean;
+  followupAssigned:     boolean;
+  followupDueSoon:      boolean;
+  followupOverdue:      boolean;
+  callLogCompleted:     boolean;
+  taskAssigned:         boolean;
+  taskDueSoon:          boolean;
+  taskUpdated:          boolean;
+  formResponseReceived: boolean;
 }
 
 export interface NotificationsListResponse {

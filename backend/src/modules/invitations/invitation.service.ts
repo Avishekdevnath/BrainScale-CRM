@@ -5,6 +5,7 @@ import { logger } from '../../config/logger';
 import { sendInvitationEmail } from '../../utils/email';
 import crypto from 'crypto';
 import { SendInvitationInput, AcceptInvitationInput } from './invitation.schemas';
+import * as auditLogService from '../audit-logs/audit-log.service';
 
 /**
  * Generate a secure invitation token
@@ -176,7 +177,11 @@ export const sendInvitation = async (
       data.email,
       invitation.workspace.name,
       token,
-      inviter?.name || 'A team member'
+      inviter?.name || 'A team member',
+      {
+        workspaceId,
+        userId: inviterUserId,
+      }
     );
     emailSent = true;
   } catch (error: any) {
@@ -197,6 +202,15 @@ export const sendInvitation = async (
       data: { emailSent: true },
     });
   }
+
+  // Log audit event
+  void auditLogService.createAuditLog({
+    workspaceId,
+    userId: inviterUserId,
+    action: 'MEMBER_INVITED',
+    entity: 'member',
+    metadata: { email: data.email, role: data.role },
+  });
 
   return {
     id: invitation.id,
@@ -337,6 +351,15 @@ export const acceptInvitation = async (token: string, userId: string) => {
   await prisma.invitation.update({
     where: { id: invitation.id },
     data: { status: 'ACCEPTED', acceptedAt: new Date() },
+  });
+
+  // Log audit event
+  void auditLogService.createAuditLog({
+    workspaceId: invitation.workspaceId,
+    userId,
+    action: 'MEMBER_JOINED',
+    entity: 'member',
+    entityId: member.id,
   });
 
   return {
@@ -512,7 +535,11 @@ export const resendInvitation = async (
       updated.email,
       updated.workspace.name,
       token,
-      inviter?.name || 'A team member'
+      inviter?.name || 'A team member',
+      {
+        workspaceId,
+        userId: inviterUserId,
+      }
     );
     emailSent = true;
   } catch (error: any) {

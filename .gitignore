@@ -42,6 +42,9 @@ guide/
 # OS executables
 *.exe
 
+# Tests
+**/__tests__/
+
 # Misc
 .DS_Store
 *.log

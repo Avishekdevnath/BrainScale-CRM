@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as taskController from './task.controller';
+import * as taskTypeController from './task-type.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
@@ -11,8 +12,18 @@ import {
   DeclineTaskSchema,
   ListTasksSchema,
 } from './task.schemas';
+import {
+  CreateTaskTypeSchema,
+  UpdateTaskTypeSchema,
+} from './task-type.schemas';
 
 const router = Router();
+
+// ── Task Types (all authenticated workspace members) ──────────────────────────
+router.get('/types', authGuard, tenantGuard, taskTypeController.listTaskTypes);
+router.post('/types', authGuard, tenantGuard, zodValidator(CreateTaskTypeSchema), taskTypeController.createTaskType);
+router.patch('/types/:typeId', authGuard, tenantGuard, zodValidator(UpdateTaskTypeSchema), taskTypeController.updateTaskType);
+router.delete('/types/:typeId', authGuard, tenantGuard, taskTypeController.deleteTaskType);
 
 // GET /tasks/kpi — MUST come before /:taskId to avoid Express matching "kpi" as a taskId
 router.get(

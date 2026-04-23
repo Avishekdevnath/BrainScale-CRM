@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useNotificationPreferences } from "@/hooks/useNotifications";
 import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
+import { PREFERENCE_ROWS } from "@/lib/notification-registry";
 
 interface NotificationPreferencesModalProps {
   open: boolean;
@@ -29,22 +30,22 @@ export function NotificationPreferencesModal({
   const { data: prefs, isLoading } = useNotificationPreferences();
   const [saving, setSaving] = useState(false);
 
-  const [local, setLocal] = useState<{
-    followupAssigned: boolean;
-    followupDueSoon: boolean;
-    followupOverdue: boolean;
-    callLogCompleted: boolean;
-  } | null>(null);
+  const [local, setLocal] = useState<Record<string, boolean> | null>(null);
+
+  // Build server values from registry defaults + fetched prefs
+  const serverValues: Record<string, boolean> = Object.fromEntries(
+    PREFERENCE_ROWS.map((row) => [
+      row.key,
+      (prefs as unknown as Record<string, unknown>)?.[row.key] !== undefined
+        ? Boolean((prefs as unknown as Record<string, unknown>)[row.key])
+        : row.defaultValue,
+    ])
+  );
 
   // Use local state if user has interacted, otherwise use server data
-  const values = local ?? {
-    followupAssigned: prefs?.followupAssigned ?? true,
-    followupDueSoon: prefs?.followupDueSoon ?? true,
-    followupOverdue: prefs?.followupOverdue ?? true,
-    callLogCompleted: prefs?.callLogCompleted ?? false,
-  };
+  const values: Record<string, boolean> = local ?? serverValues;
 
-  const toggle = (key: keyof typeof values) => {
+  const toggle = (key: string) => {
     setLocal((prev) => ({
       ...(prev ?? values),
       [key]: !(prev ?? values)[key],
@@ -72,29 +73,6 @@ export function NotificationPreferencesModal({
     }
   };
 
-  const rows = [
-    {
-      key: "followupAssigned" as const,
-      label: "Follow-up Assigned",
-      description: "When a follow-up is assigned to you",
-    },
-    {
-      key: "followupDueSoon" as const,
-      label: "Follow-up Due Soon",
-      description: "When a follow-up is due within 24 hours",
-    },
-    {
-      key: "followupOverdue" as const,
-      label: "Follow-up Overdue",
-      description: "When a pending follow-up is past its due date",
-    },
-    {
-      key: "callLogCompleted" as const,
-      label: "Call Log Completed",
-      description: "When a call log is completed in your group",
-    },
-  ];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -107,16 +85,16 @@ export function NotificationPreferencesModal({
 
         {isLoading ? (
           <div className="space-y-4 py-2">
-            {[1, 2, 3, 4].map((i) => (
+            {PREFERENCE_ROWS.map((row) => (
               <div
-                key={i}
+                key={row.key}
                 className="h-12 bg-[var(--groups1-secondary)] rounded animate-pulse"
               />
             ))}
           </div>
         ) : (
           <div className="space-y-1">
-            {rows.map((row) => (
+            {PREFERENCE_ROWS.map((row) => (
               <div
                 key={row.key}
                 className="flex items-center justify-between gap-4 py-3 border-b border-[var(--groups1-border)] last:border-0"
@@ -130,7 +108,7 @@ export function NotificationPreferencesModal({
                   </p>
                 </div>
                 <Switch
-                  checked={values[row.key]}
+                  checked={values[row.key] ?? row.defaultValue}
                   onCheckedChange={() => toggle(row.key)}
                 />
               </div>

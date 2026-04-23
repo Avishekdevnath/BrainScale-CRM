@@ -101,6 +101,12 @@ export const env = {
   // Cron
   CRON_SECRET: process.env.CRON_SECRET || '',
 
+  // Email queue
+  EMAIL_QUEUE_ENABLED: process.env.EMAIL_QUEUE_ENABLED !== 'false',
+  EMAIL_QUEUE_BATCH_SIZE: parseInt(process.env.EMAIL_QUEUE_BATCH_SIZE || '5', 10),
+  EMAIL_RESEND_RATE_LIMIT: parseInt(process.env.EMAIL_RESEND_RATE_LIMIT || '2', 10),
+  EMAIL_SMTP_RATE_LIMIT: parseInt(process.env.EMAIL_SMTP_RATE_LIMIT || '10', 10),
+
   // Billing / plan enforcement
   // Disabled by default. Set BILLING_ENABLED=true to enforce plan limits & enable billing flows.
   BILLING_ENABLED: process.env.BILLING_ENABLED === 'true',

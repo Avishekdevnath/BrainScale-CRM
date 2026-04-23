@@ -9,7 +9,6 @@ import { CallExecutionModal } from "@/components/call-lists/CallExecutionModal";
 import { useAllCalls } from "@/hooks/useMyCalls";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
 import { Loader2, Phone, ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { CallListItem, CallListItemState, GetMyCallsParams } from "@/types/call-lists.types";
 
 export interface CallsTableProps {
@@ -17,54 +16,45 @@ export interface CallsTableProps {
   searchQuery?: string;
   state?: CallListItemState | null;
   followUpRequired?: boolean;
+  assignedTo?: string | null;
   onItemsUpdated?: () => void;
 }
 
-export function CallsTable({ callListId, searchQuery = "", state = null, followUpRequired, onItemsUpdated }: CallsTableProps) {
+export function CallsTable({ callListId, searchQuery = "", state = null, followUpRequired, assignedTo, onItemsUpdated }: CallsTableProps) {
   const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
   const [selectedItem, setSelectedItem] = React.useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
   const [pageSize] = React.useState<number>(10);
   const [page, setPage] = React.useState<number>(1);
-  const [assignmentFilter, setAssignmentFilter] = React.useState<"all" | "assigned" | "unassigned">("all");
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Build filters - send all filters to API for server-side filtering
+  // Build filters — all server-side
   const filters: GetMyCallsParams = React.useMemo(() => {
-    const params: GetMyCallsParams = {
+    return {
       page,
       size: pageSize,
       callListId: callListId || undefined,
       q: searchQuery.trim() || undefined,
       state: followUpRequired ? undefined : (state || undefined),
       followUpRequired: followUpRequired ? true : undefined,
+      assignedTo: assignedTo || undefined,
     };
-    return params;
-  }, [page, pageSize, callListId, searchQuery, state, followUpRequired]);
+  }, [page, pageSize, callListId, searchQuery, state, followUpRequired, assignedTo]);
 
   // Reset to page 1 when filters change
   React.useEffect(() => {
     setPage(1);
-  }, [callListId, searchQuery, state, followUpRequired, assignmentFilter]);
+  }, [callListId, searchQuery, state, followUpRequired, assignedTo]);
 
   const { data, isLoading, error, mutate } = useAllCalls(filters);
 
   const items = data?.items || [];
   const pagination = data?.pagination;
-
-  // Client-side assignment filtering only (search is handled server-side)
-  const filteredItems = React.useMemo(() => {
-    if (assignmentFilter === "assigned") {
-      return items.filter((item) => item.assignedTo !== null);
-    } else if (assignmentFilter === "unassigned") {
-      return items.filter((item) => item.assignedTo === null);
-    }
-    return items;
-  }, [items, assignmentFilter]);
+  const filteredItems = items;
 
   const totalItems = pagination?.total ?? filteredItems.length;
   const totalPages = pagination?.totalPages ?? Math.ceil(totalItems / pageSize);
@@ -111,51 +101,6 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
           </div>
         </CardHeader>
         <CardContent variant="groups1" className="pb-6">
-          {/* Assignment Filter Buttons */}
-          <div className="flex flex-wrap items-center gap-2 mb-4 pb-3 border-b border-[var(--groups1-border)]">
-            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mr-2">
-              Assignment
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setAssignmentFilter("all")}
-              className={cn(
-                assignmentFilter === "all"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              )}
-            >
-              All
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setAssignmentFilter("assigned")}
-              className={cn(
-                assignmentFilter === "assigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              )}
-            >
-              Assigned
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setAssignmentFilter("unassigned")}
-              className={cn(
-                assignmentFilter === "unassigned"
-                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              )}
-            >
-              Unassigned
-            </Button>
-          </div>
           {!mounted ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)]" />
@@ -199,6 +144,9 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)]">
                         Group
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)]">
+                        Caller
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--groups1-text-secondary)]">
                         Status
@@ -251,6 +199,11 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
                           </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
                             {callList?.group?.name || "-"}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
+                            {item.assignee
+                              ? item.assignee.user.name?.trim() || item.assignee.user.email
+                              : <span className="text-[var(--groups1-text-secondary)]">—</span>}
                           </td>
                           <td className="py-3 px-4 text-sm">
                             <StatusBadge variant={getStateVariant(item.state)}>

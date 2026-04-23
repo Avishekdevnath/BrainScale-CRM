@@ -7,6 +7,7 @@ import { UpdateMemberRoleDialog } from "@/components/members/UpdateMemberRoleDia
 import { GrantGroupAccessDialog } from "@/components/members/GrantGroupAccessDialog";
 import { RemoveMemberDialog } from "@/components/members/RemoveMemberDialog";
 import { DeleteMemberAccountDialog } from "@/components/members/DeleteMemberAccountDialog";
+import { EditMemberDetailsDialog } from "@/components/members/EditMemberDetailsDialog";
 import { useReinviteMemberWithAccount, useWorkspaceMembers } from "@/hooks/useMembers";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
@@ -15,7 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 import { formatDate, formatMemberName, getRoleLabel } from "@/lib/member-utils";
-import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy, UserX } from "lucide-react";
+import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy, UserX, Pencil } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -38,13 +39,18 @@ export default function MembersPage() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
   const [actionType, setActionType] = React.useState<
-    "updateRole" | "grantAccess" | "remove" | "deleteAccount" | null
+    "editDetails" | "updateRole" | "grantAccess" | "remove" | "deleteAccount" | null
   >(null);
 
   const selectedMember = React.useMemo(() => {
     if (!selectedMemberId) return null;
     return members.find((m) => m.id === selectedMemberId) || null;
   }, [members, selectedMemberId]);
+
+  const handleEditDetails = (memberId: string) => {
+    setSelectedMemberId(memberId);
+    setActionType("editDetails");
+  };
 
   const handleUpdateRole = (memberId: string) => {
     setSelectedMemberId(memberId);
@@ -410,11 +416,20 @@ export default function MembersPage() {
                           variant="outline"
                           size="sm"
                           className="flex-1 h-9"
+                          onClick={() => handleEditDetails(m.id)}
+                        >
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-9"
                           disabled={isYou}
                           onClick={() => handleUpdateRole(m.id)}
                         >
                           <Key className="w-4 h-4 mr-2" />
-                          Update Role
+                          Role
                         </Button>
                         <Button
                           variant="outline"
@@ -460,6 +475,7 @@ export default function MembersPage() {
       <div className="hidden md:block">
         <MembersTable
           members={members}
+          onEditDetails={handleEditDetails}
           onUpdateRole={handleUpdateRole}
           onGrantAccess={handleGrantAccess}
           onRemove={handleRemove}
@@ -471,6 +487,16 @@ export default function MembersPage() {
       </div>
 
       {/* Dialogs */}
+      <EditMemberDetailsDialog
+        open={actionType === "editDetails"}
+        onOpenChange={(open) => {
+          if (!open) handleDialogClose();
+        }}
+        member={selectedMember}
+        workspaceId={workspaceId}
+        onSuccess={handleSuccess}
+      />
+
       <InviteMemberDialog
         open={isInviteDialogOpen}
         onOpenChange={setIsInviteDialogOpen}

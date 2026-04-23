@@ -99,6 +99,7 @@ export interface InviteMemberPayload {
 export interface InviteMemberResponse extends WorkspaceMember {
   temporaryPassword: string | null;
   accountCreated: boolean;
+  emailSent: boolean;
   message: string;
 }
 

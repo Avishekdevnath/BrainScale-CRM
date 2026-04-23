@@ -57,8 +57,8 @@ export function FormsList({ forms, onEdit, onPublish, onArchive, onViewResponses
               }}
             />
 
-            <CardContent variant="groups1" className="p-4">
-              <div className="flex items-start gap-4 justify-between">
+            <CardContent variant="groups1" className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 sm:justify-between">
                 {/* Left: Form info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-3 mb-2">
@@ -124,7 +124,7 @@ export function FormsList({ forms, onEdit, onPublish, onArchive, onViewResponses
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex-wrap justify-end">
+                <div className="flex gap-1.5 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex-wrap justify-end">
                   <Button
                     variant="ghost"
                     size="sm"

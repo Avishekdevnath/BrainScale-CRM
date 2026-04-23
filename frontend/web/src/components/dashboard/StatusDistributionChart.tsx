@@ -19,8 +19,8 @@ const statusColors: Record<string, string> = {
 export function StatusDistributionChart({ data, isLoading, error, onRetry }: StatusDistributionChartProps) {
   const [tableVisible, setTableVisible] = useState(false);
   const isEmpty = useMemo(() => !data || data.length === 0, [data]);
-  const totalCount = useMemo(() => (data || []).reduce((sum, item) => sum + item.count, 0), [data]);
-  const tableData = useMemo(() => (data || []).map((item) => ({ status: item.status, count: item.count, percentage: ((item.count / totalCount) * 100).toFixed(1) })), [data, totalCount]);
+  const totalCount = useMemo(() => (Array.isArray(data) ? data : []).reduce((sum, item) => sum + item.count, 0), [data]);
+  const tableData = useMemo(() => (Array.isArray(data) ? data : []).map((item) => ({ status: item.status, count: item.count, percentage: ((item.count / totalCount) * 100).toFixed(1) })), [data, totalCount]);
   const tableColumns = [
     { key: "status", label: "Status", sortable: true },
     { key: "count", label: "Count", sortable: true, format: (value: number) => value.toLocaleString() },
@@ -39,7 +39,7 @@ export function StatusDistributionChart({ data, isLoading, error, onRetry }: Sta
             <YAxis dataKey="status" type="category" stroke="var(--groups1-text-secondary)" style={{ fontSize: "12px" }} />
             <Tooltip contentStyle={{ backgroundColor: "var(--groups1-surface)", border: "1px solid var(--groups1-border)", color: "var(--groups1-text)" }} formatter={(value: number) => `${value} calls`} />
             <Bar dataKey="count" fill="var(--groups1-primary)" radius={[0, 8, 8, 0]}>
-              {(data || []).map((entry) => (
+              {(Array.isArray(data) ? data : []).map((entry) => (
                 <Cell key={`cell-${entry.status}`} fill={statusColors[entry.status] || "#gray"} />
               ))}
             </Bar>

@@ -33,7 +33,7 @@ export default function LogoutPage() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">
-      <p className="text-muted-foreground">Signing you out…</p>
+      <p className="text-[var(--groups1-text-secondary)]">Signing you out…</p>
     </div>
   );
 }

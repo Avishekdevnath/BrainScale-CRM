@@ -4,13 +4,14 @@ import { CreateGroupInput, UpdateGroupInput, AlignGroupsToBatchInput, ListGroups
 
 /**
  * Create a new group
+ * All workspace members can create groups
  */
 export const createGroup = async (
   workspaceId: string,
   userId: string,
   data: CreateGroupInput
 ) => {
-  // Verify user is admin
+  // Verify user is a workspace member
   const membership = await prisma.workspaceMember.findFirst({
     where: {
       userId,
@@ -18,8 +19,8 @@ export const createGroup = async (
     },
   });
 
-  if (!membership || membership.role !== 'ADMIN') {
-    throw new AppError(403, 'Only admins can create groups');
+  if (!membership) {
+    throw new AppError(403, 'You must be a workspace member to create groups');
   }
 
   // Check if group name already exists in workspace
@@ -79,20 +80,14 @@ export const createGroup = async (
 
 /**
  * List all groups for a workspace
+ * All workspace members can see all groups
  */
 export const listGroups = async (workspaceId: string, userId: string, options?: ListGroupsInput) => {
-  // Get user's membership and group access
+  // Verify user is a workspace member
   const membership = await prisma.workspaceMember.findFirst({
     where: {
       userId,
       workspaceId,
-    },
-    include: {
-      groupAccess: {
-        include: {
-          group: true,
-        },
-      },
     },
   });
 
@@ -100,15 +95,10 @@ export const listGroups = async (workspaceId: string, userId: string, options?: 
     throw new AppError(403, 'Access denied');
   }
 
-  // Admins see all groups, members only see groups they have access to
+  // All members see all workspace groups
   const where: any = {
     workspaceId,
   };
-
-  if (membership.role !== 'ADMIN') {
-    const accessibleGroupIds = membership.groupAccess.map((access) => access.groupId);
-    where.id = { in: accessibleGroupIds };
-  }
 
   // Filter by batchId if provided
   if (options?.batchId) {
@@ -145,9 +135,22 @@ export const listGroups = async (workspaceId: string, userId: string, options?: 
 
 /**
  * Get group details
+ * All workspace members can access any group in their workspace
  */
 export const getGroup = async (groupId: string, workspaceId: string, userId: string) => {
-  // Verify group exists and user has access
+  // Verify user is a workspace member
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      workspaceId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
+  // Verify group exists in workspace
   const group = await prisma.group.findFirst({
     where: {
       id: groupId,
@@ -173,27 +176,6 @@ export const getGroup = async (groupId: string, workspaceId: string, userId: str
 
   if (!group) {
     throw new AppError(404, 'Group not found');
-  }
-
-  // Verify user has access
-  const membership = await prisma.workspaceMember.findFirst({
-    where: {
-      userId,
-      workspaceId,
-    },
-    include: {
-      groupAccess: {
-        where: { groupId },
-      },
-    },
-  });
-
-  if (!membership) {
-    throw new AppError(403, 'Access denied');
-  }
-
-  if (membership.role !== 'ADMIN' && membership.groupAccess.length === 0) {
-    throw new AppError(403, 'Access denied to this group');
   }
 
   return group;
@@ -527,12 +509,25 @@ export const removeGroupsFromBatch = async (
 
 /**
  * Get all groups for a specific batch
+ * All workspace members can see all groups in a batch
  */
 export const getGroupsByBatch = async (
   batchId: string,
   workspaceId: string,
   userId: string
 ) => {
+  // Verify user is a workspace member
+  const membership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      workspaceId,
+    },
+  });
+
+  if (!membership) {
+    throw new AppError(403, 'Access denied');
+  }
+
   // Verify batch exists
   const batch = await prisma.batch.findFirst({
     where: {
@@ -545,35 +540,12 @@ export const getGroupsByBatch = async (
     throw new AppError(404, 'Batch not found');
   }
 
-  // Verify user has access
-  const membership = await prisma.workspaceMember.findFirst({
-    where: {
-      userId,
-      workspaceId,
-    },
-    include: {
-      groupAccess: true,
-    },
-  });
-
-  if (!membership) {
-    throw new AppError(403, 'Access denied');
-  }
-
-  // Build where clause
-  const where: any = {
-    workspaceId,
-    batchId,
-  };
-
-  // Non-admins only see groups they have access to
-  if (membership.role !== 'ADMIN') {
-    const accessibleGroupIds = membership.groupAccess.map((access) => access.groupId);
-    where.id = { in: accessibleGroupIds };
-  }
-
+  // All members see all groups in the batch
   const groups = await prisma.group.findMany({
-    where,
+    where: {
+      workspaceId,
+      batchId,
+    },
     include: {
       batch: {
         select: {

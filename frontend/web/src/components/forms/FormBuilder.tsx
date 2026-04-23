@@ -77,14 +77,12 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
 
       {/* Main Layout: 3 Panels */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Field Palette */}
-        <div className="w-52 border-r bg-muted p-4 overflow-y-auto" style={{
-          borderColor: `hsl(var(--groups1-border))`
-        }}>
+        {/* Left: Field Palette (hidden on mobile) */}
+        <div className="hidden md:block w-52 border-r bg-[var(--groups1-surface)] p-4 overflow-y-auto border-[var(--groups1-border)]">
           <h3 className="font-semibold mb-4 text-sm" style={{color: `hsl(var(--groups1-text))`}}>Add Fields</h3>
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">BASIC</p>
+              <p className="text-xs font-semibold text-[var(--groups1-text-secondary)] mb-2">BASIC</p>
               <div className="space-y-1">
                 {["short_text", "email", "phone", "number", "long_text"].map((fieldType) => {
                   const typeLabels: Record<string, string> = {
@@ -97,7 +95,7 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
                   return (
                     <button
                       key={fieldType}
-                      className="w-full text-left text-sm p-2 rounded hover:bg-background transition"
+                      className="w-full text-left text-sm p-2 rounded hover:bg-[var(--groups1-secondary)] transition"
                       onClick={() => {
                         // Add new field to form
                         const newField = {
@@ -117,7 +115,7 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">CHOICE</p>
+              <p className="text-xs font-semibold text-[var(--groups1-text-secondary)] mb-2">CHOICE</p>
               <div className="space-y-1">
                 {["dropdown", "radio", "checkbox"].map((fieldType) => {
                   const typeLabels: Record<string, string> = {
@@ -128,7 +126,7 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
                   return (
                     <button
                       key={fieldType}
-                      className="w-full text-left text-sm p-2 rounded hover:bg-background transition"
+                      className="w-full text-left text-sm p-2 rounded hover:bg-[var(--groups1-secondary)] transition"
                       onClick={() => {
                         const newField = {
                           id: `field_${Date.now()}`,
@@ -147,7 +145,7 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">ADVANCED</p>
+              <p className="text-xs font-semibold text-[var(--groups1-text-secondary)] mb-2">ADVANCED</p>
               <div className="space-y-1">
                 {["date", "time", "file_upload", "rating", "signature"].map((fieldType) => {
                   const typeLabels: Record<string, string> = {
@@ -160,7 +158,7 @@ export function FormBuilder({ initial, isSubmitting, onSubmit, onCancel }: Props
                   return (
                     <button
                       key={fieldType}
-                      className="w-full text-left text-sm p-2 rounded hover:bg-background transition"
+                      className="w-full text-left text-sm p-2 rounded hover:bg-[var(--groups1-secondary)] transition"
                       onClick={() => {
                         const newField = {
                           id: `field_${Date.now()}`,

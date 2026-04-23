@@ -42,6 +42,8 @@ The new task email flow should follow the same pattern as follow-up assignment e
 - task creation calls that helper
 - failures are logged and treated as non-fatal
 
+For this feature, delivery should use the existing provider-aware direct email path rather than the queue worker. This avoids the current queue-worker dependency on Resend-specific sending behavior.
+
 ---
 
 ## Requirements
@@ -101,7 +103,7 @@ This change does not include:
 3. `createTask()` also calls a new `sendTaskAssignmentEmail(taskId)` helper.
 4. The helper loads the task with the related assignee, assigner, and task type data.
 5. The helper builds an HTML email from a new task email template.
-6. The helper sends the email through the existing email delivery abstraction so queue behavior remains controlled by current email configuration.
+6. The helper sends the email through the existing provider-aware direct email abstraction.
 7. Any email error is logged and swallowed.
 
 ### Why This Design
@@ -121,7 +123,7 @@ This change does not include:
   Add a task-assignment email template.
 
 - `backend/src/modules/emails/email.service.ts`
-  Add a `sendTaskAssignmentEmail(taskId: string)` helper that loads task data, builds the template, and sends or queues the email using existing email utilities.
+  Add a `sendTaskAssignmentEmail(taskId: string)` helper that loads task data, builds the template, and sends the email using existing email utilities.
 
 - `backend/src/modules/tasks/task.service.ts`
   Call `sendTaskAssignmentEmail(task.id)` after task creation for all tasks, including self-assigned tasks.
@@ -222,7 +224,7 @@ Confirm existing behavior is preserved:
 
 ## Operational Notes
 
-- The email delivery path should continue respecting existing queue configuration.
+- The email delivery path should use the existing direct provider selection in `sendEmail()`.
 - No new environment variables are required.
 - This feature depends on the existing email provider setup being valid.
 
@@ -234,4 +236,3 @@ Confirm existing behavior is preserved:
 - Self-assigned tasks: email still sent
 - Creator copy: not sent
 - Delivery failure: non-fatal
-

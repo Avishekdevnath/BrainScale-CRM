@@ -119,7 +119,7 @@ export function FormBuilderCanvas({
             }}>
             <CardContent variant="groups1" className="pt-6 space-y-3">
               <div className="flex items-start gap-3">
-                <GripVertical className="h-5 w-5 mt-1 cursor-grab text-muted-foreground flex-shrink-0" />
+                <GripVertical className="h-5 w-5 mt-1 cursor-grab text-[var(--groups1-text-secondary)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold truncate" style={{color: `hsl(var(--groups1-text))`}}>
                     {field.label || "Untitled field"}

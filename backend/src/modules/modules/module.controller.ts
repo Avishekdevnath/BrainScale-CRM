@@ -21,6 +21,11 @@ export const listCourseModules = asyncHandler(async (req: AuthRequest, res: Resp
   res.json(modules);
 });
 
+export const listAllModules = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const modules = await moduleService.listAllModules(req.user!.workspaceId!);
+  res.json(modules);
+});
+
 export const getModule = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { moduleId } = req.params;
   const module = await moduleService.getModule(moduleId, req.user!.workspaceId!);

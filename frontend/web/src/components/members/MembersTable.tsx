@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { WorkspaceMember } from "@/types/members.types";
 import { formatMemberName, getRoleLabel, formatDate } from "@/lib/member-utils";
-import { MoreVertical, User, Mail, Calendar, Shield, Users, Send, UserX } from "lucide-react";
+import { MoreVertical, User, Mail, Calendar, Shield, Users, Send, UserX, Pencil } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2 } from "lucide-react";
 
 export interface MembersTableProps {
   members: WorkspaceMember[];
+  onEditDetails: (memberId: string) => void;
   onUpdateRole: (memberId: string) => void;
   onGrantAccess: (memberId: string) => void;
   onRemove: (memberId: string) => void;
@@ -23,6 +24,7 @@ export interface MembersTableProps {
 
 export function MembersTable({
   members,
+  onEditDetails,
   onUpdateRole,
   onGrantAccess,
   onRemove,
@@ -193,7 +195,6 @@ export function MembersTable({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
-                              disabled={isCurrentUser}
                             >
                               <MoreVertical className="w-4 h-4" />
                             </Button>
@@ -203,6 +204,13 @@ export function MembersTable({
                               className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
                               align="end"
                             >
+                              <DropdownMenu.Item
+                                className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                onSelect={() => onEditDetails(member.id)}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit Details
+                              </DropdownMenu.Item>
                               {canReinvite ? (
                                 <DropdownMenu.Item
                                   className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"

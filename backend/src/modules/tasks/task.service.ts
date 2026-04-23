@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { createNotification } from '../notifications/notification.service';
+import { sendTaskAssignmentEmail } from '../emails/email.service';
 import {
   CreateTaskInput,
   UpdateTaskInput,
@@ -89,9 +90,12 @@ export const createTask = async (
   const selfAssigned = isSelfAssigned(data.assignedToId, assignerMember.id);
 
   const referredByMemberId = selfAssigned ? (data.referredByMemberId ?? null) : null;
-  const referredByNameRaw = selfAssigned ? (data.referredByName ?? null) : null;
-  // referredByMemberId takes priority
-  const referredByName = referredByMemberId && referredByNameRaw ? null : referredByNameRaw;
+  // If referredByMemberId is set it takes priority; referredByName is only used when no member ID given
+  const referredByName = selfAssigned
+    ? referredByMemberId
+      ? null
+      : (data.referredByName ?? null)
+    : null;
 
   const initialStatus = selfAssigned ? TaskStatus.IN_PROGRESS : TaskStatus.AWAITING_ACCEPTANCE;
 
@@ -107,9 +111,21 @@ export const createTask = async (
       dueDate: new Date(data.dueDate),
       priority: data.priority,
       status: initialStatus,
+      taskTypeId: data.taskTypeId ?? null,
       linkedEntityType: data.linkedEntityType ?? null,
       linkedEntityId: data.linkedEntityId ?? null,
     },
+  });
+
+  void sendTaskAssignmentEmail(task.id).catch((error) => {
+    logger.error(
+      {
+        error,
+        taskId: task.id,
+        assignedToId: task.assignedToId,
+      },
+      'Task assignment email failed (non-fatal)'
+    );
   });
 
   if (!selfAssigned) {
@@ -144,11 +160,28 @@ export const listTasks = async (
   if (options.priority) where.priority = options.priority;
   if (options.assignedToId) where.assignedToId = options.assignedToId;
   if (options.assignedById) where.assignedById = options.assignedById;
+  if (options.taskTypeId) where.taskTypeId = options.taskTypeId;
+  if (options.search) where.title = { contains: options.search, mode: 'insensitive' };
+  if (options.dueDateFrom || options.dueDateTo) {
+    where.dueDate = {};
+    if (options.dueDateFrom) where.dueDate.gte = new Date(options.dueDateFrom);
+    if (options.dueDateTo) where.dueDate.lte = new Date(options.dueDateTo);
+  }
 
   const skip = (options.page - 1) * options.size;
 
   const [tasks, total] = await Promise.all([
-    prisma.task.findMany({ where, orderBy: { dueDate: 'asc' }, skip, take: options.size }),
+    prisma.task.findMany({
+      where,
+      orderBy: { [options.sortBy]: options.sortOrder },
+      skip,
+      take: options.size,
+      include: {
+        assignedTo: { include: { user: { select: { name: true } } } },
+        assignedBy: { include: { user: { select: { name: true } } } },
+        taskType: { select: { id: true, name: true, color: true } },
+      },
+    }),
     prisma.task.count({ where }),
   ]);
 
@@ -168,7 +201,17 @@ export const getTask = async (
   role: string
 ) => {
   const member = await requireMember(userId, workspaceId);
-  const task = await getTaskInWorkspace(taskId, workspaceId);
+
+  const task = await prisma.task.findFirst({
+    where: { id: taskId, workspaceId },
+    include: {
+      assignedTo: { include: { user: { select: { name: true } } } },
+      assignedBy: { include: { user: { select: { name: true } } } },
+      taskType: { select: { id: true, name: true, color: true } },
+    },
+  });
+  if (!task) throw new AppError(404, 'Task not found');
+
   checkVisibility(task, member.id, role);
 
   let linkedEntityDeleted = false;
@@ -273,6 +316,15 @@ export const startTask = async (
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: { status: TaskStatus.IN_PROGRESS },
+  });
+
+  void notify({
+    workspaceId,
+    memberId: task.assignedById,
+    type: 'TASK_STARTED',
+    title: 'Task started',
+    body: `Task "${task.title}" has been started`,
+    metadata: { taskId },
   });
 
   return enrichWithIsOverdue(updated);

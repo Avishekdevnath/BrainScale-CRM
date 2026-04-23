@@ -20,6 +20,8 @@ export const UpdateWorkspaceSchema = z.object({
   // AI features
   aiFeaturesEnabled: z.boolean().optional(),
   aiFeatures: z.array(z.string()).optional(), // Array of enabled AI features: ["summary", "sentiment", "chat"]
+  // Schedule task sync
+  scheduleTaskSyncEnabled: z.boolean().optional(),
 });
 
 export const InviteMemberSchema = z.object({
@@ -72,10 +74,19 @@ export const CreateMemberWithAccountSchema = z
     }
   );
 
+export const UpdateMemberUserSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100).optional(),
+  email: z.string().email('Invalid email address').optional(),
+}).refine(
+  (data) => data.name !== undefined || data.email !== undefined,
+  { message: 'At least one of name or email must be provided' }
+);
+
 export type CreateWorkspaceInput = z.infer<typeof CreateWorkspaceSchema>;
 export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
 export type InviteMemberInput = z.infer<typeof InviteMemberSchema>;
 export type UpdateMemberInput = z.infer<typeof UpdateMemberSchema>;
+export type UpdateMemberUserInput = z.infer<typeof UpdateMemberUserSchema>;
 export type GrantGroupAccessInput = z.infer<typeof GrantGroupAccessSchema>;
 export type CreateMemberWithAccountInput = z.infer<typeof CreateMemberWithAccountSchema>;
 

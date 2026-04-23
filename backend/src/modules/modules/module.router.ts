@@ -38,6 +38,14 @@ const router = Router();
  *       201:
  *         description: Module created
  */
+router.get(
+  '/',
+  authGuard,
+  tenantGuard,
+  requirePermission('modules', 'read'),
+  moduleController.listAllModules
+);
+
 router.post(
   '/',
   authGuard,

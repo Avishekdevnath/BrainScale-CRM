@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth-guard';
 import { asyncHandler } from '../../middleware/error-handler';
 import * as emailService from './email.service';
-import { processScheduledDigests } from './cron.service';
+import { processScheduledDigests, processTaskDueSoonNotifications } from './cron.service';
 
 /**
  * Send daily digest (can be called by cron job or manually)
@@ -69,6 +69,14 @@ export const processScheduledDigestsEndpoint = asyncHandler(async (req: any, res
     message: 'Scheduled digests processing completed',
     ...result,
   });
+});
+
+/**
+ * Process task due-soon notifications (cron endpoint)
+ */
+export const processTaskDueSoonEndpoint = asyncHandler(async (_req: any, res: Response) => {
+  const result = await processTaskDueSoonNotifications();
+  res.json({ message: 'Task due-soon notifications processed', ...result });
 });
 
 /**

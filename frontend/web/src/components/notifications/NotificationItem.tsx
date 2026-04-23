@@ -1,36 +1,11 @@
 "use client";
 
-import { Bell, Clock, AlertTriangle, Phone, Trash2, Check } from "lucide-react";
+import { Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
-import type { Notification, NotificationType } from "@/types/notifications.types";
-
-const typeConfig: Record<
-  NotificationType,
-  { icon: React.ElementType; color: string; bg: string }
-> = {
-  FOLLOWUP_ASSIGNED: {
-    icon: Bell,
-    color: "text-[var(--groups1-primary)]",
-    bg: "bg-[var(--groups1-primary)]/10",
-  },
-  FOLLOWUP_DUE_SOON: {
-    icon: Clock,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-  },
-  FOLLOWUP_OVERDUE: {
-    icon: AlertTriangle,
-    color: "text-[var(--groups1-error)]",
-    bg: "bg-[var(--groups1-error)]/10",
-  },
-  CALL_LOG_COMPLETED: {
-    icon: Phone,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-  },
-};
+import { getNotificationDisplay } from "@/lib/notification-registry";
+import type { Notification } from "@/types/notifications.types";
 
 interface NotificationItemProps {
   notification: Notification;
@@ -45,7 +20,7 @@ export function NotificationItem({
   onDelete,
   compact = false,
 }: NotificationItemProps) {
-  const config = typeConfig[notification.type] ?? typeConfig.FOLLOWUP_ASSIGNED;
+  const config = getNotificationDisplay(notification.type);
   const Icon = config.icon;
 
   return (

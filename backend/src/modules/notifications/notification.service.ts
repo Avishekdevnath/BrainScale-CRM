@@ -3,24 +3,24 @@ import type { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error-handler';
 import { logger } from '../../config/logger';
 import type { ListNotificationsInput, UpdatePreferencesInput } from './notification.schemas';
+import { REGISTRY_BY_TYPE } from './notification-registry';
 
 // ─── Internal helpers ───────────────────────────────────────────────────────
 
 /** Returns true if the user's preferences allow this notification type. */
 async function shouldNotify(workspaceId: string, userId: string, type: string): Promise<boolean> {
+  const entry = REGISTRY_BY_TYPE.get(type);
+  if (!entry || entry.prefKey === null) return true; // Unknown or non-configurable type
+
   const prefs = await prisma.notificationPreference.findUnique({
     where: { workspaceId_userId: { workspaceId, userId } },
   });
 
-  if (!prefs) return true; // Default: all enabled
+  if (!prefs) return entry.defaultEnabled;
 
-  switch (type) {
-    case 'FOLLOWUP_ASSIGNED':  return prefs.followupAssigned;
-    case 'FOLLOWUP_DUE_SOON':  return prefs.followupDueSoon;
-    case 'FOLLOWUP_OVERDUE':   return prefs.followupOverdue;
-    case 'CALL_LOG_COMPLETED': return prefs.callLogCompleted;
-    default:                   return true;
-  }
+  // Access the preference field by its key name
+  const prefValue = (prefs as Record<string, unknown>)[entry.prefKey];
+  return typeof prefValue === 'boolean' ? prefValue : entry.defaultEnabled;
 }
 
 /** Convert unknown metadata into a Prisma-compatible JSON value. */
@@ -165,21 +165,25 @@ export async function updatePreferences(
   userId: string,
   input: UpdatePreferencesInput
 ) {
+  const defaults = {
+    followupAssigned:     true,
+    followupDueSoon:      true,
+    followupOverdue:      true,
+    callLogCompleted:     false,
+    taskAssigned:         true,
+    taskDueSoon:          true,
+    taskUpdated:          true,
+    formResponseReceived: true,
+  };
+
+  // Build update payload from only the keys the caller provided
+  const patch = Object.fromEntries(
+    Object.entries(input).filter(([, v]) => v !== undefined)
+  );
+
   return prisma.notificationPreference.upsert({
     where: { workspaceId_userId: { workspaceId, userId } },
-    create: {
-      workspaceId,
-      userId,
-      followupAssigned: input.followupAssigned ?? true,
-      followupDueSoon: input.followupDueSoon ?? true,
-      followupOverdue: input.followupOverdue ?? true,
-      callLogCompleted: input.callLogCompleted ?? false,
-    },
-    update: {
-      ...(input.followupAssigned !== undefined && { followupAssigned: input.followupAssigned }),
-      ...(input.followupDueSoon !== undefined && { followupDueSoon: input.followupDueSoon }),
-      ...(input.followupOverdue !== undefined && { followupOverdue: input.followupOverdue }),
-      ...(input.callLogCompleted !== undefined && { callLogCompleted: input.callLogCompleted }),
-    },
+    create: { workspaceId, userId, ...defaults, ...patch },
+    update: patch,
   });
 }

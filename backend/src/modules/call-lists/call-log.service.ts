@@ -10,6 +10,7 @@ import * as followupService from '../followups/followup.service';
 import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import * as aiService from '../ai/ai.service';
+import { createNotification } from '../notifications/notification.service';
 
 /**
  * Create a call log
@@ -176,6 +177,35 @@ export const createCallLog = async (
       state: 'DONE',
       callLogId: callLog.id, // Always update to latest call log
     },
+  });
+
+  // Notify workspace admins that a call was logged
+  setImmediate(async () => {
+    try {
+      const admins = await prisma.workspaceMember.findMany({
+        where: { workspaceId, role: 'ADMIN', userId: { not: userId } },
+        select: { userId: true },
+      });
+      const studentName = callListItem.student?.name ?? 'a student';
+      const callerMember = await prisma.workspaceMember.findUnique({
+        where: { id: member.id },
+        select: { user: { select: { name: true } } },
+      });
+      const callerName = callerMember?.user?.name ?? 'A member';
+      const listName = callListItem.callList?.name ?? 'a call list';
+      for (const admin of admins) {
+        void createNotification({
+          workspaceId,
+          userId: admin.userId,
+          type: 'CALL_LOG_COMPLETED',
+          title: 'Call logged',
+          body: `${callerName} logged a call for ${studentName} in "${listName}"`,
+          meta: { callLogId: callLog.id, callListId: callListItem.callListId, studentName },
+        });
+      }
+    } catch (notifyErr) {
+      logger.warn({ notifyErr }, 'CALL_LOG_COMPLETED notification failed (non-fatal)');
+    }
   });
 
   // If follow-up required, create Followup record

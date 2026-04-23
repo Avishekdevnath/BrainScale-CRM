@@ -57,7 +57,7 @@ export function CallDensityHeatmap({ callLogs, isLoading, error, onRetry }: Call
   }, [heatmapData]);
 
   const getColor = (value: number) => {
-    if (value === 0) return "bg-white";
+    if (value === 0) return "bg-[var(--groups1-surface)]";
     const intensity = value / maxCalls;
     if (intensity > 0.75) return "bg-green-700";
     if (intensity > 0.5) return "bg-green-500";

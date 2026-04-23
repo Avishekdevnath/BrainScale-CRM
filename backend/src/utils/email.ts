@@ -410,21 +410,13 @@ export const sendVerificationEmail = async (
     userName
   );
 
-  await queueOrSendTransactionalEmail(
-    {
-      to: email,
-      subject: withBrand('Verify your email address'),
-      html,
-    },
-    {
-      metadata: {
-        type: 'EMAIL_VERIFICATION',
-        userName,
-        isResend: Boolean(options.isResend),
-      },
-    },
-    withBrand('Verify your email address')
-  );
+  // Auth OTP emails are latency-critical: send synchronously so failures surface
+  // to the caller instead of sitting in the queue.
+  await sendEmail({
+    to: email,
+    subject: withBrand('Verify your email address'),
+    html,
+  });
 };
 
 export const sendResendVerificationEmail = async (
@@ -505,20 +497,11 @@ export const sendPasswordChangeOtpEmail = async (
 ): Promise<void> => {
   const html = passwordChangeOtpTemplate(otpCode, otpExpiresAt, userName);
 
-  await queueOrSendTransactionalEmail(
-    {
-      to: email,
-      subject: withBrand('Password change code'),
-      html,
-    },
-    {
-      metadata: {
-        type: 'PASSWORD_CHANGE_OTP',
-        userName,
-      },
-    },
-    withBrand('Password change code')
-  );
+  await sendEmail({
+    to: email,
+    subject: withBrand('Password change code'),
+    html,
+  });
 };
 
 export const sendResetPasswordOtpEmail = async (
@@ -529,20 +512,11 @@ export const sendResetPasswordOtpEmail = async (
 ): Promise<void> => {
   const html = resetPasswordOtpTemplate(otpCode, otpExpiresAt, userName);
 
-  await queueOrSendTransactionalEmail(
-    {
-      to: email,
-      subject: withBrand('Password reset code'),
-      html,
-    },
-    {
-      metadata: {
-        type: 'PASSWORD_RESET_OTP',
-        userName,
-      },
-    },
-    withBrand('Password reset code')
-  );
+  await sendEmail({
+    to: email,
+    subject: withBrand('Password reset code'),
+    html,
+  });
 };
 
 export const sendTeamChatMentionEmail = async (

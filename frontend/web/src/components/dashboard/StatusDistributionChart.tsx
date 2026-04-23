@@ -37,7 +37,7 @@ export function StatusDistributionChart({ data, isLoading, error, onRetry }: Sta
             <CartesianGrid strokeDasharray="3 3" stroke="var(--groups1-border)" />
             <XAxis type="number" stroke="var(--groups1-text-secondary)" style={{ fontSize: "12px" }} />
             <YAxis dataKey="status" type="category" stroke="var(--groups1-text-secondary)" style={{ fontSize: "12px" }} />
-            <Tooltip contentStyle={{ backgroundColor: "var(--groups1-surface)", border: "1px solid var(--groups1-border)", color: "var(--groups1-text)" }} formatter={(value: number) => `${value} calls`} />
+            <Tooltip contentStyle={{ backgroundColor: "var(--groups1-surface)", border: "1px solid var(--groups1-border)", color: "var(--groups1-text)" }} formatter={(value) => `${value} calls`} />
             <Bar dataKey="count" fill="var(--groups1-primary)" radius={[0, 8, 8, 0]}>
               {(Array.isArray(data) ? data : []).map((entry) => (
                 <Cell key={`cell-${entry.status}`} fill={statusColors[entry.status] || "#gray"} />

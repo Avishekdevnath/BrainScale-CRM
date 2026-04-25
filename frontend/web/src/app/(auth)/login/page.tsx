@@ -61,13 +61,44 @@ export default function LoginPage() {
       }
       setTokens({ accessToken: res.accessToken, user });
 
+      // Trust login response: backend already tells us if user has a workspace.
+      // Fall back to /workspaces only if the field is missing.
+      const workspaceStore = useWorkspaceStore.getState();
+
+      if (res.workspace && res.workspace.id) {
+        workspaceStore.setCurrentFromApi({
+          id: res.workspace.id,
+          name: res.workspace.name,
+        });
+        toast.success("Welcome back!");
+        router.push("/app");
+
+        // Hydrate richer fields (plan/logo/timezone) in background; non-blocking.
+        apiClient
+          .getWorkspaces()
+          .then((workspaces) => {
+            const match = workspaces?.find((w) => w.id === res.workspace.id);
+            if (match) {
+              workspaceStore.setCurrentFromApi({
+                id: match.id,
+                name: match.name,
+                plan: match.plan,
+                logo: match.logo,
+                timezone: match.timezone,
+              });
+            }
+          })
+          .catch((err) => console.error("Workspace hydrate failed:", err));
+        return;
+      }
+
+      // No workspace in login response — confirm with /workspaces before redirect.
       try {
         const workspaces = await apiClient.getWorkspaces();
         if (!workspaces || workspaces.length === 0) {
           toast.info("Let's set up your workspace");
           router.push("/create-workspace");
         } else {
-          const workspaceStore = useWorkspaceStore.getState();
           workspaceStore.setCurrentFromApi({
             id: workspaces[0].id,
             name: workspaces[0].name,
@@ -80,7 +111,7 @@ export default function LoginPage() {
         }
       } catch (workspaceError) {
         console.error("Workspace check failed:", workspaceError);
-        router.push("/create-workspace");
+        toast.error("Couldn't load your workspace. Please try again.");
       }
     } catch (e: any) {
       if (e?.status === 401) {

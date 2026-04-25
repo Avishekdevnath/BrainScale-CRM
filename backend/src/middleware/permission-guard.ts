@@ -45,6 +45,17 @@ export const requirePermission = (resource: string, action: string) => {
       return next();
     }
 
+    // Product rule: team chat needs the workspace member directory available
+    // to every workspace member (channel/DM recipient lookup, mentions, presence).
+    // Allow MEMBER read-only access to the members list.
+    if (
+      req.user.role?.toUpperCase() === 'MEMBER' &&
+      resource === 'members' &&
+      action === 'read'
+    ) {
+      return next();
+    }
+
     // Get user permissions (loaded by tenantGuard)
     const permissions = req.user.permissions || [];
 

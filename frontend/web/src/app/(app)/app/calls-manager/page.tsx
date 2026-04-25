@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useMyCalls, useMyCallsStats } from "@/hooks/useMyCalls";
 import { useGroups } from "@/hooks/useGroups";
 import { useBatches } from "@/hooks/useBatches";
 import { useCallLists } from "@/hooks/useCallLists";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useWorkspaceStore } from "@/store/workspace";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,76 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
 
+// --- Draft persistence (localStorage) ---
+const DRAFT_PREFIX = "calls-manager:drafts:";
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+type DraftFollowUp = {
+  followUpRequired: boolean;
+  followUpDate?: string;
+  followUpNote?: string;
+};
+
+type DraftEntry = {
+  status?: CallLogStatus;
+  answers?: Record<string, any>;
+  followUp?: DraftFollowUp;
+  updatedAt: number;
+};
+
+type DraftMap = Record<string, DraftEntry>;
+
+const draftKey = (workspaceId: string) => `${DRAFT_PREFIX}${workspaceId}`;
+
+function loadDrafts(workspaceId: string): DraftMap {
+  try {
+    const raw = localStorage.getItem(draftKey(workspaceId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as DraftMap;
+    const now = Date.now();
+    const fresh: DraftMap = {};
+    for (const [id, entry] of Object.entries(parsed || {})) {
+      if (entry?.updatedAt && now - entry.updatedAt < DRAFT_TTL_MS) {
+        fresh[id] = entry;
+      }
+    }
+    return fresh;
+  } catch {
+    return {};
+  }
+}
+
+function persistDrafts(workspaceId: string, drafts: DraftMap) {
+  try {
+    if (!Object.keys(drafts).length) {
+      localStorage.removeItem(draftKey(workspaceId));
+      return;
+    }
+    localStorage.setItem(draftKey(workspaceId), JSON.stringify(drafts));
+  } catch {
+    // quota / serialization — ignore
+  }
+}
+
+function dropDraftIds(workspaceId: string, ids: string[]) {
+  if (!ids.length) return;
+  try {
+    const raw = localStorage.getItem(draftKey(workspaceId));
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as DraftMap;
+    let mutated = false;
+    for (const id of ids) {
+      if (parsed[id]) {
+        delete parsed[id];
+        mutated = true;
+      }
+    }
+    if (mutated) persistDrafts(workspaceId, parsed);
+  } catch {
+    // ignore
+  }
+}
+
 export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
 
@@ -33,6 +104,13 @@ export default function CallsManagerPage() {
     const saved = localStorage.getItem("calls-manager:pageSize");
     if (saved) setPageSize(Number(saved));
   }, []);
+
+  const workspaceId = useWorkspaceStore((s) => s.current?.id);
+  const [draftsHydrated, setDraftsHydrated] = useState(false);
+  // Tracks ids that have ever been hydrated/edited, so we know which ones to
+  // remove from storage when their state empties out (rather than blindly
+  // overwriting the entire blob).
+  const knownDraftIdsRef = useRef<Set<string>>(new Set());
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -191,6 +269,109 @@ export default function CallsManagerPage() {
     setSelectedItemIds(new Set());
   }, [page, state, showFollowUps, debouncedSearchQuery, groupId, batchId, callListId]);
 
+  // Hydrate drafts from localStorage when workspace becomes available
+  useEffect(() => {
+    if (!workspaceId) return;
+    setDraftsHydrated(false);
+    const drafts = loadDrafts(workspaceId);
+
+    const answers: Record<string, Record<string, any>> = {};
+    const statuses: Record<string, CallLogStatus> = {};
+    const followUps: Record<string, DraftFollowUp> = {};
+
+    for (const [itemId, entry] of Object.entries(drafts)) {
+      knownDraftIdsRef.current.add(itemId);
+      if (entry.answers && Object.keys(entry.answers).length > 0) {
+        answers[itemId] = entry.answers;
+      }
+      if (entry.status !== undefined) {
+        statuses[itemId] = entry.status;
+      }
+      if (entry.followUp) {
+        followUps[itemId] = entry.followUp;
+      }
+    }
+
+    setItemAnswers(answers);
+    setCallStatuses(statuses);
+    setFollowUpData(followUps);
+    persistDrafts(workspaceId, drafts); // re-write with stale entries pruned
+    setDraftsHydrated(true);
+  }, [workspaceId]);
+
+  // Persist drafts whenever any tracked state changes (debounced)
+  useEffect(() => {
+    if (!workspaceId || !draftsHydrated) return;
+    const handle = setTimeout(() => {
+      const ids = new Set<string>([
+        ...Object.keys(itemAnswers),
+        ...Object.keys(callStatuses),
+        ...Object.keys(followUpData),
+        ...knownDraftIdsRef.current,
+      ]);
+      const next: DraftMap = {};
+      const now = Date.now();
+      for (const id of ids) {
+        const ans = itemAnswers[id];
+        const st = callStatuses[id];
+        const fu = followUpData[id];
+        const hasAnswers = ans && Object.keys(ans).length > 0;
+        const hasStatus = st !== undefined;
+        const hasFollowUp = fu !== undefined;
+        if (!hasAnswers && !hasStatus && !hasFollowUp) {
+          knownDraftIdsRef.current.delete(id);
+          continue;
+        }
+        knownDraftIdsRef.current.add(id);
+        next[id] = {
+          ...(hasAnswers ? { answers: ans } : {}),
+          ...(hasStatus ? { status: st } : {}),
+          ...(hasFollowUp ? { followUp: fu } : {}),
+          updatedAt: now,
+        };
+      }
+      persistDrafts(workspaceId, next);
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [workspaceId, draftsHydrated, itemAnswers, callStatuses, followUpData]);
+
+  // Warn before leaving the page if drafts exist
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      const hasDraft =
+        Object.keys(itemAnswers).length > 0 ||
+        Object.keys(callStatuses).length > 0 ||
+        Object.keys(followUpData).length > 0;
+      if (hasDraft) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [itemAnswers, callStatuses, followUpData]);
+
+  const clearDraftForItems = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) return;
+      ids.forEach((id) => knownDraftIdsRef.current.delete(id));
+      if (workspaceId) dropDraftIds(workspaceId, ids);
+    },
+    [workspaceId]
+  );
+
+  const itemHasDraft = useCallback(
+    (id: string) => {
+      const ans = itemAnswers[id];
+      return (
+        (ans && Object.keys(ans).length > 0) ||
+        callStatuses[id] !== undefined ||
+        followUpData[id] !== undefined
+      );
+    },
+    [itemAnswers, callStatuses, followUpData]
+  );
+
   const isAllSelectedOnPage = useMemo(() => {
     if (pageItemIds.length === 0) return false;
     return pageItemIds.every((id) => selectedItemIds.has(id));
@@ -264,7 +445,7 @@ export default function CallsManagerPage() {
 
       await apiClient.createCallLog(payload);
       toast.success("Call completed successfully");
-      
+
       // Clear local state for this item
       setCallStatuses((prev) => {
         const next = { ...prev };
@@ -281,6 +462,7 @@ export default function CallsManagerPage() {
         delete next[item.id];
         return next;
       });
+      clearDraftForItems([item.id]);
 
       // Refresh data - force refresh to update follow-ups list
       await mutateCalls();
@@ -470,6 +652,23 @@ export default function CallsManagerPage() {
       const totalUnassigned = results.reduce((sum, r) => sum + (r.unassignedCount ?? 0), 0);
       toast.success(`Unassigned ${totalUnassigned} call(s)`);
 
+      // Drop drafts for the unassigned items (they leave this user's queue).
+      const unassignedIds = Object.values(itemsByList).flat();
+      if (unassignedIds.length > 0) {
+        const removeSet = new Set(unassignedIds);
+        const stripById = <T,>(obj: Record<string, T>) => {
+          const next: Record<string, T> = {};
+          for (const [id, val] of Object.entries(obj)) {
+            if (!removeSet.has(id)) next[id] = val;
+          }
+          return next;
+        };
+        setItemAnswers((prev) => stripById(prev));
+        setCallStatuses((prev) => stripById(prev));
+        setFollowUpData((prev) => stripById(prev));
+        clearDraftForItems(unassignedIds);
+      }
+
       setSelectedItemIds(new Set());
       await mutateCalls();
       await mutate("my-calls-stats");
@@ -494,6 +693,7 @@ export default function CallsManagerPage() {
       let failed = 0;
       const errorMessages: string[] = [];
       const selectedItemsCopy = [...selectedItems];
+      const completedIds: string[] = [];
 
       const worker = async () => {
         while (selectedItemsCopy.length > 0) {
@@ -527,6 +727,7 @@ export default function CallsManagerPage() {
 
           await apiClient.createCallLog(payload);
           completed += 1;
+          completedIds.push(item.id);
         }
       };
 
@@ -537,6 +738,23 @@ export default function CallsManagerPage() {
         if (errorMessages.length > 0) {
           console.error("Bulk done skipped due to validation:", errorMessages);
         }
+      }
+
+      // Clear local + persisted drafts only for items that actually succeeded.
+      // Keep drafts for failures so the user doesn't lose their work on retry.
+      if (completedIds.length > 0) {
+        const completedSet = new Set(completedIds);
+        const stripById = <T,>(obj: Record<string, T>) => {
+          const next: Record<string, T> = {};
+          for (const [id, val] of Object.entries(obj)) {
+            if (!completedSet.has(id)) next[id] = val;
+          }
+          return next;
+        };
+        setItemAnswers((prev) => stripById(prev));
+        setCallStatuses((prev) => stripById(prev));
+        setFollowUpData((prev) => stripById(prev));
+        clearDraftForItems(completedIds);
       }
 
       setSelectedItemIds(new Set());
@@ -867,15 +1085,25 @@ export default function CallsManagerPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <Link
-                                  href={student?.id ? `/app/students/${student.id}` : "#"}
-                                  className={cn(
-                                    "block text-base font-semibold text-[var(--groups1-text)] truncate",
-                                    student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
-                                  )}
-                                >
-                                  {student?.name || "Unknown"}
-                                </Link>
+                                <div className="flex items-center gap-2">
+                                  <Link
+                                    href={student?.id ? `/app/students/${student.id}` : "#"}
+                                    className={cn(
+                                      "block text-base font-semibold text-[var(--groups1-text)] truncate",
+                                      student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
+                                    )}
+                                  >
+                                    {student?.name || "Unknown"}
+                                  </Link>
+                                  {!item.callLog && itemHasDraft(item.id) ? (
+                                    <span
+                                      title="Unsaved draft — saved locally"
+                                      className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                    >
+                                      Draft
+                                    </span>
+                                  ) : null}
+                                </div>
                                 <div className="mt-0.5 text-xs text-[var(--groups1-text-secondary)] truncate">
                                   {callListName ? callListName : "Call list"}
                                   {groupName ? ` • ${groupName}` : ""}
@@ -1070,15 +1298,25 @@ export default function CallsManagerPage() {
                               <User className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
                             </div>
                             <div className="min-w-0">
-                              <Link
-                                href={student?.id ? `/app/students/${student.id}` : "#"}
-                                className={cn(
-                                  "block text-sm font-semibold text-[var(--groups1-text)] truncate",
-                                  student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
-                                )}
-                              >
-                                {student?.name || "Unknown"}
-                              </Link>
+                              <div className="flex items-center gap-2">
+                                <Link
+                                  href={student?.id ? `/app/students/${student.id}` : "#"}
+                                  className={cn(
+                                    "block text-sm font-semibold text-[var(--groups1-text)] truncate",
+                                    student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
+                                  )}
+                                >
+                                  {student?.name || "Unknown"}
+                                </Link>
+                                {!item.callLog && itemHasDraft(item.id) ? (
+                                  <span
+                                    title="Unsaved draft — saved locally"
+                                    className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                                  >
+                                    Draft
+                                  </span>
+                                ) : null}
+                              </div>
                               <div className="mt-0.5 text-xs text-[var(--groups1-text-secondary)] truncate">
                                 {callListName ? callListName : "Call list"}
                                 {groupName ? ` • ${groupName}` : ""}

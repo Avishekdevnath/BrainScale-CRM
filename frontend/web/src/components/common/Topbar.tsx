@@ -86,7 +86,13 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
   };
 
   // Determine active state for workspace, groups, and chat buttons
-  const isWorkspaceRoute = pathname === "/app" || pathname === "/app/" || (pathname?.startsWith("/app/") && !pathname?.startsWith("/app/groups") && !pathname?.startsWith("/app/ai-chat"));
+  const isWorkspaceRoute =
+    pathname === "/app" ||
+    pathname === "/app/" ||
+    (pathname?.startsWith("/app/") &&
+      !pathname?.startsWith("/app/groups") &&
+      !pathname?.startsWith("/app/ai-chat") &&
+      !pathname?.startsWith("/app/team-chat"));
   
   // Get the groups link - use current group if available, otherwise use first group or group-management
   const preferredGroupId =

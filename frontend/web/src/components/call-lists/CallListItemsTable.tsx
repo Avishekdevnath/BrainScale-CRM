@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
-import { CallExecutionModal } from "./CallExecutionModal";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
+
+const CallExecutionModal = dynamic(() => import("./CallExecutionModal").then(mod => ({ default: mod.CallExecutionModal })), { ssr: false });
 import { CallListFilters } from "./CallListFilters";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
@@ -69,6 +71,10 @@ export function CallListItemsTable({
   const [hoveredRowId, setHoveredRowId] = React.useState<string | null>(null);
   const [isExportingExcel, setIsExportingExcel] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [hideDone, setHideDone] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("call-list-items:hideDone") === "1";
+  });
   // Get current user's member ID to check if they're assigned
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember } = useCurrentMember(workspaceId);
@@ -118,6 +124,17 @@ export function CallListItemsTable({
     setSelectedItemIds(new Set());
   }, [clearSelectionKey]);
 
+  // Refresh data when tab becomes visible (mobile optimization)
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        mutate();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [mutate]);
+
   // Remove assigned items from selection when data changes
   React.useEffect(() => {
     if (!data?.items) return;
@@ -151,19 +168,25 @@ export function CallListItemsTable({
   const paginatedItems = React.useMemo(() => data?.items ?? [], [data?.items]);
   const serverTotalItems = data?.pagination?.total ?? 0;
 
-  // Filter items by search query
+  // Filter items by search query and "Hide done" toggle.
+  // Hide done is applied client-side so DONE rows can stay in position when the
+  // toggle is OFF — this prevents the serial-number shift the user sees on Mark Done.
   const filteredItems = React.useMemo(() => {
-    if (!searchQuery.trim()) return paginatedItems;
+    let items = paginatedItems;
+    if (hideDone) {
+      items = items.filter((item) => item.state !== "DONE");
+    }
+    if (!searchQuery.trim()) return items;
     const q = searchQuery.toLowerCase();
-    return paginatedItems.filter(item => {
+    return items.filter(item => {
       const studentName = item.student?.name?.toLowerCase().includes(q);
       const studentPhone = item.student?.phones?.some(p => p.phone?.includes(q));
       return studentName || studentPhone;
     });
-  }, [paginatedItems, searchQuery]);
+  }, [paginatedItems, searchQuery, hideDone]);
 
-  // When search is active, show filtered count; otherwise use server total
-  const totalItems = searchQuery.trim() ? filteredItems.length : serverTotalItems;
+  // When search or hideDone is active, count rendered rows; otherwise use server total
+  const totalItems = searchQuery.trim() || hideDone ? filteredItems.length : serverTotalItems;
   const totalPages = Math.ceil(totalItems / pageSize);
 
   const questions = React.useMemo(() => {
@@ -299,6 +322,35 @@ export function CallListItemsTable({
       }
     },
     [listId, mutate, onItemsUpdated]
+  );
+
+  const handleMarkAllPendingDone = React.useCallback(
+    async () => {
+      const pendingItems = paginatedItems.filter((item) => item.state !== "DONE");
+      if (pendingItems.length === 0) {
+        toast.info("No pending items to mark done");
+        return;
+      }
+
+      const confirmed = confirm(`Mark ${pendingItems.length} pending item(s) as done?`);
+      if (!confirmed) return;
+
+      try {
+        await Promise.all(
+          pendingItems.map((item) =>
+            apiClient.updateCallListItem(item.id, { state: "DONE" })
+          )
+        );
+        toast.success(`Marked ${pendingItems.length} item(s) as done`);
+        await mutate();
+        onItemsUpdated?.();
+      } catch (error: any) {
+        console.error("Failed to mark items done:", error);
+        toast.error(error?.message || "Failed to mark items as done");
+        await mutate();
+      }
+    },
+    [paginatedItems, mutate, onItemsUpdated]
   );
 
   const handleAssignToMe = React.useCallback(async () => {
@@ -642,16 +694,52 @@ export function CallListItemsTable({
             />
           </CollapsibleFilters>
 
-          {/* Quick Search */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
-            <input
-              type="search"
-              placeholder="Search students..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-            />
+          {/* Quick Search + Hide Done toggle */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
+              <input
+                type="search"
+                placeholder="Search students..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setHideDone((v) => {
+                  const next = !v;
+                  if (typeof window !== "undefined") {
+                    localStorage.setItem("call-list-items:hideDone", next ? "1" : "0");
+                  }
+                  return next;
+                });
+              }}
+              aria-pressed={hideDone}
+              title="Hide rows already marked as Done. When off, Done rows stay in place so serial numbers don't shift."
+              className={cn(
+                "h-9 px-3 text-xs whitespace-nowrap",
+                hideDone
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-[var(--groups1-primary)]"
+                  : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              )}
+            >
+              {hideDone ? "Showing: Pending" : "Hide Done"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleMarkAllPendingDone}
+              title="Mark all pending (non-Done) items as Done"
+              className="h-9 px-3 text-xs whitespace-nowrap bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            >
+              Mark All Pending Done
+            </Button>
           </div>
 
           {isLoading ? (

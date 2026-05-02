@@ -182,6 +182,15 @@ export const listGroupCalls = async (
     }
   }
 
+  if (options.search) {
+    const q = options.search.toLowerCase();
+    where.OR = [
+      { student: { name: { contains: q, mode: 'insensitive' } } },
+      { student: { email: { contains: q, mode: 'insensitive' } } },
+      { student: { phones: { some: { phone: { contains: q } } } } },
+    ];
+  }
+
   // Calculate pagination
   const page = options.page || 1;
   const size = Math.min(options.size || 20, 100); // Max 100 per page
@@ -197,6 +206,12 @@ export const listGroupCalls = async (
             id: true,
             name: true,
             email: true,
+            phones: {
+              select: {
+                phone: true,
+                isPrimary: true,
+              },
+            },
           },
         },
         creator: {

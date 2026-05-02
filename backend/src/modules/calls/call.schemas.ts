@@ -19,6 +19,7 @@ export const ListCallsSchema = z.object({
   size: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 20)),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  search: z.string().optional(),
 });
 
 export type CreateCallInput = z.infer<typeof CreateCallSchema>;

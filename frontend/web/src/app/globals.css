@@ -111,8 +111,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* System dark-mode applies only when user has NOT explicitly chosen a theme.
+   next-themes adds class="light" or class="dark" on <html> when user picks one;
+   the :not() guard lets the explicit choice override system preference. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  html:not(.light):not(.dark) {
     --background: 224 71% 4%;
     --foreground: 210 40% 98%;
     --muted: 215 16% 16%;
@@ -160,7 +163,7 @@
     --groups1-btn-primary-text: var(--color-white);
     --groups1-card-border: rgba(var(--color-gray-400-rgb), 0.35);
     --groups1-card-border-inner: rgba(var(--color-gray-400-rgb), 0.25);
-    
+
     /* Button-specific dark mode tokens */
     --groups1-btn-outline-border: rgba(var(--color-gray-400-rgb), 0.5);
     --groups1-btn-outline-hover-bg: rgba(var(--color-gray-400-rgb), 0.2);

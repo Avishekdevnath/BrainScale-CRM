@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,15 +39,41 @@ export function CallExecutionModal({
   const [followUpNote, setFollowUpNote] = useState("");
   const [callDuration, setCallDuration] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const draftSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const student = callListItem?.student;
   const callList = callListItem?.callList;
   const questions = callList?.questions || [];
   const messages = callList?.messages || [];
 
-  // Reset form when modal opens/closes or item changes
+  // Load draft from localStorage on modal open
   useEffect(() => {
     if (open && callListItem) {
+      const draftKey = `call-draft-${callListItem.id}`;
+      const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+
+      if (savedDraft) {
+        try {
+          const draft = JSON.parse(savedDraft);
+          setAnswers(draft.answers || {});
+          setNotes(draft.notes || "");
+          setCallerNote(draft.callerNote || "");
+          setShowNotes(!!draft.notes);
+          setShowCallerNote(!!draft.callerNote);
+          setStatus(draft.status || "completed");
+          setFollowUpRequired(draft.followUpRequired || false);
+          setFollowUpDate(draft.followUpDate || "");
+          setFollowUpNote(draft.followUpNote || "");
+          setCallDuration(draft.callDuration || "");
+          setErrors({});
+          return; // Skip default initialization
+        } catch (e) {
+          console.error("Failed to restore draft:", e);
+        }
+      }
+
+      // Default initialization if no draft
       setAnswers({});
       setNotes("");
       setCallerNote("");
@@ -55,7 +81,6 @@ export function CallExecutionModal({
       setShowCallerNote(false);
       setStatus("completed");
       setFollowUpRequired(false);
-      // Auto-populate follow-up date from previous call if available
       if (previousCallLog?.followUpDate) {
         const date = new Date(previousCallLog.followUpDate);
         setFollowUpDate(date.toISOString().split("T")[0]);
@@ -67,6 +92,48 @@ export function CallExecutionModal({
       setErrors({});
     }
   }, [open, callListItem, previousCallLog]);
+
+  // Auto-save draft to localStorage (debounced 800ms)
+  useEffect(() => {
+    if (!callListItem) return;
+
+    const draftKey = `call-draft-${callListItem.id}`;
+    const draft = {
+      answers,
+      notes,
+      callerNote,
+      status,
+      followUpRequired,
+      followUpDate,
+      followUpNote,
+      callDuration,
+      savedAt: new Date().toISOString(),
+    };
+
+    // Clear existing timeout
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current);
+    }
+
+    setIsSavingDraft(true);
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(draftKey, JSON.stringify(draft));
+          setIsSavingDraft(false);
+        } catch (e) {
+          console.error("Failed to save draft:", e);
+          setIsSavingDraft(false);
+        }
+      }
+    }, 800);
+
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, [callListItem, answers, notes, callerNote, status, followUpRequired, followUpDate, followUpNote, callDuration]);
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -166,6 +233,10 @@ export function CallExecutionModal({
       };
 
       await apiClient.createCallLog(payload);
+      // Clear draft on success
+      if (callListItem && typeof window !== "undefined") {
+        localStorage.removeItem(`call-draft-${callListItem.id}`);
+      }
       toast.success("Call log created successfully");
       onOpenChange(false);
       onSuccess?.();
@@ -198,10 +269,18 @@ export function CallExecutionModal({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogClose onClose={() => !submitting && onOpenChange(false)} />
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Phone className="w-5 h-5" />
-            {student?.name || "Call Execution"}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="w-5 h-5" />
+              {student?.name || "Call Execution"}
+            </DialogTitle>
+            {isSavingDraft && (
+              <span className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Saving...
+              </span>
+            )}
+          </div>
         </DialogHeader>
 
         {!callListItem || !student || !callList ? (

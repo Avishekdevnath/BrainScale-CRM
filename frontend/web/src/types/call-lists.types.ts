@@ -99,6 +99,7 @@ export interface CallListItem {
   callLogId: string | null; // Set when call is completed
   state: CallListItemState;
   priority: number; // 0-100, default: 0
+  serialNumber: number; // Stable 1-based position within the call list (0 = legacy, fallback to index)
   custom: Record<string, any> | null; // Custom field values
   createdAt: string; // ISO 8601 datetime
   updatedAt: string; // ISO 8601 datetime

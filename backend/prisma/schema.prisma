@@ -397,17 +397,18 @@ model CallList {
 }
 
 model CallListItem {
-  id          String   @id @default(cuid()) @map("_id")
-  workspaceId String   // For tenant isolation and efficient querying
-  callListId  String
-  studentId   String
-  assignedTo  String?
-  callLogId   String? // Reference to CallLog when call is completed
-  state       String   @default("QUEUED")
-  priority    Int      @default(0)
-  custom      Json? // Custom field values
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid()) @map("_id")
+  workspaceId  String   // For tenant isolation and efficient querying
+  callListId   String
+  studentId    String
+  assignedTo   String?
+  callLogId    String? // Reference to CallLog when call is completed
+  state        String   @default("QUEUED")
+  priority     Int      @default(0)
+  serialNumber Int      @default(0) // Stable 1-based position within the call list
+  custom       Json? // Custom field values
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

@@ -790,7 +790,7 @@ export function CallListItemsTable({
                   const isUpdating = updatingItemId === item.id;
                   const callLog = getCallLogData(item);
                   const followUpDate = callLog?.followUpDate || null;
-                  const serialNumber = (filters.page! - 1) * pageSize + index + 1;
+                  const serialNumber = item.serialNumber || (filters.page! - 1) * pageSize + index + 1;
 
                   const isAssigned = !!item.assignedTo;
                   const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
@@ -1041,7 +1041,7 @@ export function CallListItemsTable({
                     const isUpdating = updatingItemId === item.id;
                     const callLog = getCallLogData(item);
                     const followUpDate = callLog?.followUpDate || null;
-                    const serialNumber = (filters.page! - 1) * pageSize + index + 1;
+                    const serialNumber = item.serialNumber || (filters.page! - 1) * pageSize + index + 1;
 
                     const isAssigned = !!item.assignedTo;
                     const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;

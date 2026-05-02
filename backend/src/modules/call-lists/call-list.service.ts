@@ -23,6 +23,19 @@ import {
 } from '../students/import-export-utils';
 
 /**
+ * Get the next N serial numbers for new items in a call list.
+ * Returns [maxSerial+1, maxSerial+2, ...maxSerial+count]
+ */
+async function getNextSerialNumbers(callListId: string, count: number): Promise<number[]> {
+  const maxResult = await (prisma.callListItem as any).aggregate({
+    where: { callListId },
+    _max: { serialNumber: true },
+  });
+  const max: number = maxResult._max?.serialNumber ?? 0;
+  return Array.from({ length: count }, (_, i) => max + i + 1);
+}
+
+/**
  * Helper function to update matched student with missing fields
  */
 async function updateMatchedStudent(
@@ -622,7 +635,7 @@ export const createCallList = async (
   // If studentIds provided, automatically add them to the call list
   if (validatedStudentIds.length > 0) {
     await Promise.all(
-      validatedStudentIds.map((studentId) =>
+      validatedStudentIds.map((studentId, index) =>
         prisma.callListItem.upsert({
           where: {
             callListId_studentId: {
@@ -637,6 +650,7 @@ export const createCallList = async (
             studentId,
             state: 'QUEUED',
             priority: 0,
+            serialNumber: index + 1,
           },
         })
       )
@@ -978,10 +992,24 @@ export const addCallListItems = async (
     throw new AppError(400, 'One or more students not found');
   }
 
-  // Create items (skip duplicates)
+  // Find which students are already in the list
+  const existingItems = await prisma.callListItem.findMany({
+    where: { callListId: listId, studentId: { in: data.studentIds } },
+    select: { studentId: true },
+  });
+  const existingStudentIds = new Set(existingItems.map((i) => i.studentId));
+  const newStudentIds = data.studentIds.filter((id) => !existingStudentIds.has(id));
+
+  // Assign serial numbers for new items
+  const serials = newStudentIds.length > 0
+    ? await getNextSerialNumbers(listId, newStudentIds.length)
+    : [];
+
+  // Create new items with serial numbers; skip duplicates
   const items = await Promise.all(
-    data.studentIds.map((studentId) =>
-      prisma.callListItem.upsert({
+    data.studentIds.map((studentId) => {
+      const newIdx = newStudentIds.indexOf(studentId);
+      return prisma.callListItem.upsert({
         where: {
           callListId_studentId: {
             callListId: listId,
@@ -990,14 +1018,15 @@ export const addCallListItems = async (
         },
         update: {}, // Don't update if exists
         create: {
-          workspaceId: workspaceId, // For tenant isolation
+          workspaceId: workspaceId,
           callListId: listId,
           studentId,
           state: 'QUEUED',
           priority: 0,
+          serialNumber: newIdx >= 0 ? serials[newIdx] : 0,
         },
-      })
-    )
+      });
+    })
   );
 
   return {
@@ -2099,6 +2128,7 @@ export const createCallListFromBulkPaste = async (
           studentId: student.id,
           state: 'QUEUED',
           priority: 0,
+          serialNumber: stats.added + 1,
         },
         update: {}, // Don't update if exists
       });
@@ -2241,7 +2271,7 @@ export const createCallListFromFollowups = async (
 
   // Create call list items for each follow-up
   const items = await Promise.all(
-    followups.map((followup) =>
+    followups.map((followup, index) =>
       prisma.callListItem.create({
         data: {
           workspaceId: workspaceId, // For tenant isolation
@@ -2249,6 +2279,7 @@ export const createCallListFromFollowups = async (
           studentId: followup.studentId,
           assignedTo: null, // No assignment required for follow-ups
           state: 'QUEUED',
+          serialNumber: index + 1,
           custom: {
             followupNote: followup.notes || null,
           },

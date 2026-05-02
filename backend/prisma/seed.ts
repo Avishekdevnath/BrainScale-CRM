@@ -126,6 +126,35 @@ async function main(): Promise<void> {
     }
   }
 
+  // Backfill serialNumber for existing CallListItems that have serialNumber = 0
+  console.log('🔢 Backfilling serialNumber for existing call list items...');
+  const callLists = await prisma.callList.findMany({ select: { id: true } });
+  let backfilledTotal = 0;
+  for (const callList of callLists) {
+    const allItems = await prisma.callListItem.findMany({
+      where: { callListId: callList.id },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, serialNumber: true },
+    });
+    const items = allItems.filter((i) => !i.serialNumber || i.serialNumber === 0);
+    if (items.length === 0) continue;
+
+    const maxResult = await (prisma.callListItem as any).aggregate({
+      where: { callListId: callList.id, serialNumber: { gt: 0 } },
+      _max: { serialNumber: true },
+    });
+    const startSerial: number = (maxResult._max?.serialNumber ?? 0) + 1;
+
+    for (let i = 0; i < items.length; i++) {
+      await prisma.callListItem.update({
+        where: { id: items[i].id },
+        data: { serialNumber: startSerial + i },
+      });
+    }
+    backfilledTotal += items.length;
+  }
+  console.log(`✅ Backfilled serialNumber for ${backfilledTotal} items across ${callLists.length} call lists`);
+
   console.log('✅ Seed completed successfully!');
 }
 

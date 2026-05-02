@@ -648,9 +648,13 @@ export const processCallListImportCommitChunk = async (
     : [];
   const alreadyInCallList = new Set(existingCallListItems.map((item) => item.studentId));
 
-  const callListItemCreates = studentIds
-    .filter((studentId) => !alreadyInCallList.has(studentId))
-    .map((studentId) => ({ workspaceId, callListId: listId, studentId, state: 'QUEUED', priority: 0 }));
+  const newStudentIds = studentIds.filter((studentId) => !alreadyInCallList.has(studentId));
+  const maxSerialResult = newStudentIds.length > 0
+    ? await (prisma.callListItem as any).aggregate({ where: { callListId: listId }, _max: { serialNumber: true } })
+    : { _max: { serialNumber: 0 } };
+  const maxSerial: number = maxSerialResult._max?.serialNumber ?? 0;
+  const callListItemCreates = newStudentIds
+    .map((studentId, i) => ({ workspaceId, callListId: listId, studentId, state: 'QUEUED', priority: 0, serialNumber: maxSerial + i + 1 }));
 
   const duplicatesCount = studentIds.length - callListItemCreates.length;
   stats.duplicates += duplicatesCount;

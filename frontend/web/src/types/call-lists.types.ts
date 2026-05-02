@@ -231,6 +231,11 @@ export interface RemoveCallListItemsPayload {
   itemIds: string[]; // Required, min 1 item
 }
 
+export interface BulkUpdateCallListItemsPayload {
+  itemIds: string[]; // Required, min 1 item
+  state: "QUEUED" | "CALLING" | "DONE" | "SKIPPED"; // Required
+}
+
 // Call Log Types
 export interface CallLog {
   id: string;

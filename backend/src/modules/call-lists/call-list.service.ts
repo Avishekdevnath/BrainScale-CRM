@@ -9,6 +9,7 @@ import {
   AssignCallListItemsInput,
   UnassignCallListItemsInput,
   UpdateCallListItemInput,
+  BulkUpdateCallListItemsInput,
   ListCallListItemsInput,
   GetAvailableStudentsInput,
   BulkPasteCallListInput,
@@ -2281,5 +2282,70 @@ export const createCallListFromFollowups = async (
     callList: updatedCallList || callList,
     items,
     message: `Call list created with ${items.length} items from follow-ups`,
+  };
+};
+
+/**
+ * Bulk update call list items with the same state
+ */
+export const bulkUpdateCallListItems = async (
+  listId: string,
+  workspaceId: string,
+  data: BulkUpdateCallListItemsInput
+) => {
+  // Verify call list exists
+  const callList = await prisma.callList.findFirst({
+    where: {
+      id: listId,
+      workspaceId,
+    },
+  });
+
+  if (!callList) {
+    throw new AppError(404, 'Call list not found');
+  }
+
+  // Update items
+  const result = await prisma.callListItem.updateMany({
+    where: {
+      id: { in: data.itemIds },
+      callListId: listId,
+    },
+    data: {
+      state: data.state,
+    },
+  });
+
+  // Get updated items
+  const items = await prisma.callListItem.findMany({
+    where: {
+      id: { in: data.itemIds },
+      callListId: listId,
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      assignee: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return {
+    updated: result.count,
+    items,
   };
 };

@@ -122,6 +122,11 @@ export const UpdateCallListItemSchema = z.object({
   custom: z.record(z.string(), z.any()).optional(), // Custom field values (JSON)
 });
 
+export const BulkUpdateCallListItemsSchema = z.object({
+  itemIds: z.array(z.string()).min(1, 'At least one item ID is required'),
+  state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']),
+});
+
 export const ListCallListItemsSchema = z.object({
   page: z.preprocess((val) => {
     if (val === undefined || val === null || val === '') return undefined;
@@ -237,6 +242,7 @@ export type AssignCallListItemsInput = z.infer<typeof AssignCallListItemsSchema>
 export type UnassignCallListItemsInput = z.infer<typeof UnassignCallListItemsSchema>;
 export type RemoveCallListItemsInput = z.infer<typeof RemoveCallListItemsSchema>;
 export type UpdateCallListItemInput = z.infer<typeof UpdateCallListItemSchema>;
+export type BulkUpdateCallListItemsInput = z.infer<typeof BulkUpdateCallListItemsSchema>;
 export type ListCallListItemsInput = z.infer<typeof ListCallListItemsSchema>;
 export type GetAvailableStudentsInput = z.infer<typeof GetAvailableStudentsSchema>;
 export type GetMyCallsInput = z.infer<typeof GetMyCallsSchema>;

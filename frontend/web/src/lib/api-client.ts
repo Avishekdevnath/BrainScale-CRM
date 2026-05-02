@@ -53,6 +53,7 @@ import type {
   AssignCallListItemsPayload,
   UnassignCallListItemsPayload,
   RemoveCallListItemsPayload,
+  BulkUpdateCallListItemsPayload,
   CallLog,
   CreateCallLogRequest,
   UpdateCallLogRequest,
@@ -1830,6 +1831,16 @@ export class ApiClient {
       `/call-lists/${listId}/items/remove`,
       {
         method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  bulkUpdateCallListItems(listId: string, payload: BulkUpdateCallListItemsPayload) {
+    return this.request<{ message: string; updated: number; items: CallListItem[] }>(
+      `/call-lists/${listId}/items/bulk`,
+      {
+        method: "PATCH",
         body: JSON.stringify(payload),
       }
     );

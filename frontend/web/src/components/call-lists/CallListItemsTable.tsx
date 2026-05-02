@@ -336,11 +336,10 @@ export function CallListItemsTable({
       if (!confirmed) return;
 
       try {
-        await Promise.all(
-          pendingItems.map((item) =>
-            apiClient.updateCallListItem(item.id, { state: "DONE" })
-          )
-        );
+        await apiClient.bulkUpdateCallListItems(listId, {
+          itemIds: pendingItems.map((item) => item.id),
+          state: "DONE",
+        });
         toast.success(`Marked ${pendingItems.length} item(s) as done`);
         await mutate();
         onItemsUpdated?.();

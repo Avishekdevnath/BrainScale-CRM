@@ -12,6 +12,7 @@ import {
   UnassignCallListItemsSchema,
   RemoveCallListItemsSchema,
   UpdateCallListItemSchema,
+  BulkUpdateCallListItemsSchema,
   GetAvailableStudentsSchema,
   BulkPasteCallListSchema,
   CreateCallListFromFollowupsSchema,
@@ -855,6 +856,48 @@ router.patch(
   requirePermission('call_lists', 'update'),
   zodValidator(AssignCallListItemsSchema),
   callListController.assignCallListItems
+);
+
+/**
+ * @openapi
+ * /call-lists/{listId}/items/bulk:
+ *   patch:
+ *     summary: Bulk update call list items (update state)
+ *     tags: [Call Lists]
+ *     parameters:
+ *       - in: path
+ *         name: listId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemIds
+ *               - state
+ *             properties:
+ *               itemIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               state:
+ *                 type: string
+ *                 enum: [QUEUED, CALLING, DONE, SKIPPED]
+ *     responses:
+ *       200:
+ *         description: Items updated
+ */
+router.patch(
+  '/:listId/items/bulk',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(BulkUpdateCallListItemsSchema),
+  callListController.bulkUpdateCallListItems
 );
 
 // Import router for call list imports

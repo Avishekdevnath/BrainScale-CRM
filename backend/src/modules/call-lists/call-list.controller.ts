@@ -158,3 +158,13 @@ export const markCallListActive = asyncHandler(async (req: AuthRequest, res: Res
   res.json(result);
 });
 
+export const bulkUpdateCallListItems = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { listId } = req.params;
+  const result = await callListService.bulkUpdateCallListItems(
+    listId,
+    req.user!.workspaceId!,
+    req.validatedData!
+  );
+  res.json({ message: 'Items updated', ...result });
+});
+

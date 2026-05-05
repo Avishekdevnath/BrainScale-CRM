@@ -9,6 +9,7 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   closeOnBackdropClick?: boolean;
+  mobileSheet?: boolean; // anchors to bottom on mobile (< md), center on desktop
   children: React.ReactNode;
 }
 
@@ -24,18 +25,28 @@ interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
   children: React.ReactNode;
 }
 
-export function Dialog({ open, onOpenChange, closeOnBackdropClick = true, children }: DialogProps) {
+export function Dialog({ open, onOpenChange, closeOnBackdropClick = true, mobileSheet = false, children }: DialogProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div
+      className={cn(
+        "fixed inset-0 z-50 flex",
+        mobileSheet
+          ? "items-end md:items-center justify-center"
+          : "items-center justify-center"
+      )}
+    >
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         aria-hidden="true"
         onClick={closeOnBackdropClick ? () => onOpenChange(false) : undefined}
       />
       <div
-        className="relative z-50 flex w-full justify-center px-4"
+        className={cn(
+          "relative z-50 flex w-full",
+          mobileSheet ? "justify-center" : "justify-center px-4"
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

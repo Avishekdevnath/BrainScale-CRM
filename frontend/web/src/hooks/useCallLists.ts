@@ -10,6 +10,7 @@ import type {
   CallListsListResponse,
   CallListItemsListParams,
   CallListItemsListResponse,
+  CallStatusOption,
 } from "@/types/call-lists.types";
 
 export function useCallLists(params?: CallListsListParams) {
@@ -40,6 +41,19 @@ export function useCallList(listId: string | null | undefined) {
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
       dedupingInterval: 2000,
+    }
+  );
+}
+
+export function useCallStatusOptions() {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  return useSWR<CallStatusOption[]>(
+    workspaceId ? `${workspaceId}:call-status-options` : null,
+    async () => apiClient.getCallStatusOptions(),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: true,
+      dedupingInterval: 30000, // status options change rarely
     }
   );
 }

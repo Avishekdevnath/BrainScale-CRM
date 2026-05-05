@@ -97,6 +97,7 @@ model Workspace {
 
   // Team Chat relations
   channels                Channel[]           @relation("ChannelWorkspace")
+  callStatusOptions       CallStatusOption[]
 }
 
 model WorkspaceMember {
@@ -1082,4 +1083,21 @@ model TypingStatus {
   @@index([dmUserId])
   @@index([userId])
   @@index([expiresAt])
+}
+
+model CallStatusOption {
+  id          String   @id @default(cuid()) @map("_id")
+  workspaceId String
+  value       String   // slug: "completed", "no_answer", custom "interested"
+  label       String   // display label
+  color       String   @default("#6b7280")
+  isDefault   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, value])
+  @@index([workspaceId, order])
 }

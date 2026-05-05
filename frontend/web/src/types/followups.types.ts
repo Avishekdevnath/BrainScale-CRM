@@ -40,7 +40,7 @@ export interface FollowupCallList {
 export interface FollowupPreviousCallLog {
   id: string;
   callDate: string;
-  status: "completed" | "missed" | "busy" | "no_answer" | "voicemail" | "other";
+  status: string; // workspace-configurable call status
   answers?: Array<{
     questionId: string;
     question: string;
@@ -146,7 +146,7 @@ export interface FollowupCallContext {
 
 export interface CreateFollowupCallLogRequest {
   followupId: string;
-  status: "completed" | "missed" | "busy" | "no_answer" | "voicemail" | "other";
+  status: string; // workspace-configurable call status
   answers: Array<{
     questionId: string;
     question: string;

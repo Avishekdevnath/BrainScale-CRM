@@ -17,7 +17,7 @@ import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { CallListDetailsModal } from "@/components/call-lists/CallListDetailsModal";
 import { BulkPasteCallListDialog } from "@/components/call-lists/BulkPasteCallListDialog";
 import { mutate } from "swr";
-import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive, RefreshCw, Settings } from "lucide-react";
 import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
@@ -346,7 +346,7 @@ function CallListsPageContent() {
           </div>
           <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center gap-2">
           <Button
             onClick={handleCreate}
             className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
@@ -362,6 +362,17 @@ function CallListsPageContent() {
             <FileText className="w-4 h-4 mr-2" />
             Bulk Paste
           </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => router.push("/app/call-lists/settings")}
+              title="Call List Settings"
+              className="h-10 w-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -401,6 +412,17 @@ function CallListsPageContent() {
             <Plus className="w-4 h-4 mr-2" />
             Create New Call List
           </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => router.push("/app/call-lists/settings")}
+              title="Call List Settings"
+              className="h-10 w-10 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+            >
+              <Settings className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 

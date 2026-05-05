@@ -1,9 +1,14 @@
 import { Router } from 'express';
 import * as callListController from './call-list.controller';
+import * as callListSettingsController from './call-list-settings.controller';
 import { zodValidator } from '../../middleware/validate';
 import { authGuard, requireRole } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
 import { requirePermission } from '../../middleware/permission-guard';
+import {
+  CreateCallStatusOptionSchema,
+  UpdateCallStatusOptionSchema,
+} from './call-list-settings.schemas';
 import {
   CreateCallListSchema,
   UpdateCallListSchema,
@@ -21,6 +26,41 @@ import {
 } from './call-list.schemas';
 
 const router = Router();
+
+// Settings routes — must be registered BEFORE /:listId to prevent "settings" matching as a listId
+router.get(
+  '/settings/status-options',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListSettingsController.listStatusOptions
+);
+
+router.post(
+  '/settings/status-options',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(CreateCallStatusOptionSchema),
+  callListSettingsController.createStatusOption
+);
+
+router.patch(
+  '/settings/status-options/:optionId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  zodValidator(UpdateCallStatusOptionSchema),
+  callListSettingsController.updateStatusOption
+);
+
+router.delete(
+  '/settings/status-options/:optionId',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.deleteStatusOption
+);
 
 /**
  * @openapi

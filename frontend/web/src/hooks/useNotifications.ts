@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useNotificationStore } from "@/store/notifications";
+import { useDocumentVisible } from "@/hooks/useDocumentVisible";
 import type {
   NotificationsListResponse,
   NotificationCountResponse,
@@ -34,13 +35,14 @@ export function useNotifications(params?: {
 export function useNotificationCount() {
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
   const { setUnreadCount } = useNotificationStore();
+  const visible = useDocumentVisible();
   const key = workspaceId ? `${workspaceId}:notification-count` : null;
 
   return useSWR<NotificationCountResponse>(
     key,
     () => apiClient.getNotificationCount(),
     {
-      refreshInterval: 30000, // Poll every 30 seconds
+      refreshInterval: visible ? 30000 : 0, // Pause polling on hidden tab
       revalidateOnFocus: true,
       onSuccess: (data) => setUnreadCount(data.unreadCount),
     }

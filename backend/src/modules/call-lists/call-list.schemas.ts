@@ -143,7 +143,7 @@ export const ListCallListItemsSchema = z.object({
   state: z.enum(['QUEUED', 'CALLING', 'DONE', 'SKIPPED']).optional(),
   assignedTo: z.string().optional(),
   assignment: z.enum(['assigned', 'unassigned']).optional(),
-  callLogStatus: z.enum(['completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other']).optional(),
+  callLogStatus: z.string().optional(), // relaxed: workspace may have custom statuses
   followUpRequired: z.preprocess((val) => {
     if (val === undefined || val === null || val === '') return undefined;
     if (typeof val === 'boolean') return val;

@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { parseTextData } from '../../utils/file-parser';
+import { normalizePhoneQuery } from '../../utils/phone';
 import * as auditLogService from '../audit-logs/audit-log.service';
 import {
   CreateCallListInput,
@@ -1382,13 +1383,16 @@ export const getAvailableStudents = async (
       searchConditions.push({ email: { contains: options.q, mode: 'insensitive' } });
     }
 
-    searchConditions.push({
-      phones: {
-        some: {
-          phone: { contains: options.q },
+    const phoneDigits = normalizePhoneQuery(options.q);
+    if (phoneDigits.length > 0) {
+      searchConditions.push({
+        phones: {
+          some: {
+            phone: { contains: phoneDigits },
+          },
         },
-      },
-    });
+      });
+    }
 
     where.OR = searchConditions;
   }

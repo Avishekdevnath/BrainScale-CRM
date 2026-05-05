@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { CreateCallInput, UpdateCallInput, ListCallsInput } from './call.schemas';
+import { normalizePhoneQuery } from '../../utils/phone';
 
 /**
  * Create a new call
@@ -184,11 +185,15 @@ export const listGroupCalls = async (
 
   if (options.search) {
     const q = options.search.toLowerCase();
-    where.OR = [
+    const phoneDigits = normalizePhoneQuery(options.search);
+    const orClauses: any[] = [
       { student: { name: { contains: q, mode: 'insensitive' } } },
       { student: { email: { contains: q, mode: 'insensitive' } } },
-      { student: { phones: { some: { phone: { contains: q } } } } },
     ];
+    if (phoneDigits.length > 0) {
+      orClauses.push({ student: { phones: { some: { phone: { contains: phoneDigits } } } } });
+    }
+    where.OR = orClauses;
   }
 
   // Calculate pagination

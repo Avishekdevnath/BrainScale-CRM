@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CollapsibleSection } from "@/components/common/CollapsibleSection";
 import { useGroups } from "@/hooks/useGroups";
 import { useStudents } from "@/hooks/useStudents";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -150,15 +151,26 @@ export function GroupCallListCreator({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogClose onClose={() => onOpenChange(false)} />
-        <DialogHeader>
-          <DialogTitle>Create Call List from Group</DialogTitle>
-        </DialogHeader>
+  const filterSummary = (() => {
+    const parts: string[] = [];
+    if (filters.status) parts.push(`status: ${filters.status}`);
+    if (filters.q) parts.push(`"${filters.q}"`);
+    if (parts.length === 0) return "No filters — all group students";
+    return parts.join(" · ");
+  })();
 
-        <div className="space-y-4">
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange} mobileSheet>
+      <DialogContent className="w-full max-w-full md:max-w-4xl rounded-t-2xl rounded-b-none md:rounded-lg h-[92dvh] md:h-auto md:max-h-[90vh] flex flex-col p-0 md:p-6 mx-0 md:mx-4 overflow-hidden">
+        <div className="md:hidden flex justify-center pt-2 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full bg-[var(--groups1-border)]" />
+        </div>
+        <DialogHeader className="px-4 md:px-0 pb-3 border-b border-[var(--groups1-border)] md:border-0 mb-0 flex-shrink-0">
+          <DialogTitle className="text-base md:text-xl">Create Call List from Group</DialogTitle>
+        </DialogHeader>
+        <DialogClose onClose={() => onOpenChange(false)} />
+
+        <div className="flex-1 overflow-y-auto px-4 md:px-0 py-3 md:py-2 space-y-3">
           {/* Group Display */}
           <div className="p-3 rounded-lg bg-[var(--groups1-secondary)] border border-[var(--groups1-border)]">
             <Label className="block text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
@@ -169,10 +181,24 @@ export function GroupCallListCreator({
             </p>
           </div>
 
-          {/* Filters Section */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-[var(--groups1-text)]">Filter Students</h3>
-            
+          {/* Details — core */}
+          <CollapsibleSection title="Details" defaultOpen alwaysOpenOnDesktop>
+            <div>
+              <Label className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1">
+                Call List Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={listName}
+                onChange={(e) => setListName(e.target.value)}
+                placeholder="e.g., New Leads - This Week"
+                className="min-h-[44px] bg-[var(--groups1-background)] border-[var(--groups1-border)]"
+                disabled={creating}
+              />
+            </div>
+          </CollapsibleSection>
+
+          {/* Filters — collapsible on mobile */}
+          <CollapsibleSection title="Filter Students" summary={filterSummary} alwaysOpenOnDesktop>
             <div>
               <Label className="block text-left text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide mb-1">
                 Status
@@ -223,50 +249,32 @@ export function GroupCallListCreator({
                 </p>
               </div>
             ) : null}
-          </div>
+          </CollapsibleSection>
+        </div>
 
-          {/* Call List Name Section */}
-          <div className="space-y-3 pt-4 border-t border-[var(--groups1-border)]">
-            <h3 className="text-sm font-semibold text-[var(--groups1-text)]">Call List Details</h3>
-
-            <div>
-              <Label className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1">
-                Call List Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={listName}
-                onChange={(e) => setListName(e.target.value)}
-                placeholder="e.g., New Leads - This Week"
-                className="bg-[var(--groups1-background)] border-[var(--groups1-border)]"
-                disabled={creating}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--groups1-border)]">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={creating}
-              className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreate}
-              disabled={creating || !listName.trim()}
-              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-            >
-              {creating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Call List"
-              )}
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2 md:gap-3 px-4 md:px-0 py-3 md:pt-4 border-t border-[var(--groups1-border)] bg-[var(--groups1-surface)] md:bg-transparent flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={creating}
+            className="min-h-[44px] flex-1 md:flex-initial bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={creating || !listName.trim()}
+            className="min-h-[44px] flex-1 md:flex-initial bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+          >
+            {creating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              "Create Call List"
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

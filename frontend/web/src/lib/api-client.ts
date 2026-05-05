@@ -72,6 +72,7 @@ import type {
   ProcessImportCommitResponse,
   BulkEmailPasteRequest,
   BulkEmailPasteResponse,
+  CallStatusOption,
 } from "@/types/call-lists.types";
 import type { BulkDeleteStudentsPayload, BulkDeleteStudentsResponse } from "@/types/students.types";
 import {
@@ -1844,6 +1845,31 @@ export class ApiClient {
         body: JSON.stringify(payload),
       }
     );
+  }
+
+  // Call Status Options
+  getCallStatusOptions() {
+    return this.request<CallStatusOption[]>("/call-lists/settings/status-options", { method: "GET" });
+  }
+
+  createCallStatusOption(payload: { label: string; color?: string }) {
+    return this.request<CallStatusOption>("/call-lists/settings/status-options", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  updateCallStatusOption(optionId: string, payload: { label?: string; color?: string; order?: number }) {
+    return this.request<CallStatusOption>(`/call-lists/settings/status-options/${optionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteCallStatusOption(optionId: string) {
+    return this.request<{ message: string }>(`/call-lists/settings/status-options/${optionId}`, {
+      method: "DELETE",
+    });
   }
 
   // My Calls methods

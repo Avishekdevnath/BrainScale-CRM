@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { AppError } from '../../middleware/error-handler';
 import { getStartOfWeek } from '../../utils/date-helpers';
+import { normalizePhoneQuery } from '../../utils/phone';
 import { GetMyCallsInput } from './call-list.schemas';
 
 /**
@@ -41,7 +42,7 @@ export const getMyCalls = async (
   if (options.q) {
     const query = options.q.trim();
     if (query.length > 0) {
-      const phoneDigits = query.replace(/\D/g, '');
+      const phoneDigits = normalizePhoneQuery(query);
       where.student = {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },
@@ -572,7 +573,7 @@ export const getAllCalls = async (
   if (options.q) {
     const query = options.q.trim();
     if (query.length > 0) {
-      const phoneDigits = query.replace(/\D/g, '');
+      const phoneDigits = normalizePhoneQuery(query);
       where.student = {
         OR: [
           { name: { contains: query, mode: 'insensitive' } },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,15 @@ import { useGroups } from "@/hooks/useGroups";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { StudentSelector } from "./StudentSelector";
 import { BatchSelector } from "./BatchSelector";
-import { MessagesBuilder } from "./MessagesBuilder";
-import { QuestionsBuilder } from "./QuestionsBuilder";
+
+const MessagesBuilder = dynamic(() => import("./MessagesBuilder").then((m) => ({ default: m.MessagesBuilder })), {
+  ssr: false,
+  loading: () => <div className="text-xs text-[var(--groups1-text-secondary)]">Loading…</div>,
+});
+const QuestionsBuilder = dynamic(() => import("./QuestionsBuilder").then((m) => ({ default: m.QuestionsBuilder })), {
+  ssr: false,
+  loading: () => <div className="text-xs text-[var(--groups1-text-secondary)]">Loading…</div>,
+});
 import { extractQuestions } from "@/lib/call-list-utils";
 import type { CallList, CreateCallListPayload, UpdateCallListPayload, CallListSource, Question, StudentData } from "@/types/call-lists.types";
 

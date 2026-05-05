@@ -18,13 +18,12 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { extractQuestions, getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, Trash2, MoreVertical, Download, Search, Users } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Trash2, MoreVertical, Download, Search, Users } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { Answer, CallListItem, CallListItemState, CallListItemsListParams, Question } from "@/types/call-lists.types";
-import * as XLSX from "xlsx";
 
 export interface CallListItemsTableProps {
   listId: string;
@@ -75,6 +74,20 @@ export function CallListItemsTable({
     if (typeof window === "undefined") return false;
     return localStorage.getItem("call-list-items:hideDone") === "1";
   });
+  const [expandedAnswerItems, setExpandedAnswerItems] = React.useState<Set<string>>(new Set());
+
+  const toggleAnswers = React.useCallback((itemId: string) => {
+    setExpandedAnswerItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
+
   // Get current user's member ID to check if they're assigned
   const workspaceId = useWorkspaceStore((state) => state.getCurrentId());
   const { data: currentMember } = useCurrentMember(workspaceId);
@@ -534,6 +547,7 @@ export function CallListItemsTable({
 
     setIsExportingExcel(true);
     try {
+      const XLSX = await import("xlsx");
       const requestParams: CallListItemsListParams = {
         ...filters,
         page: 1,
@@ -968,20 +982,37 @@ export function CallListItemsTable({
                       </div>
 
                       {questions.length > 0 && (
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {questions.map((q) => {
-                            const answerObj = getAnswer(item, q);
-                            const displayValue = formatAnswerValue(answerObj?.answer);
-                            return (
-                              <div key={q.id} className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
-                                <div className="text-[10px] text-[var(--groups1-text-secondary)]" title={getQuestionHeaderLabel(q)}>
-                                  {getQuestionHeaderLabel(q)}
-                                </div>
-                                <div className="mt-0.5 text-xs text-[var(--groups1-text)]">{displayValue}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <>
+                          {questions.length >= 3 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleAnswers(item.id)}
+                              className="mt-2 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] flex items-center gap-1 transition-colors"
+                            >
+                              {expandedAnswerItems.has(item.id) ? (
+                                <><ChevronUp className="w-3 h-3" />Hide answers</>
+                              ) : (
+                                <><ChevronDown className="w-3 h-3" />Show answers ({questions.length})</>
+                              )}
+                            </button>
+                          )}
+                          {(questions.length < 3 || expandedAnswerItems.has(item.id)) && (
+                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {questions.map((q) => {
+                                const answerObj = getAnswer(item, q);
+                                const displayValue = formatAnswerValue(answerObj?.answer);
+                                return (
+                                  <div key={q.id} className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
+                                    <div className="text-[10px] text-[var(--groups1-text-secondary)]" title={getQuestionHeaderLabel(q)}>
+                                      {getQuestionHeaderLabel(q)}
+                                    </div>
+                                    <div className="mt-0.5 text-xs text-[var(--groups1-text)]">{displayValue}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   );

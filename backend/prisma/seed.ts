@@ -1,6 +1,7 @@
 import 'dotenv/config'; // Ensure .env is loaded first
 import { prisma } from '../src/db/client';
 import { initializeDefaultPermissions, createDefaultRolesWithAllPermissions } from '../src/modules/roles/role.service';
+import { seedDefaultStatusOptions } from '../src/modules/call-lists/call-list-settings.service';
 
 async function seedTeamChatChannels(workspaceId: string, workspaceName: string): Promise<void> {
   console.log(`  Seeding Team Chat channels for workspace: ${workspaceName}...`);
@@ -120,6 +121,10 @@ async function main(): Promise<void> {
 
         // Seed Team Chat channels
         await seedTeamChatChannels(workspace.id, workspace.name);
+
+        // Seed default call status options
+        await seedDefaultStatusOptions(workspace.id);
+        console.log(`  ✅ Seeded default call status options for ${workspace.name}`);
       } catch (error: any) {
         console.error(`  ❌ Failed to create roles for workspace ${workspace.name}:`, error.message);
       }

@@ -6,7 +6,19 @@ export type CallListItemState = "QUEUED" | "CALLING" | "DONE" | "SKIPPED";
 
 export type QuestionType = "text" | "yes_no" | "multiple_choice" | "number" | "date";
 
-export type CallLogStatus = "completed" | "missed" | "busy" | "no_answer" | "voicemail" | "other";
+export type CallLogStatus = string; // workspace-configurable; defaults: completed|missed|busy|no_answer|voicemail|other
+
+export interface CallStatusOption {
+  id: string;
+  workspaceId: string;
+  value: string;
+  label: string;
+  color: string;
+  isDefault: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // Question interface for call lists
 export interface Question {

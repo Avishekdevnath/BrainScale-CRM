@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CallExecutionModal } from "@/components/call-lists/CallExecutionModal";
+import { PhoneHistoryDrawer } from "@/components/calls/PhoneHistoryDrawer";
 import { useAllCalls } from "@/hooks/useMyCalls";
 import { getStateLabel, getStateColor } from "@/lib/call-list-utils";
 import { Loader2, Phone, ChevronLeft, ChevronRight } from "lucide-react";
@@ -25,6 +26,7 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
   const [mounted, setMounted] = React.useState(false);
   const [selectedItem, setSelectedItem] = React.useState<CallListItem | null>(null);
   const [isExecutionModalOpen, setIsExecutionModalOpen] = React.useState(false);
+  const [historyPhone, setHistoryPhone] = React.useState<{ phone: string; name?: string | null } | null>(null);
   const [pageSize] = React.useState<number>(10);
   const [page, setPage] = React.useState<number>(1);
 
@@ -184,12 +186,22 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
                           </td>
                           <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
                             {primaryPhone ? (
-                              <a
-                                href={`tel:${primaryPhone.phone}`}
-                                className="text-[var(--groups1-primary)] hover:underline"
-                              >
-                                {primaryPhone.phone}
-                              </a>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={`tel:${primaryPhone.phone}`}
+                                  className="text-[var(--groups1-primary)] hover:underline"
+                                >
+                                  {primaryPhone.phone}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setHistoryPhone({ phone: primaryPhone.phone, name: student?.name })}
+                                  className="text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-primary)] underline-offset-2 hover:underline"
+                                  title="Call history for this number"
+                                >
+                                  history
+                                </button>
+                              </div>
                             ) : (
                               <span className="text-[var(--groups1-text-secondary)]">N/A</span>
                             )}
@@ -277,6 +289,13 @@ export function CallsTable({ callListId, searchQuery = "", state = null, followU
         onOpenChange={setIsExecutionModalOpen}
         callListItem={selectedItem}
         onSuccess={handleExecutionSuccess}
+      />
+
+      <PhoneHistoryDrawer
+        open={historyPhone !== null}
+        onOpenChange={(open) => { if (!open) setHistoryPhone(null); }}
+        phone={historyPhone?.phone ?? null}
+        studentName={historyPhone?.name ?? null}
       />
     </>
   );

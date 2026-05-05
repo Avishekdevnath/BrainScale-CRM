@@ -43,13 +43,36 @@ export function useMessages(options: UseMessagesOptions) {
 
     fetchMessages();
 
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(() => {
-      console.log(`[FRONTEND-POLL] Polling messages from channel: ${channelId}`);
-      fetchMessages();
-    }, 5000);
+    // Poll for new messages every 5 seconds, but pause when tab is hidden
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        console.log(`[FRONTEND-POLL] Polling messages from channel: ${channelId}`);
+        fetchMessages();
+      }, 5000);
+    };
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stopPolling();
+      } else {
+        fetchMessages();
+        startPolling();
+      }
+    };
+    if (document.visibilityState !== "hidden") startPolling();
+    document.addEventListener("visibilitychange", handleVisibility);
 
-    return () => clearInterval(interval);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [channelId, enabled]);
 
   const refetch = async () => {

@@ -38,6 +38,7 @@ model User {
   chats                   Chat[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  callDrafts              CallDraft[]
 
   // Team Chat relations
   sentMessages            Message[]           @relation("MessageSender")
@@ -81,6 +82,7 @@ model Workspace {
   callLists               CallList[]
   callListItems           CallListItem[]
   callLogs                CallLog[]
+  callDrafts              CallDraft[]
   imports                 Import[]
   auditLogs               AuditLog[]
   invitations             Invitation[]
@@ -417,6 +419,7 @@ model CallListItem {
   student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignee  WorkspaceMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
   callLogs  CallLog[] @relation("CallLogs") // All call logs for this item
+  callDrafts CallDraft[]
 
   @@unique([callListId, studentId])
   @@index([workspaceId, state]) // For efficient workspace filtering
@@ -460,6 +463,25 @@ model CallLog {
   @@index([workspaceId, callListId, callDate]) // For call list history
   @@index([callListItemId, callDate]) // For efficient querying by item and date
   @@index([workspaceId, status]) // For status-based queries
+}
+
+// Server-synced draft of an in-progress call submission. One per (callListItem, user).
+// localStorage on client is the instant-write copy; this is the cross-device source of truth.
+model CallDraft {
+  id             String   @id @default(cuid()) @map("_id")
+  workspaceId    String
+  callListItemId String
+  userId         String
+  payload        Json     // { answers, notes, callerNote, status, followUpRequired, followUpDate, followUpNote, callDuration }
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  callListItem CallListItem @relation(fields: [callListItemId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([callListItemId, userId])
+  @@index([workspaceId, userId, updatedAt])
 }
 
 model Chat {

@@ -260,6 +260,7 @@ import followupRouter, { groupFollowupRouter } from './modules/followups/followu
 import notificationRouter from './modules/notifications/notification.router';
 import callListRouter, { callListItemRouter } from './modules/call-lists/call-list.router';
 import callLogRouter from './modules/call-lists/call-log.router';
+import callDraftRouter from './modules/call-lists/call-draft.router';
 import myCallsRouter from './modules/call-lists/my-calls.router';
 import studentRouter from './modules/students/student.router';
 import groupRouter, { batchGroupRouter } from './modules/groups/group.router';
@@ -302,6 +303,7 @@ app.use('/api/v1/notifications', notificationRouter); // Notifications routes
 app.use('/api/v1/call-lists', callListRouter); // Call lists routes
 app.use('/api/v1/call-list-items', callListItemRouter); // Call list items routes
 app.use('/api/v1/call-logs', callLogRouter); // Call logs routes
+app.use('/api/v1/call-drafts', callDraftRouter); // Call drafts routes
 app.use('/api/v1/my-calls', myCallsRouter); // My Calls routes
 app.use('/api/v1/courses', courseRouter); // Courses routes
 app.use('/api/v1/courses', courseModuleRouter); // Course modules nested route

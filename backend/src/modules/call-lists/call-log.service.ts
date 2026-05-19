@@ -175,7 +175,7 @@ export const createCallLog = async (
     where: { id: data.callListItemId },
     data: {
       state: 'DONE',
-      callLogId: callLog.id, // Always update to latest call log
+      callLogId: callLog.id,
     },
   });
 
@@ -504,6 +504,19 @@ export const listCallLogs = async (
     }
     if (options.dateTo) {
       where.callDate.lte = new Date(options.dateTo);
+    }
+  }
+
+  if ((options as any).q) {
+    const q = (options as any).q.trim();
+    if (q) {
+      where.student = {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { phones: { some: { phone: { contains: q } } } },
+        ],
+      };
     }
   }
 

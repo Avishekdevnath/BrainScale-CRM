@@ -1,233 +1,190 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { CallsFilterBar } from "@/components/calls/CallsFilterBar";
+import { useState, useMemo } from "react";
 import { CallsTable } from "@/components/calls/CallsTable";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
+import { useCallLists } from "@/hooks/useCallLists";
+import { useWorkspaceMembers } from "@/hooks/useMembers";
+import { useWorkspaceStore } from "@/store/workspace";
 import { mutate } from "swr";
-import { toast } from "sonner";
-import type { CallListItemState } from "@/types/call-lists.types";
-import { useMyCallsStats } from "@/hooks/useMyCalls";
+import { Phone, Search, Plus, X, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const FILTER_STORAGE_KEY = "calls-page-filters";
-
-interface SavedFilters {
-  selectedCallListId: string | null;
-  searchQuery: string;
-  state?: CallListItemState | null;
-  selectedMemberId?: string | null;
-}
+const STATUS_TABS = [
+  { id: "all",       label: "All",       status: null },
+  { id: "completed", label: "Completed", status: "completed" },
+  { id: "missed",    label: "Missed",    status: "missed" },
+  { id: "no_answer", label: "No Answer", status: "no_answer" },
+  { id: "busy",      label: "Busy",      status: "busy" },
+  { id: "voicemail", label: "Voicemail", status: "voicemail" },
+];
 
 export default function CallsPage() {
   usePageTitle("All Calls");
 
-  const { data: myCallsStats } = useMyCallsStats();
-  
-  // Load saved filters from localStorage on mount
-  const loadSavedFilters = (): SavedFilters => {
-    if (typeof window === "undefined") {
-      return { selectedCallListId: null, searchQuery: "", state: null };
-    }
-    try {
-      const saved = localStorage.getItem(FILTER_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      console.error("Failed to load saved filters:", error);
-    }
-    return { selectedCallListId: null, searchQuery: "", state: null };
-  };
+  const workspaceId = useWorkspaceStore((s) => s.current?.id ?? null);
+  const { data: callListsData } = useCallLists({ page: 1, size: 200, status: "ACTIVE" });
+  const { members } = useWorkspaceMembers(workspaceId);
 
-  const savedFilters = loadSavedFilters();
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedCallListId, setSelectedCallListId] = useState<string | null>(savedFilters.selectedCallListId);
-  const [searchQuery, setSearchQuery] = useState<string>(savedFilters.searchQuery);
-  const [selectedState, setSelectedState] = useState<CallListItemState | null>(savedFilters.state ?? null);
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(savedFilters.selectedMemberId ?? null);
-  const [showFollowUps, setShowFollowUps] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [callListId, setCallListId] = useState<string | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
 
-  const handleCallListChange = (callListId: string | null) => {
-    setSelectedCallListId(callListId);
-  };
-
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
-  };
-
-  const handleStateChange = (state: "QUEUED" | "DONE" | null) => {
-    setSelectedState(state);
-    setShowFollowUps(false); // Clear follow-ups filter when state changes
-  };
-
-  const handleFollowUpsChange = (show: boolean) => {
-    setShowFollowUps(show);
-    if (show) {
-      setSelectedState(null); // Clear state filter when showing follow-ups
-    }
-  };
-
-  const handleMemberChange = (memberId: string | null) => {
-    setSelectedMemberId(memberId);
-  };
-
-  const handleClearFilters = () => {
-    setSelectedCallListId(null);
-    setSearchQuery("");
-    setSelectedState(null);
-    setSelectedMemberId(null);
-    setShowFollowUps(false);
-    // Clear saved filters
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem(FILTER_STORAGE_KEY);
-        toast.success("Filters cleared");
-      } catch (error) {
-        console.error("Failed to clear saved filters:", error);
-      }
-    }
-  };
-
-  const handleSaveFilter = () => {
-    if (typeof window === "undefined") return;
-    
-    try {
-      const filters: SavedFilters = {
-        selectedCallListId,
-        searchQuery,
-        state: selectedState,
-        selectedMemberId,
-      };
-      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
-      toast.success("Filters saved");
-    } catch (error) {
-      console.error("Failed to save filters:", error);
-      toast.error("Failed to save filters");
-    }
-  };
+  const callListName = useMemo(
+    () => callListsData?.callLists?.find((cl) => cl.id === callListId)?.name ?? callListId,
+    [callListId, callListsData]
+  );
+  const memberName = useMemo(() => {
+    const m = members.find((m) => m.id === memberId);
+    return m ? (m.user.name?.trim() || m.user.email) : memberId;
+  }, [memberId, members]);
 
   const handleRefresh = async () => {
-    // Refresh all related SWR caches
-    await mutate("my-calls-stats");
-    await mutate((key) => typeof key === "string" && (key.startsWith("my-calls") || key.startsWith("all-calls")));
-    await mutate((key) => typeof key === "string" && key.startsWith("call-lists"));
-  };
-
-  const handleItemsUpdated = async () => {
-    await handleRefresh();
+    await mutate((key) => typeof key === "string" && key.includes("call-logs"));
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-[var(--groups1-text)]">All Calls</h1>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-[var(--groups1-secondary)] border border-[var(--groups1-border)]">
+            <Phone className="w-5 h-5 text-[var(--groups1-text)]" />
           </div>
-          <p className="text-sm text-[var(--groups1-text-secondary)] mt-1">
-            View and manage all calls in your workspace
-          </p>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--groups1-text)]">All Calls</h1>
+            <p className="text-xs text-[var(--groups1-text-secondary)]">All attempted and completed calls across the workspace.</p>
+          </div>
         </div>
+        <button
+          onClick={handleRefresh}
+          className="flex items-center gap-1.5 text-sm border border-[var(--groups1-border)] rounded-lg px-3 py-1.5 bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
       </div>
 
-      {/* Tabs + Filter Toggle */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => handleStateChange("QUEUED")}
-          className={cn(
-            "justify-start",
-            selectedState === "QUEUED" && !showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Pending
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {myCallsStats?.pending ?? 0}
-          </span>
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => handleStateChange("DONE")}
-          className={cn(
-            "justify-start",
-            selectedState === "DONE" && !showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Completed
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {myCallsStats?.completed ?? 0}
-          </span>
-        </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => handleFollowUpsChange(!showFollowUps)}
-          className={cn(
-            "justify-start",
-            showFollowUps
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Follow-ups
-          <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-            {myCallsStats?.followUps ?? 0}
-          </span>
-        </Button>
-        </div>
-        <div className="flex items-center justify-end">
-          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters((prev) => !prev)} />
-        </div>
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 p-1 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl w-fit">
+        {STATUS_TABS.map((tab) => {
+          const active = activeStatus === tab.status;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveStatus(tab.status)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                active
+                  ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] shadow-sm"
+                  : "text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter Bar */}
-      <CollapsibleFilters open={showFilters} contentClassName="pt-6">
-        <CallsFilterBar
-          selectedCallListId={selectedCallListId}
-          searchQuery={searchQuery}
-          selectedMemberId={selectedMemberId}
-          onCallListChange={handleCallListChange}
-          onSearchChange={handleSearchChange}
-          onMemberChange={handleMemberChange}
-          onClearFilters={handleClearFilters}
-          onSaveFilter={handleSaveFilter}
+      {/* Inline filter bar */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl">
+        <Search className="w-4 h-4 text-[var(--groups1-text-secondary)] flex-shrink-0" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name, email, or phone..."
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]"
         />
-      </CollapsibleFilters>
 
-      {/* Calls Table */}
+        {callListId && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)] border border-[var(--groups1-primary)]/20 flex-shrink-0 max-w-[200px]">
+            <span className="truncate">List: {callListName}</span>
+            <button onClick={() => setCallListId(null)} className="hover:text-red-500 ml-0.5 flex-shrink-0">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+        {memberId && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-secondary)] text-[var(--groups1-text)] border border-[var(--groups1-border)] flex-shrink-0 max-w-[180px]">
+            <span className="truncate">Caller: {memberName}</span>
+            <button onClick={() => setMemberId(null)} className="hover:text-red-500 ml-0.5 flex-shrink-0">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+
+        <div className="w-px h-5 bg-[var(--groups1-border)] flex-shrink-0" />
+
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setFilterPopoverOpen((v) => !v)}
+            className="flex items-center gap-1 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] border border-dashed border-[var(--groups1-border)] rounded-lg px-2.5 py-1.5 hover:bg-[var(--groups1-secondary)]"
+          >
+            <Plus className="w-3 h-3" />
+            Add filter
+          </button>
+          {filterPopoverOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setFilterPopoverOpen(false)} />
+              <div className="absolute top-full left-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] px-3 py-1.5">Filter by</div>
+                <div className="px-2 pb-1">
+                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Call List</div>
+                  <select
+                    value={callListId ?? ""}
+                    onChange={(e) => { setCallListId(e.target.value || null); setFilterPopoverOpen(false); }}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                  >
+                    <option value="">All call lists</option>
+                    {(callListsData?.callLists ?? []).map((cl) => (
+                      <option key={cl.id} value={cl.id}>{cl.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="px-2 pb-1">
+                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Caller</div>
+                  <select
+                    value={memberId ?? ""}
+                    onChange={(e) => { setMemberId(e.target.value || null); setFilterPopoverOpen(false); }}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                  >
+                    <option value="">All callers</option>
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>{m.user.name?.trim() || m.user.email}</option>
+                    ))}
+                  </select>
+                </div>
+                {(callListId || memberId) && (
+                  <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2">
+                    <button
+                      onClick={() => { setCallListId(null); setMemberId(null); setFilterPopoverOpen(false); }}
+                      className="w-full text-left text-xs text-red-500 hover:text-red-600 px-1 py-1.5"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {searchQuery && (
+          <button onClick={() => setSearchQuery("")} className="flex-shrink-0 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
       <CallsTable
-        callListId={selectedCallListId}
+        callListId={callListId}
         searchQuery={searchQuery}
-        state={selectedState}
-        followUpRequired={showFollowUps}
-        assignedTo={selectedMemberId}
-        onItemsUpdated={handleItemsUpdated}
+        status={activeStatus}
+        assignedTo={memberId}
+        onRefresh={handleRefresh}
       />
     </div>
   );

@@ -20,6 +20,23 @@ export interface CallStatusOption {
   updatedAt: string;
 }
 
+// Lightweight status option stored in callList.meta.statusOptions
+export interface CallListStatusOption {
+  value: string;
+  label: string;
+  color: string;
+}
+
+// Custom column definition stored in callList.meta.columns
+export type CustomColumnType = 'text' | 'number' | 'date' | 'select';
+export interface CustomColumnDef {
+  key: string;
+  label: string;        // full descriptive name
+  shortLabel?: string;  // abbreviated header text
+  type: CustomColumnType;
+  options?: string[];   // only for type === 'select'
+}
+
 // Question interface for call lists
 export interface Question {
   id: string; // Unique identifier within call list
@@ -70,6 +87,10 @@ export interface CallList {
   };
   // Extracted from meta.questions in API responses
   questions?: Question[];
+  // Extracted from meta.statusOptions in API responses (per-list custom statuses)
+  statusOptions?: CallListStatusOption[];
+  // Extracted from meta.columns in API responses (per-list custom columns)
+  columns?: CustomColumnDef[];
 }
 
 export interface CallListStudentRef {
@@ -112,9 +133,12 @@ export interface CallListItem {
   state: CallListItemState;
   priority: number; // 0-100, default: 0
   serialNumber: number; // Stable 1-based position within the call list (0 = legacy, fallback to index)
+  pendingSerialNumber?: number; // State-specific: for PENDING items, ordered by assignedAt
+  completeSerialNumber?: number; // State-specific: for DONE items, ordered by updatedAt
   custom: Record<string, any> | null; // Custom field values
   createdAt: string; // ISO 8601 datetime
   updatedAt: string; // ISO 8601 datetime
+  assignedAt?: string | null; // When item was assigned
   student?: CallListStudentRef;
   assignee?: CallListAssignee | null;
   callList?: {
@@ -123,6 +147,8 @@ export interface CallListItem {
     description: string | null;
     messages: string[];
     questions?: Question[];
+    statusOptions?: CallListStatusOption[];
+    columns?: CustomColumnDef[];
     meta?: Record<string, any>;
     group?: {
       id: string;
@@ -279,6 +305,8 @@ export interface CallLog {
     description: string | null;
     messages: string[];
     questions?: Question[];
+    statusOptions?: CallListStatusOption[];
+    columns?: CustomColumnDef[];
     meta?: Record<string, any>;
     group?: {
       id: string;
@@ -390,6 +418,7 @@ export interface GetCallLogsParams {
   dateTo?: string; // Optional, ISO 8601
   batchId?: string; // Optional
   groupId?: string; // Optional
+  q?: string; // Optional, search by student name/email/phone
 }
 
 export interface CallLogsResponse {

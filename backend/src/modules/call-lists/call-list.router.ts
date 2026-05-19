@@ -62,6 +62,73 @@ router.delete(
   callListSettingsController.deleteStatusOption
 );
 
+// Per-call-list status options (stored in meta.statusOptions)
+router.get(
+  '/:listId/status-options',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListSettingsController.listCallListStatusOptions
+);
+
+router.post(
+  '/:listId/status-options',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.addCallListStatusOption
+);
+
+router.delete(
+  '/:listId/status-options/:value',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.removeCallListStatusOption
+);
+
+// Per-call-list custom columns (stored in meta.columns)
+router.get(
+  '/:listId/columns',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'read'),
+  callListSettingsController.listCallListColumns
+);
+
+router.post(
+  '/:listId/columns',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.addCallListColumn
+);
+
+router.patch(
+  '/:listId/columns/:key',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.updateCallListColumn
+);
+
+router.delete(
+  '/:listId/columns/:key',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.removeCallListColumn
+);
+
+// Update custom field values on a call list item
+router.patch(
+  '/:listId/items/:itemId/custom',
+  authGuard,
+  tenantGuard,
+  requirePermission('call_lists', 'update'),
+  callListSettingsController.updateCallListItemCustom
+);
+
 /**
  * @openapi
  * /call-lists:

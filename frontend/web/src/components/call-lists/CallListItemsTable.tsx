@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { CallListItemDetailsModal } from "./CallListItemDetailsModal";
+import { CallHistoryModal } from "./CallHistoryModal";
 
 const CallExecutionModal = dynamic(() => import("./CallExecutionModal").then(mod => ({ default: mod.CallExecutionModal })), { ssr: false });
 import { CallListFilters } from "./CallListFilters";
@@ -18,12 +19,12 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { extractQuestions, getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Trash2, MoreVertical, Download, Search, Users } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Trash2, MoreVertical, Download, Search, Users, History } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import type { Answer, CallListItem, CallListItemState, CallListItemsListParams, Question } from "@/types/call-lists.types";
+import type { Answer, CallListItem, CallListItemState, CallListItemsListParams, Question, CustomColumnDef } from "@/types/call-lists.types";
 
 export interface CallListItemsTableProps {
   listId: string;
@@ -57,6 +58,8 @@ export function CallListItemsTable({
   const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = React.useState(false);
   const [removeTarget, setRemoveTarget] = React.useState<{ itemId: string; studentName?: string } | null>(null);
+  const [historyItem, setHistoryItem] = React.useState<CallListItem | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = React.useState(false);
   const [activeFilter, setActiveFilter] = React.useState<FilterType>("all");
   const [assignmentFilter, setAssignmentFilter] = React.useState<AssignmentFilterType>("all");
   const [memberFilterId, setMemberFilterId] = React.useState<string | null>(null);
@@ -75,6 +78,8 @@ export function CallListItemsTable({
     return localStorage.getItem("call-list-items:hideDone") === "1";
   });
   const [expandedAnswerItems, setExpandedAnswerItems] = React.useState<Set<string>>(new Set());
+  const [draftCount, setDraftCount] = React.useState<number>(0);
+  const [isSubmittingDrafts, setIsSubmittingDrafts] = React.useState(false);
 
   const toggleAnswers = React.useCallback((itemId: string) => {
     setExpandedAnswerItems((prev) => {
@@ -182,8 +187,6 @@ export function CallListItemsTable({
   const serverTotalItems = data?.pagination?.total ?? 0;
 
   // Filter items by search query and "Hide done" toggle.
-  // Hide done is applied client-side so DONE rows can stay in position when the
-  // toggle is OFF — this prevents the serial-number shift the user sees on Mark Done.
   const filteredItems = React.useMemo(() => {
     let items = paginatedItems;
     if (hideDone) {
@@ -197,6 +200,37 @@ export function CallListItemsTable({
       return studentName || studentPhone;
     });
   }, [paginatedItems, searchQuery, hideDone]);
+
+  // Pre-compute state-specific serial numbers.
+  // Pending and done each get their own #1, #2, #3...
+  // When state filter is active all items are same state so page offset is accurate.
+  // In mixed view counters reset per page — slight inaccuracy at page boundaries only.
+  const serialMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    const pageOffset = (filters.page! - 1) * pageSize;
+    const stateFiltered = activeFilter === "success" || activeFilter === "skipped";
+
+    if (stateFiltered) {
+      // All items same state — simple global offset
+      filteredItems.forEach((item, idx) => {
+        map.set(item.id, pageOffset + idx + 1);
+      });
+    } else {
+      // Mixed: separate counter per state
+      let pendingIdx = 0;
+      let doneIdx = 0;
+      filteredItems.forEach((item) => {
+        if (item.state === "DONE") {
+          doneIdx++;
+          map.set(item.id, pageOffset + doneIdx);
+        } else {
+          pendingIdx++;
+          map.set(item.id, pageOffset + pendingIdx);
+        }
+      });
+    }
+    return map;
+  }, [filteredItems, filters.page, pageSize, activeFilter]);
 
   // When search or hideDone is active, count rendered rows; otherwise use server total
   const totalItems = searchQuery.trim() || hideDone ? filteredItems.length : serverTotalItems;
@@ -219,6 +253,13 @@ export function CallListItemsTable({
     }
 
     return [];
+  }, [callListDetails, paginatedItems]);
+
+  const customColumns = React.useMemo((): CustomColumnDef[] => {
+    const fromDetails = (callListDetails?.columns ?? callListDetails?.meta?.columns) as CustomColumnDef[] | undefined;
+    if (fromDetails?.length) return fromDetails;
+    const fromItem = paginatedItems[0]?.callList?.columns as CustomColumnDef[] | undefined;
+    return fromItem ?? [];
   }, [callListDetails, paginatedItems]);
 
   const selectionMeta = React.useMemo(() => {
@@ -337,6 +378,54 @@ export function CallListItemsTable({
     [listId, mutate, onItemsUpdated]
   );
 
+  const refreshDraftCount = React.useCallback(async () => {
+    try {
+      const drafts = await apiClient.listCallDrafts({ callListId: listId });
+      setDraftCount(Array.isArray(drafts) ? drafts.length : 0);
+    } catch {
+      setDraftCount(0);
+    }
+  }, [listId]);
+
+  React.useEffect(() => {
+    refreshDraftCount();
+  }, [refreshDraftCount]);
+
+  const handleSubmitAllDrafts = React.useCallback(async () => {
+    if (draftCount === 0) {
+      toast.info("No saved drafts to submit");
+      return;
+    }
+    const confirmed = confirm(
+      `Submit ${draftCount} saved draft(s) as completed call log(s)?`
+    );
+    if (!confirmed) return;
+
+    setIsSubmittingDrafts(true);
+    try {
+      const result = await apiClient.submitAllCallDrafts({ callListId: listId });
+      if (result.succeeded > 0) {
+        toast.success(
+          `Submitted ${result.succeeded} of ${result.total} draft(s)` +
+            (result.failed > 0 ? ` — ${result.failed} failed` : "")
+        );
+      } else if (result.failed > 0) {
+        toast.error(`All ${result.failed} draft(s) failed to submit`);
+      }
+      if (result.failures && result.failures.length > 0) {
+        console.warn("Draft submission failures:", result.failures);
+      }
+      await mutate();
+      onItemsUpdated?.();
+      await refreshDraftCount();
+    } catch (error: any) {
+      console.error("submit-all drafts failed:", error);
+      toast.error(error?.message || "Failed to submit drafts");
+    } finally {
+      setIsSubmittingDrafts(false);
+    }
+  }, [draftCount, listId, mutate, onItemsUpdated, refreshDraftCount]);
+
   const handleMarkAllPendingDone = React.useCallback(
     async () => {
       const pendingItems = paginatedItems.filter((item) => item.state !== "DONE");
@@ -349,11 +438,21 @@ export function CallListItemsTable({
       if (!confirmed) return;
 
       try {
-        await apiClient.bulkUpdateCallListItems(listId, {
+        const result = await apiClient.bulkUpdateCallListItems(listId, {
           itemIds: pendingItems.map((item) => item.id),
           state: "DONE",
         });
-        toast.success(`Marked ${pendingItems.length} item(s) as done`);
+
+        const { succeeded = 0, skipped = 0 } = result;
+
+        if (skipped > 0) {
+          toast.success(
+            `Marked ${succeeded} item(s) as done. ${skipped} item(s) skipped (missing call data).`
+          );
+        } else {
+          toast.success(`Marked ${succeeded} item(s) as done`);
+        }
+
         await mutate();
         onItemsUpdated?.();
       } catch (error: any) {
@@ -753,6 +852,26 @@ export function CallListItemsTable({
             >
               Mark All Pending Done
             </Button>
+            {draftCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSubmitAllDrafts}
+                disabled={isSubmittingDrafts}
+                title="Submit all saved drafts (with their answers/notes) as call logs"
+                className="h-9 px-3 text-xs whitespace-nowrap bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              >
+                {isSubmittingDrafts ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>Submit {draftCount} Draft{draftCount === 1 ? "" : "s"}</>
+                )}
+              </Button>
+            )}
           </div>
 
           {isLoading ? (
@@ -804,7 +923,7 @@ export function CallListItemsTable({
                   const isUpdating = updatingItemId === item.id;
                   const callLog = getCallLogData(item);
                   const followUpDate = callLog?.followUpDate || null;
-                  const serialNumber = item.serialNumber || (filters.page! - 1) * pageSize + index + 1;
+                  const serialNumber = serialMap.get(item.id) ?? index + 1;
 
                   const isAssigned = !!item.assignedTo;
                   const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
@@ -879,6 +998,20 @@ export function CallListItemsTable({
                               <Phone className="w-4 h-4" />
                             </Button>
                           )}
+
+                          <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                              onClick={() => {
+                                setHistoryItem(item);
+                                setIsHistoryModalOpen(true);
+                              }}
+                              title="Call History"
+                              aria-label="Call History"
+                            >
+                              <History className="w-4 h-4" />
+                            </Button>
 
                           <DropdownMenu.Root>
                             <DropdownMenu.Trigger asChild>
@@ -1061,6 +1194,11 @@ export function CallListItemsTable({
                     <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Follow-up Date
                     </th>
+                    {customColumns.map((col) => (
+                      <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] bg-[var(--groups1-secondary)] whitespace-nowrap">
+                        {col.label}
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-l border-[var(--groups1-card-border-inner)] sticky right-0 z-10 bg-[var(--groups1-surface)]">
                       Actions
                     </th>
@@ -1072,7 +1210,9 @@ export function CallListItemsTable({
                     const isUpdating = updatingItemId === item.id;
                     const callLog = getCallLogData(item);
                     const followUpDate = callLog?.followUpDate || null;
-                    const serialNumber = item.serialNumber || (filters.page! - 1) * pageSize + index + 1;
+                    const serialNumber = item.state === "DONE"
+                      ? (item as any).completeSerialNumber || (filters.page! - 1) * pageSize + index + 1
+                      : (item as any).pendingSerialNumber || (filters.page! - 1) * pageSize + index + 1;
 
                     const isAssigned = !!item.assignedTo;
                     const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
@@ -1181,11 +1321,32 @@ export function CallListItemsTable({
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
+                        {/* Custom column cells */}
+                        {customColumns.map((col) => (
+                          <td key={col.key} className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] whitespace-nowrap">
+                            <span className="text-sm text-[var(--groups1-text)]">
+                              {(item as any).custom?.[col.key] != null ? String((item as any).custom[col.key]) : "—"}
+                            </span>
+                          </td>
+                        ))}
                         <td className={cn(
                           "px-3 py-2 border-b border-l border-[var(--groups1-card-border-inner)] text-right sticky right-0 z-10",
                           isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
                         )}>
                           <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                              onClick={() => {
+                                setHistoryItem(item);
+                                setIsHistoryModalOpen(true);
+                              }}
+                              title="Call History"
+                              aria-label="Call History"
+                            >
+                              <History className="w-4 h-4" />
+                            </Button>
                             <DropdownMenu.Root>
                               <DropdownMenu.Trigger asChild>
                                 <Button
@@ -1248,6 +1409,17 @@ export function CallListItemsTable({
                                   >
                                     <Eye className="h-4 w-4" />
                                     View Details
+                                  </DropdownMenu.Item>
+                                  <DropdownMenu.Item
+                                    className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      setHistoryItem(item);
+                                      setIsHistoryModalOpen(true);
+                                    }}
+                                  >
+                                    <History className="h-4 w-4" />
+                                    Call History
                                   </DropdownMenu.Item>
                                   {isAdmin && (
                                     <>
@@ -1322,9 +1494,16 @@ export function CallListItemsTable({
 
       <CallExecutionModal
         open={isExecutionModalOpen}
-        onOpenChange={setIsExecutionModalOpen}
+        onOpenChange={(next) => {
+          setIsExecutionModalOpen(next);
+          // When modal closes (with or without submit), refresh draft count
+          if (!next) refreshDraftCount();
+        }}
         callListItem={selectedItem}
-        onSuccess={handleExecutionSuccess}
+        onSuccess={() => {
+          handleExecutionSuccess();
+          refreshDraftCount();
+        }}
       />
 
       <CallListItemDetailsModal
@@ -1333,6 +1512,15 @@ export function CallListItemsTable({
         callListItem={selectedItemForDetails}
         listId={listId}
         onUpdated={handleDetailsUpdated}
+      />
+
+      <CallHistoryModal
+        open={isHistoryModalOpen}
+        onOpenChange={(v) => {
+          setIsHistoryModalOpen(v);
+          if (!v) setHistoryItem(null);
+        }}
+        callListItem={historyItem}
       />
 
       <Dialog

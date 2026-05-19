@@ -12,15 +12,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FollowUpModal } from "@/components/calls/FollowUpModal";
+import { CallHistoryModal } from "@/components/call-lists/CallHistoryModal";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
-import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight, History, RefreshCw, Plus, X, Bookmark, ChevronDown, Check, Pencil } from "lucide-react";
 import { mutate } from "swr";
-import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer } from "@/types/call-lists.types";
+import { useCallStatusOptions } from "@/hooks/useCallLists";
+import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer, CallListStatusOption, CustomColumnDef } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
@@ -95,14 +95,149 @@ function dropDraftIds(workspaceId: string, ids: string[]) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// StatusSelect — badge-style dropdown with inline "add status" input
+// ---------------------------------------------------------------------------
+function StatusSelect({
+  value,
+  onChange,
+  options,
+  callListId,
+  onOptionAdded,
+  disabled,
+}: {
+  value: string | undefined;
+  onChange: (v: string) => void;
+  options: CallListStatusOption[];
+  callListId?: string;
+  onOptionAdded?: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+
+  const handleAdd = async () => {
+    const label = newLabel.trim();
+    if (!label || !callListId) return;
+    setSaving(true);
+    try {
+      await apiClient.addCallListStatusOption(callListId, { label });
+      onOptionAdded?.();
+      setNewLabel("");
+      toast.success(`Status "${label}" added`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add status");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hex = (color: string, alpha: string) => color + alpha;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        className="inline-flex items-center gap-1.5 rounded-full text-[11.5px] font-semibold px-2.5 py-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+        style={{
+          background: selected ? hex(selected.color, "22") : "var(--groups1-secondary)",
+          color: selected ? selected.color : "var(--groups1-text-secondary)",
+          border: `1px solid ${selected ? hex(selected.color, "44") : "var(--groups1-border)"}`,
+        }}
+      >
+        <span
+          className="w-[5px] h-[5px] rounded-full flex-shrink-0"
+          style={{ background: selected?.color ?? "var(--groups1-text-secondary)" }}
+        />
+        {selected?.label ?? "Set status"}
+        <ChevronDown className="w-3 h-3 opacity-60" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1.5 z-50 w-44 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-1">
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                className="flex items-center gap-2.5 w-full px-3 py-1.5 text-sm text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] text-left"
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: opt.color }} />
+                <span className="flex-1 truncate">{opt.label}</span>
+                {opt.value === value && <Check className="w-3.5 h-3.5 text-[var(--groups1-primary)] flex-shrink-0" />}
+              </button>
+            ))}
+            {callListId && (
+              <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2 pb-1.5">
+                <div className="flex items-center gap-1">
+                  <input
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleAdd(); e.stopPropagation(); }}
+                    placeholder="Add status…"
+                    className="flex-1 min-w-0 text-[12px] bg-transparent outline-none text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {saving
+                    ? <Loader2 className="w-3 h-3 animate-spin text-[var(--groups1-text-secondary)]" />
+                    : newLabel.trim() && (
+                      <button type="button" onClick={() => void handleAdd()} className="text-[var(--groups1-primary)]">
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
 
   const [mounted, setMounted] = useState(false);
+  const [needsDefaultCallList, setNeedsDefaultCallList] = useState(false);
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem("calls-manager:pageSize");
-    if (saved) setPageSize(Number(saved));
+    const savedSize = localStorage.getItem("calls-manager:pageSize");
+    if (savedSize) setPageSize(Number(savedSize));
+    // Restore saved view (single slot)
+    try {
+      const savedView = localStorage.getItem("calls-manager:saved-view");
+      if (savedView) {
+        const v = JSON.parse(savedView);
+        if (v.groupId)         setGroupId(v.groupId);
+        if (v.batchId)         setBatchId(v.batchId);
+        if (v.callListId)      setCallListId(v.callListId);
+        if (v.state !== undefined) setState(v.state);
+        if (v.showFollowUps)   setShowFollowUps(v.showFollowUps);
+      } else {
+        // No saved view — will auto-select most recent call list once data loads
+        setNeedsDefaultCallList(true);
+      }
+    } catch {
+      setNeedsDefaultCallList(true);
+    }
   }, []);
 
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
@@ -121,7 +256,7 @@ export default function CallsManagerPage() {
   const [groupId, setGroupId] = useState<string>("");
   const [batchId, setBatchId] = useState<string>("");
   const [callListId, setCallListId] = useState<string>("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [submittingItemId, setSubmittingItemId] = useState<string | null>(null);
@@ -145,17 +280,23 @@ export default function CallsManagerPage() {
     type: "done" | "unassign" | null;
     working: boolean;
   }>({ open: false, type: null, working: false });
+  const [historyItem, setHistoryItem] = useState<CallListItem | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [columnsEditMode, setColumnsEditMode] = useState(false);
+  const [columnModal, setColumnModal] = useState<{ label: string; shortLabel: string; type: string; selectOptions: string } | null>(null);
+  const [savingColumn, setSavingColumn] = useState(false);
 
   const { data: stats } = useMyCallsStats();
   const { data: groupsData } = useGroups();
   const { data: batchesData } = useBatches({ page: 1, size: 200, isActive: true });
-  const { data: callListsData } = useCallLists({
+  const { data: callListsData, mutate: mutateCallLists } = useCallLists({
     page: 1,
     size: 200,
     status: "ACTIVE",
     groupId: groupId || undefined,
     batchId: batchId || undefined,
   });
+  const { data: workspaceStatusOptions = [] } = useCallStatusOptions();
 
   const counts = useMemo(() => {
     return {
@@ -223,6 +364,12 @@ export default function CallsManagerPage() {
 
   const showQuestionColumns = tableQuestions.length > 0;
 
+  const tableColumns = useMemo((): CustomColumnDef[] => {
+    if (!callListId) return [];
+    const cl = callListsData?.callLists?.find((c) => c.id === callListId);
+    return (cl?.columns ?? items[0]?.callList?.columns ?? []) as CustomColumnDef[];
+  }, [callListId, callListsData, items]);
+
   const setAnswerValue = (itemId: string, questionId: string, value: any) => {
     setItemAnswers((prev) => {
       const nextForItem = { ...(prev[itemId] || {}) };
@@ -267,7 +414,17 @@ export default function CallsManagerPage() {
 
   useEffect(() => {
     setSelectedItemIds(new Set());
+    setFilterPopoverOpen(false);
   }, [page, state, showFollowUps, debouncedSearchQuery, groupId, batchId, callListId]);
+
+  // Auto-select most recent call list if no saved view
+  useEffect(() => {
+    if (!needsDefaultCallList) return;
+    if (!callListsData?.callLists?.length) return;
+    if (callListId) return;
+    setCallListId(callListsData.callLists[0].id);
+    setNeedsDefaultCallList(false);
+  }, [needsDefaultCallList, callListsData, callListId]);
 
   // Hydrate drafts from localStorage when workspace becomes available
   useEffect(() => {
@@ -417,7 +574,12 @@ export default function CallsManagerPage() {
     setSubmittingItemId(item.id);
     try {
       const followUp = followUpData[item.id];
-      const selectedStatus = callStatuses[item.id] ?? "completed";
+      const itemStatusOptions: CallListStatusOption[] =
+        (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
+          ? (item.callList.statusOptions as CallListStatusOption[])
+          : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+      const defaultStatus = itemStatusOptions[0]?.value ?? "completed";
+      const selectedStatus = callStatuses[item.id] ?? defaultStatus;
       const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
         (a, b) => (a.order ?? 0) - (b.order ?? 0)
       );
@@ -466,8 +628,8 @@ export default function CallsManagerPage() {
 
       // Refresh data - force refresh to update follow-ups list
       await mutateCalls();
-      await mutate("my-calls-stats");
-      await mutate((key) => typeof key === "string" && key.startsWith("my-calls"));
+      await mutate(`${workspaceId}:my-calls-stats`);
+      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
       
       // If we're viewing follow-ups, the list should update automatically
       // The API will return items with followUpRequired: true from their call logs
@@ -621,6 +783,47 @@ export default function CallsManagerPage() {
     );
   };
 
+  const handleSaveView = () => {
+    try {
+      localStorage.setItem("calls-manager:saved-view", JSON.stringify({ groupId, batchId, callListId, state, showFollowUps }));
+    } catch { /* ignore */ }
+    toast.success("View saved");
+  };
+
+  const handleDeleteColumn = async (key: string) => {
+    if (!callListId) return;
+    try {
+      await apiClient.removeCallListColumn(callListId, key);
+      await mutateCallLists();
+      toast.success("Column removed");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to remove column");
+    }
+  };
+
+  const handleAddColumn = async () => {
+    if (!callListId || !columnModal?.label.trim()) return;
+    setSavingColumn(true);
+    try {
+      const options = columnModal.type === "select" && columnModal.selectOptions.trim()
+        ? columnModal.selectOptions.split(",").map(s => s.trim()).filter(Boolean)
+        : undefined;
+      await apiClient.addCallListColumn(callListId, {
+        label: columnModal.label.trim(),
+        shortLabel: columnModal.shortLabel.trim() || undefined,
+        type: columnModal.type,
+        options,
+      });
+      await mutateCallLists();
+      setColumnModal(null);
+      toast.success("Column added");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add column");
+    } finally {
+      setSavingColumn(false);
+    }
+  };
+
   const openBulkDialog = (type: "done" | "unassign") => {
     if (!hasSelection) return;
     // Caller notes are now optional for bulk actions
@@ -671,8 +874,8 @@ export default function CallsManagerPage() {
 
       setSelectedItemIds(new Set());
       await mutateCalls();
-      await mutate("my-calls-stats");
-      await mutate((key) => typeof key === "string" && key.startsWith("my-calls"));
+      await mutate(`${workspaceId}:my-calls-stats`);
+      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
       closeBulkDialog();
     } catch (error: any) {
       console.error(error);
@@ -700,7 +903,11 @@ export default function CallsManagerPage() {
           const item = selectedItemsCopy.shift();
           if (!item) return;
           const followUp = followUpData[item.id];
-          const selectedStatus = callStatuses[item.id] ?? "completed";
+          const itemOpts: CallListStatusOption[] =
+            (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
+              ? (item.callList.statusOptions as CallListStatusOption[])
+              : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+          const selectedStatus = callStatuses[item.id] ?? (itemOpts[0]?.value ?? "completed");
           const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0)
           );
@@ -759,8 +966,8 @@ export default function CallsManagerPage() {
 
       setSelectedItemIds(new Set());
       await mutateCalls();
-      await mutate("my-calls-stats");
-      await mutate((key) => typeof key === "string" && key.startsWith("my-calls"));
+      await mutate(`${workspaceId}:my-calls-stats`);
+      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
       closeBulkDialog();
     } catch (error: any) {
       console.error(error);
@@ -771,203 +978,199 @@ export default function CallsManagerPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-[var(--groups1-secondary)] border border-[var(--groups1-border)]">
-              <Phone className="w-6 h-6 text-[var(--groups1-text)]" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--groups1-text)]">My Calls</h1>
-              <p className="text-sm text-[var(--groups1-text-secondary)] mt-1">Manage assigned calls and mark them done.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* View Tabs + Filter Toggle */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={state === "QUEUED" && !showFollowUps ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setShowFollowUps(false);
-              setState("QUEUED");
-              setPage(1);
-            }}
-            className={cn(
-              "justify-start",
-              state === "QUEUED" && !showFollowUps
-                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-            )}
-          >
-            Pending
-            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-              {counts.pending}
-            </span>
-          </Button>
-          <Button
-            variant={state === "DONE" && !showFollowUps ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setShowFollowUps(false);
-              setState("DONE");
-              setPage(1);
-            }}
-            className={cn(
-              "justify-start",
-              state === "DONE" && !showFollowUps
-                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-            )}
-          >
-            Completed
-            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-              {counts.completed}
-            </span>
-          </Button>
-          <Button
-            variant={showFollowUps ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setShowFollowUps((prev) => !prev);
-              setState(null);
-              setPage(1);
-            }}
-            className={cn(
-              "justify-start",
-              showFollowUps
-                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-            )}
-          >
-            Follow-ups
-            <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px] font-semibold text-current dark:bg-white/10">
-              {counts.followUps}
-            </span>
-          </Button>
-        </div>
-        <div className="flex items-center justify-end">
-          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters((prev) => !prev)} />
-        </div>
-      </div>
-
-      <CollapsibleFilters open={showFilters} contentClassName="py-3">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <div className="md:col-span-4">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Search
-            </label>
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--groups1-text-secondary)]" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPage(1);
-                }}
-                placeholder="Search by student name, email, or phone"
-                className={cn("pl-9", "bg-[var(--groups1-surface)]")}
-              />
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-[var(--groups1-secondary)] border border-[var(--groups1-border)]">
+            <Phone className="w-5 h-5 text-[var(--groups1-text)]" />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Group
-            </label>
-            <select
-              value={groupId}
-              onChange={(e) => {
-                setGroupId(e.target.value);
-                setCallListId("");
-                setPage(1);
-              }}
-              className={cn(
-                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-              )}
-            >
-              <option value="">All groups</option>
-              {(groupsData ?? []).map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Batch
-            </label>
-            <select
-              value={batchId}
-              onChange={(e) => {
-                setBatchId(e.target.value);
-                setCallListId("");
-                setPage(1);
-              }}
-              className={cn(
-                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-              )}
-            >
-              <option value="">All batches</option>
-              {(batchesData?.batches ?? []).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Call List
-            </label>
-            <select
-              value={callListId}
-              onChange={(e) => {
-                setCallListId(e.target.value);
-                setPage(1);
-              }}
-              className={cn(
-                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-              )}
-            >
-              <option value="">All call lists</option>
-              {(callListsData?.callLists ?? []).map((cl) => (
-                <option key={cl.id} value={cl.id}>
-                  {cl.name}
-                </option>
-              ))}
-            </select>
+            <h1 className="text-xl font-bold text-[var(--groups1-text)]">My Calls</h1>
+            <p className="text-xs text-[var(--groups1-text-secondary)]">Manage assigned calls and mark them done.</p>
           </div>
         </div>
+        <button
+          onClick={() => { void mutateCalls(); void mutate("my-calls-stats"); }}
+          className="flex items-center gap-1.5 text-sm border border-[var(--groups1-border)] rounded-lg px-3 py-1.5 bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+      </div>
 
-        <div className="flex justify-end mt-3">
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearchQuery("");
-              setGroupId("");
-              setBatchId("");
-              setCallListId("");
-              setPage(1);
-            }}
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 p-1 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl w-fit">
+        {[
+          { id: "pending", label: "Pending", count: counts.pending, active: state === "QUEUED" && !showFollowUps, onClick: () => { setShowFollowUps(false); setState("QUEUED"); setPage(1); } },
+          { id: "completed", label: "Completed", count: counts.completed, active: state === "DONE" && !showFollowUps, onClick: () => { setShowFollowUps(false); setState("DONE"); setPage(1); } },
+          { id: "followups", label: "Follow-ups", count: counts.followUps, active: showFollowUps, onClick: () => { setShowFollowUps(true); setState(null); setPage(1); } },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={tab.onClick}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+              tab.active
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] shadow-sm"
+                : "text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
           >
-            Clear
-          </Button>
+            {tab.label}
+            <span className={cn(
+              "text-[11px] font-semibold px-1.5 py-0.5 rounded-full",
+              tab.active ? "bg-white/20 text-current" : "bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)]"
+            )}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Unified filter bar */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl">
+        <Search className="w-4 h-4 text-[var(--groups1-text-secondary)] flex-shrink-0" />
+        <input
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+          placeholder="Search by name, email, or phone..."
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]"
+        />
+
+        {/* Active filter chips */}
+        {groupId && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-secondary)] text-[var(--groups1-text)] border border-[var(--groups1-border)] flex-shrink-0">
+            Group: {(groupsData ?? []).find(g => g.id === groupId)?.name ?? groupId}
+            <button onClick={() => { setGroupId(""); setPage(1); }} className="hover:text-red-500 ml-0.5">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+        {batchId && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-secondary)] text-[var(--groups1-text)] border border-[var(--groups1-border)] flex-shrink-0">
+            Batch: {batchesData?.batches?.find(b => b.id === batchId)?.name ?? batchId}
+            <button onClick={() => { setBatchId(""); setPage(1); }} className="hover:text-red-500 ml-0.5">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+        {callListId && (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)] border border-[var(--groups1-primary)]/20 flex-shrink-0 max-w-[200px]">
+            <span className="truncate">List: {callListsData?.callLists?.find(cl => cl.id === callListId)?.name ?? callListId}</span>
+            <button onClick={() => { setCallListId(""); setPage(1); }} className="hover:text-red-500 ml-0.5 flex-shrink-0">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-5 bg-[var(--groups1-border)] flex-shrink-0" />
+
+        {/* Add filter popover */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={() => setFilterPopoverOpen(v => !v)}
+            className="flex items-center gap-1 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] border border-dashed border-[var(--groups1-border)] rounded-lg px-2.5 py-1.5 hover:bg-[var(--groups1-secondary)]"
+          >
+            <Plus className="w-3 h-3" />
+            Add filter
+          </button>
+          {filterPopoverOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setFilterPopoverOpen(false)} />
+              <div className="absolute top-full left-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] px-3 py-1.5">Filter by</div>
+                {/* Group */}
+                <div className="px-2 pb-1">
+                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Group</div>
+                  <select
+                    value={groupId}
+                    onChange={(e) => { setGroupId(e.target.value); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                  >
+                    <option value="">All groups</option>
+                    {(groupsData ?? []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                {/* Batch */}
+                <div className="px-2 pb-1">
+                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Batch</div>
+                  <select
+                    value={batchId}
+                    onChange={(e) => { setBatchId(e.target.value); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                  >
+                    <option value="">All batches</option>
+                    {(batchesData?.batches ?? []).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                {/* Call List */}
+                <div className="px-2 pb-1">
+                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Call List</div>
+                  <select
+                    value={callListId}
+                    onChange={(e) => { setCallListId(e.target.value); setPage(1); setFilterPopoverOpen(false); }}
+                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                  >
+                    {/* <option value="">All call lists</option> */}
+                    {(callListsData?.callLists ?? []).map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
+                  </select>
+                </div>
+                {(groupId || batchId || callListId) && (
+                  <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2">
+                    <button
+                      onClick={() => { setGroupId(""); setBatchId(""); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
+                      className="w-full text-left text-xs text-red-500 hover:text-red-600 px-1 py-1.5"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
-      </CollapsibleFilters>
+
+        {/* Match count */}
+        <span className="ml-auto flex-shrink-0 text-sm text-[var(--groups1-text-secondary)]">
+          <span className="font-semibold text-[var(--groups1-text)]">{totalItems}</span> matches
+        </span>
+
+        {/* Clear search */}
+        {searchQuery && (
+          <button onClick={() => { setSearchQuery(""); setPage(1); }} className="flex-shrink-0 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Save view */}
+        <button
+          onClick={handleSaveView}
+          className="flex-shrink-0 flex items-center gap-1 text-xs border border-[var(--groups1-border)] rounded-lg px-2.5 py-1.5 bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)]"
+          title="Save current filters as default view"
+        >
+          <Bookmark className="w-3 h-3" />
+          Save view
+        </button>
+
+        {/* Edit Columns — only when a single call list is selected */}
+        {callListId && (
+          <button
+            onClick={() => { setColumnsEditMode(v => !v); setColumnModal(null); }}
+            className={cn(
+              "flex-shrink-0 flex items-center gap-1 text-xs border rounded-lg px-2.5 py-1.5",
+              columnsEditMode
+                ? "border-[var(--groups1-primary)] bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)]"
+                : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)]"
+            )}
+            title="Edit custom columns for this call list"
+          >
+            {columnsEditMode
+              ? <><Check className="w-3 h-3" />Done</>
+              : <><Pencil className="w-3 h-3" />Edit</>}
+          </button>
+        )}
+      </div>
 
       {/* Calls Table */}
       <Card variant="groups1">
@@ -1061,7 +1264,11 @@ export default function CallsManagerPage() {
                   const callListName = item.callList?.name ?? null;
                   const groupName = item.callList?.group?.name ?? null;
                   const existingCallStatus = item.callLog?.status as CallLogStatus | undefined;
-                  const selectedCallStatus = callStatuses[item.id] ?? "completed";
+                  const mobileStatusOpts: CallListStatusOption[] =
+                    (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
+                      ? (item.callList.statusOptions as CallListStatusOption[])
+                      : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+                  const selectedCallStatus = callStatuses[item.id] ?? (mobileStatusOpts[0]?.value ?? "completed");
                   const displayedStatus = existingCallStatus ?? selectedCallStatus;
                   const isSelected = selectedItemIds.has(item.id);
                   const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
@@ -1132,27 +1339,30 @@ export default function CallsManagerPage() {
                             Call Status
                           </label>
                           {item.callLog ? (
-                            <StatusBadge variant={displayedStatus === "completed" ? "success" : "info"} size="sm">
-                              {displayedStatus.replaceAll("_", " ")}
-                            </StatusBadge>
+                            (() => {
+                              const opt = mobileStatusOpts.find((o) => o.value === displayedStatus);
+                              const color = opt?.color ?? "#6b7280";
+                              return (
+                                <span style={{
+                                  background: color + "22", color,
+                                  border: `1px solid ${color}44`,
+                                  padding: "3px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 600,
+                                  display: "inline-flex", alignItems: "center", gap: 5,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                                  {opt?.label ?? displayedStatus.replace(/_/g, " ")}
+                                </span>
+                              );
+                            })()
                           ) : (
-                            <select
-                              value={selectedCallStatus}
-                              onChange={(e) => handleCallStatusChange(item.id, e.target.value as CallLogStatus)}
+                            <StatusSelect
+                              value={callStatuses[item.id]}
+                              onChange={(v) => handleCallStatusChange(item.id, v as CallLogStatus)}
+                              options={mobileStatusOpts}
+                              callListId={item.callListId ?? undefined}
+                              onOptionAdded={() => { void mutateCalls(); void mutateCallLists(); }}
                               disabled={isSubmitting}
-                              className={cn(
-                                "w-full px-3 py-2 text-[13px] rounded-lg border border-[var(--groups1-border)]",
-                                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                              )}
-                            >
-                              <option value="completed">Completed</option>
-                              <option value="no_answer">No answer</option>
-                              <option value="missed">Missed</option>
-                              <option value="busy">Busy</option>
-                              <option value="voicemail">Voicemail</option>
-                              <option value="other">Other</option>
-                            </select>
+                            />
                           )}
                         </div>
 
@@ -1179,6 +1389,15 @@ export default function CallsManagerPage() {
                       </div>
 
                       <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setHistoryItem(item); setIsHistoryModalOpen(true); }}
+                          className="px-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-primary)] hover:bg-[var(--groups1-secondary)]"
+                          title="Call history"
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="outline"
                           className={cn("flex-1", (hasExistingFollowUp || hasPendingFollowUp) && "border-[var(--groups1-primary)]")}
@@ -1221,8 +1440,8 @@ export default function CallsManagerPage() {
               <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[var(--groups1-card-border-inner)]">
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase w-[44px]">
+                  <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-background)]">
+                    <th className="px-3 py-2 w-[44px]">
                       <input
                         type="checkbox"
                         aria-label="Select all calls on this page"
@@ -1231,34 +1450,42 @@ export default function CallsManagerPage() {
                         onChange={handleToggleSelectAllOnPage}
                       />
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Student
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Student</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Phone</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                      {tableQuestions[0] ? (tableQuestions[0].shortLabel?.trim() || tableQuestions[0].question || "Reason") : "Reason"}
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Phone
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Call Status
-                    </th>
-                    {showQuestionColumns &&
-                      tableQuestions.map((q) => {
-                        const heading = (q.shortLabel?.trim() || q.question || "").trim();
-                        return (
-                          <th
-                            key={q.id}
-                            title={q.question}
-                            className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase whitespace-nowrap"
-                          >
-                            {heading || "Question"}
-                          </th>
-                        );
-                      })}
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Follow-up
-                    </th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Actions
-                    </th>
+                    {/* Custom columns — before Follow-up */}
+                    {tableColumns.map((col) => (
+                      <th key={col.key} className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap" title={col.label}>
+                        {columnsEditMode ? (
+                          <div className="flex items-center gap-1">
+                            <span>{col.shortLabel || col.label}</span>
+                            <button
+                              onClick={() => handleDeleteColumn(col.key)}
+                              className="ml-1 text-red-400 hover:text-red-600 rounded"
+                              title={`Remove "${col.label}"`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (col.shortLabel || col.label)}
+                      </th>
+                    ))}
+                    {/* Add column button (edit mode only) */}
+                    {columnsEditMode && (
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                        <button
+                          onClick={() => setColumnModal({ label: "", shortLabel: "", type: "text", selectOptions: "" })}
+                          className="flex items-center gap-0.5 text-[var(--groups1-primary)] hover:text-[var(--groups1-primary-hover)] whitespace-nowrap border border-dashed border-[var(--groups1-primary)]/40 rounded px-1.5 py-0.5"
+                        >
+                          <Plus className="w-3 h-3" />Add
+                        </button>
+                      </th>
+                    )}
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Follow-up</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--groups1-border)]">
@@ -1269,21 +1496,31 @@ export default function CallsManagerPage() {
                     const hasExistingFollowUp = item.callLog?.followUpRequired || false;
                     const hasPendingFollowUp = followUp?.followUpRequired || false;
                     const isSubmitting = submittingItemId === item.id;
-                    const isDoneDisabled = isSubmitting;
                     const followUpDate = item.callLog?.followUpDate ?? followUp?.followUpDate ?? null;
                     const callListName = item.callList?.name ?? null;
                     const groupName = item.callList?.group?.name ?? null;
                     const existingCallStatus = item.callLog?.status as CallLogStatus | undefined;
-                    const selectedCallStatus = callStatuses[item.id] ?? "completed";
-                    const displayedStatus = existingCallStatus ?? selectedCallStatus;
+                    const localStatus = callStatuses[item.id];
                     const isSelected = selectedItemIds.has(item.id);
 
+                    // Effective status options: call-list-specific > workspace defaults
+                    const effectiveStatusOptions: CallListStatusOption[] =
+                      (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
+                        ? (item.callList.statusOptions as CallListStatusOption[])
+                        : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+
+                    // First Q&A reason
+                    const firstQ = tableQuestions[0];
+                    const firstAnswerFromLog = item.callLog?.answers?.find((a: any) => a.questionId === firstQ?.id)?.answer;
+                    const firstAnswerLocal = firstQ ? itemAnswers[item.id]?.[firstQ.id] : undefined;
+                    const reasonText = existingCallStatus
+                      ? (firstAnswerFromLog != null ? String(firstAnswerFromLog) : item.callLog?.notes || "—")
+                      : (firstAnswerLocal != null ? String(firstAnswerLocal) : null);
+
                     return (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-[var(--groups1-secondary)] transition-colors"
-                      >
-                        <td className="py-2 px-4 align-top">
+                      <tr key={item.id} className="hover:bg-[var(--groups1-secondary)] transition-colors">
+                        {/* Checkbox */}
+                        <td className="py-2 px-3">
                           <input
                             type="checkbox"
                             aria-label={`Select ${student?.name ?? "call"}`}
@@ -1292,125 +1529,145 @@ export default function CallsManagerPage() {
                             onChange={() => handleToggleSelectOne(item.id)}
                           />
                         </td>
-                        <td className="py-2 px-4">
-                          <div className="flex items-start gap-3">
-                            <div className="p-1.5 rounded-md bg-[var(--groups1-muted)] border border-[var(--groups1-border)]">
-                              <User className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
+
+                        {/* Student */}
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-[var(--groups1-secondary)] border border-[var(--groups1-border)] grid place-items-center flex-shrink-0">
+                              <User className="w-3.5 h-3.5 text-[var(--groups1-text-secondary)]" />
                             </div>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5">
                                 <Link
                                   href={student?.id ? `/app/students/${student.id}` : "#"}
-                                  className={cn(
-                                    "block text-sm font-semibold text-[var(--groups1-text)] truncate",
-                                    student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none"
-                                  )}
+                                  className={cn("text-sm font-semibold text-[var(--groups1-text)] truncate max-w-[200px] block", student?.id ? "hover:underline hover:text-[var(--groups1-primary)]" : "pointer-events-none")}
                                 >
                                   {student?.name || "Unknown"}
                                 </Link>
-                                {!item.callLog && itemHasDraft(item.id) ? (
-                                  <span
-                                    title="Unsaved draft — saved locally"
-                                    className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                                  >
-                                    Draft
-                                  </span>
-                                ) : null}
+                                {!item.callLog && itemHasDraft(item.id) && (
+                                  <span className="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-semibold flex-shrink-0">Draft</span>
+                                )}
                               </div>
-                              <div className="mt-0.5 text-xs text-[var(--groups1-text-secondary)] truncate">
-                                {callListName ? callListName : "Call list"}
-                                {groupName ? ` • ${groupName}` : ""}
+                              <div className="text-[11px] text-[var(--groups1-text-secondary)] truncate max-w-[220px]">
+                                {callListName ?? "Call list"}{groupName ? ` · ${groupName}` : ""}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="py-2 px-4">
+
+                        {/* Phone */}
+                        <td className="py-2 px-3">
                           {primaryPhone ? (
                             <div className="flex items-center gap-2">
-                              <span className="text-sm text-[var(--groups1-text)]">{primaryPhone.phone}</span>
-                              <Button asChild variant="outline" size="sm" className="h-6 px-2 text-xs">
-                                <a href={`tel:${primaryPhone.phone}`}>
-                                  <Phone className="w-3 h-3 mr-1" />
-                                  Call
-                                </a>
-                              </Button>
+                              <span className="text-sm font-mono text-[var(--groups1-text)]">{primaryPhone.phone}</span>
+                              <a
+                                href={`tel:${primaryPhone.phone}`}
+                                className="w-6 h-6 rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] grid place-items-center text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-primary)] hover:border-[var(--groups1-primary)]"
+                                title="Call"
+                              >
+                                <Phone className="w-3 h-3" />
+                              </a>
                             </div>
                           ) : (
                             <span className="text-sm text-[var(--groups1-text-secondary)]">N/A</span>
                           )}
                         </td>
-                        <td className="py-2 px-4">
-                          {item.callLog ? (
-                            <StatusBadge variant={displayedStatus === "completed" ? "success" : "info"} size="sm">
-                              {displayedStatus.replaceAll("_", " ")}
-                            </StatusBadge>
+
+                        {/* Status */}
+                        <td className="py-2 px-3">
+                          {existingCallStatus ? (
+                            (() => {
+                              const opt = effectiveStatusOptions.find((o) => o.value === existingCallStatus);
+                              const color = opt?.color ?? "#6b7280";
+                              return (
+                                <span style={{
+                                  background: color + "22", color,
+                                  border: `1px solid ${color}44`,
+                                  padding: "3px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 600,
+                                  display: "inline-flex", alignItems: "center", gap: 5,
+                                }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                                  {opt?.label ?? existingCallStatus.replace(/_/g, " ")}
+                                </span>
+                              );
+                            })()
                           ) : (
-                            <select
-                              value={selectedCallStatus}
-                              onChange={(e) => handleCallStatusChange(item.id, e.target.value as CallLogStatus)}
+                            <StatusSelect
+                              value={localStatus}
+                              onChange={(v) => handleCallStatusChange(item.id, v as CallLogStatus)}
+                              options={effectiveStatusOptions}
+                              callListId={item.callListId ?? undefined}
+                              onOptionAdded={() => { void mutateCalls(); void mutateCallLists(); }}
                               disabled={isSubmitting}
-                              className={cn(
-                                "w-full max-w-[180px] px-2 py-1 text-[13px] rounded-md border border-[var(--groups1-border)]",
-                                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                              )}
-                            >
-                              <option value="completed">Completed</option>
-                              <option value="no_answer">No answer</option>
-                              <option value="missed">Missed</option>
-                              <option value="busy">Busy</option>
-                              <option value="voicemail">Voicemail</option>
-                              <option value="other">Other</option>
-                            </select>
+                            />
                           )}
                         </td>
-                        {showQuestionColumns &&
-                          tableQuestions.map((q) => (
-                            <td key={q.id} className="py-2 px-4 align-top">
-                              {renderQuestionInput(item, q, isSubmitting)}
-                            </td>
-                          ))}
-                        <td className="py-2 px-4">
-                          <div className="flex items-center gap-2">
-                            {(hasExistingFollowUp || hasPendingFollowUp) && (
-                              <StatusBadge variant="warning" size="sm">
-                                Follow-up{followUpDate ? ` • ${new Date(followUpDate).toLocaleDateString()}` : ""}
-                              </StatusBadge>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
+
+                        {/* Reason (first Q&A answer) */}
+                        <td className="py-2 px-3 max-w-[220px]">
+                          {existingCallStatus ? (
+                            <span className="text-sm text-[var(--groups1-text)] truncate block">{reasonText || "—"}</span>
+                          ) : firstQ ? (
+                            renderQuestionInput(item, firstQ, isSubmitting)
+                          ) : (
+                            <span className="text-sm text-[var(--groups1-text-secondary)] italic">—</span>
+                          )}
+                        </td>
+
+                        {/* Custom column cells — before Follow-up */}
+                        {tableColumns.map((col) => (
+                          <td key={col.key} className="py-2 px-3 whitespace-nowrap">
+                            <span className="text-sm text-[var(--groups1-text)]">
+                              {item.custom?.[col.key] != null ? String(item.custom[col.key]) : "—"}
+                            </span>
+                          </td>
+                        ))}
+                        {columnsEditMode && <td />}
+
+                        {/* Follow-up */}
+                        <td className="py-2 px-3">
+                          {(hasExistingFollowUp || hasPendingFollowUp) && followUpDate ? (
+                            <button
                               onClick={() => handleFollowUpClick(item)}
                               disabled={isSubmitting}
-                              className={cn(
-                                (hasExistingFollowUp || hasPendingFollowUp) && "border-[var(--groups1-primary)]"
-                              )}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)] border border-[var(--groups1-primary)]/25 hover:bg-[var(--groups1-primary)]/20 transition-colors"
                             >
-                              <Calendar className="w-4 h-4 mr-1.5" />
-                              Follow-up
-                            </Button>
-                          </div>
+                              <Calendar className="w-3 h-3 flex-shrink-0" />
+                              {new Date(followUpDate).toLocaleDateString()}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleFollowUpClick(item)}
+                              disabled={isSubmitting}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs text-[var(--groups1-text-secondary)] border border-dashed border-[var(--groups1-border)] hover:border-[var(--groups1-primary)]/50 hover:text-[var(--groups1-primary)] transition-colors disabled:opacity-40"
+                            >
+                              <Calendar className="w-3 h-3" />
+                              Set
+                            </button>
+                          )}
                         </td>
-                        <td className="py-2 px-4 text-right">
+
+                        {/* Actions */}
+                        <td className="py-2 px-3 text-right">
                           <div className="inline-flex items-center gap-2">
+                            <button
+                              onClick={() => { setHistoryItem(item); setIsHistoryModalOpen(true); }}
+                              className="w-7 h-7 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] grid place-items-center text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-primary)] hover:border-[var(--groups1-primary)]"
+                              title="Call history"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
                             <Button
                               variant="default"
                               size="sm"
                               onClick={() => handleDone(item)}
-                              disabled={isDoneDisabled}
-                              className="h-6 px-2.5 text-xs font-semibold"
-    
+                              disabled={isSubmitting || !!existingCallStatus}
+                              className="h-7 px-3 text-xs font-semibold bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)] disabled:opacity-40"
                             >
                               {isSubmitting ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                                  Saving...
-                                </>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
                               ) : (
-                                <>
-                                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                                  Done
-                                </>
+                                <><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Done</>
                               )}
                             </Button>
                           </div>
@@ -1504,6 +1761,12 @@ export default function CallsManagerPage() {
           )}
         </CardContent>
       </Card>
+
+      <CallHistoryModal
+        open={isHistoryModalOpen}
+        onOpenChange={(open) => { setIsHistoryModalOpen(open); if (!open) setHistoryItem(null); }}
+        callListItem={historyItem}
+      />
 
       {/* Follow-up Modal */}
       {selectedItem && (
@@ -1600,6 +1863,77 @@ export default function CallsManagerPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Column Modal */}
+      <Dialog open={!!columnModal} onOpenChange={(open) => { if (!open) setColumnModal(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Custom Column</DialogTitle>
+            <DialogClose onClose={() => setColumnModal(null)} />
+          </DialogHeader>
+          {columnModal && (
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[var(--groups1-text)]">Full Label <span className="text-red-500">*</span></label>
+                <input
+                  autoFocus
+                  value={columnModal.label}
+                  onChange={(e) => setColumnModal(m => m ? { ...m, label: e.target.value } : m)}
+                  placeholder="e.g. Student Interest Score"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                />
+                <p className="text-[11px] text-[var(--groups1-text-secondary)]">Descriptive name shown in modal and tooltips</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[var(--groups1-text)]">Short Label <span className="text-[var(--groups1-text-secondary)] font-normal">(optional)</span></label>
+                <input
+                  value={columnModal.shortLabel}
+                  onChange={(e) => setColumnModal(m => m ? { ...m, shortLabel: e.target.value } : m)}
+                  placeholder="e.g. Score"
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                />
+                <p className="text-[11px] text-[var(--groups1-text-secondary)]">Abbreviation shown in table column header</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[var(--groups1-text)]">Data Type</label>
+                <select
+                  value={columnModal.type}
+                  onChange={(e) => setColumnModal(m => m ? { ...m, type: e.target.value } : m)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                >
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                  <option value="date">Date</option>
+                  <option value="select">Select (dropdown)</option>
+                </select>
+              </div>
+              {columnModal.type === "select" && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-[var(--groups1-text)]">Options</label>
+                  <input
+                    value={columnModal.selectOptions}
+                    onChange={(e) => setColumnModal(m => m ? { ...m, selectOptions: e.target.value } : m)}
+                    placeholder="Option A, Option B, Option C"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                  />
+                  <p className="text-[11px] text-[var(--groups1-text-secondary)]">Comma-separated list of options</p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setColumnModal(null)} disabled={savingColumn}>Cancel</Button>
+                <Button
+                  onClick={() => void handleAddColumn()}
+                  disabled={savingColumn || !columnModal.label.trim()}
+                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                >
+                  {savingColumn ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding…</> : "Add Column"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

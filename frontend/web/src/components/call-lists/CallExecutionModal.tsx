@@ -11,7 +11,7 @@ import { Loader2, Phone, Calendar, ChevronDown, ChevronUp, X } from "lucide-reac
 import { validateCallLog, formatCallDuration } from "@/lib/call-list-utils";
 import { cn } from "@/lib/utils";
 import { useCallStatusOptions } from "@/hooks/useCallLists";
-import type { CallListItem, Question, Answer, CallLogStatus, CreateCallLogRequest } from "@/types/call-lists.types";
+import type { CallListItem, Question, Answer, CallLogStatus, CreateCallLogRequest, CustomColumnDef } from "@/types/call-lists.types";
 
 const FALLBACK_STATUSES = [
   { value: "completed", label: "Completed" },
@@ -55,39 +55,38 @@ export function CallExecutionModal({
   const { data: statusOptions } = useCallStatusOptions();
   const statusList = statusOptions && statusOptions.length > 0 ? statusOptions : FALLBACK_STATUSES;
 
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
+
   const student = callListItem?.student;
   const callList = callListItem?.callList;
   const questions = callList?.questions || [];
+  const columns = (callList?.columns ?? []) as CustomColumnDef[];
   const messages = callList?.messages || [];
 
-  // Load draft from localStorage on modal open
+  // Load draft on modal open: prefer newer of localStorage vs server
   useEffect(() => {
-    if (open && callListItem) {
-      const draftKey = `call-draft-${callListItem.id}`;
-      const savedDraft = typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+    if (!open || !callListItem) return;
 
-      if (savedDraft) {
-        try {
-          const draft = JSON.parse(savedDraft);
-          setAnswers(draft.answers || {});
-          setNotes(draft.notes || "");
-          setCallerNote(draft.callerNote || "");
-          setShowNotes(!!draft.notes);
-          setShowCallerNote(!!draft.callerNote);
-          setStatus(draft.status || "completed");
-          setFollowUpRequired(draft.followUpRequired || false);
-          setFollowUpDate(draft.followUpDate || "");
-          setFollowUpNote(draft.followUpNote || "");
-          setCallDuration(draft.callDuration || "");
-          setErrors({});
-          return; // Skip default initialization
-        } catch (e) {
-          console.error("Failed to restore draft:", e);
-        }
-      }
+    const itemId = callListItem.id;
+    const draftKey = `call-draft-${itemId}`;
 
-      // Default initialization if no draft
+    const applyDraft = (draft: any) => {
+      setAnswers(draft.answers || {});
+      setNotes(draft.notes || "");
+      setCallerNote(draft.callerNote || "");
+      setShowNotes(!!draft.notes);
+      setShowCallerNote(!!draft.callerNote);
+      setStatus(draft.status || "completed");
+      setFollowUpRequired(draft.followUpRequired || false);
+      setFollowUpDate(draft.followUpDate || "");
+      setFollowUpNote(draft.followUpNote || "");
+      setCallDuration(draft.callDuration || "");
+      setErrors({});
+    };
+
+    const initDefault = () => {
       setAnswers({});
+      setCustomFieldValues({});
       setNotes("");
       setCallerNote("");
       setShowNotes(false);
@@ -103,7 +102,53 @@ export function CallExecutionModal({
       setFollowUpNote("");
       setCallDuration("");
       setErrors({});
+    };
+
+    let cancelled = false;
+
+    const localRaw =
+      typeof window !== "undefined" ? localStorage.getItem(draftKey) : null;
+    let localDraft: any = null;
+    if (localRaw) {
+      try {
+        localDraft = JSON.parse(localRaw);
+      } catch (e) {
+        console.error("Failed to parse local draft:", e);
+      }
     }
+
+    // Apply local immediately so UI doesn't flash
+    if (localDraft) {
+      applyDraft(localDraft);
+    } else {
+      initDefault();
+    }
+
+    // Then fetch server draft and reconcile
+    apiClient
+      .getCallDraft(itemId)
+      .then((server) => {
+        if (cancelled || !server || !server.payload) return;
+        const localTime = localDraft?.savedAt ? Date.parse(localDraft.savedAt) : 0;
+        const serverTime = server.updatedAt ? Date.parse(server.updatedAt) : 0;
+        if (serverTime > localTime) {
+          applyDraft(server.payload);
+          // Sync server → local
+          if (typeof window !== "undefined") {
+            localStorage.setItem(
+              draftKey,
+              JSON.stringify({ ...server.payload, savedAt: server.updatedAt })
+            );
+          }
+        }
+      })
+      .catch(() => {
+        // Network failure: keep local draft, no toast
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, callListItem, previousCallLog]);
 
   // Auto-save draft to localStorage (debounced 800ms)
@@ -133,12 +178,19 @@ export function CallExecutionModal({
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem(draftKey, JSON.stringify(draft));
-          setIsSavingDraft(false);
         } catch (e) {
           console.error("Failed to save draft:", e);
-          setIsSavingDraft(false);
         }
       }
+      // Background sync to server (fire-and-forget)
+      apiClient
+        .upsertCallDraft(callListItem.id, draft)
+        .catch((e) => {
+          console.warn("Server draft sync failed:", e?.message || e);
+        })
+        .finally(() => {
+          setIsSavingDraft(false);
+        });
     }, 800);
 
     return () => {
@@ -246,9 +298,21 @@ export function CallExecutionModal({
       };
 
       await apiClient.createCallLog(payload);
-      // Clear draft on success
+
+      // Save custom field values if any were filled
+      const nonEmptyCustomFields = Object.fromEntries(
+        Object.entries(customFieldValues).filter(([, v]) => v !== "" && v != null)
+      );
+      if (Object.keys(nonEmptyCustomFields).length > 0 && callListItem.callListId) {
+        await apiClient.updateCallListItemCustom(callListItem.callListId, callListItem.id, nonEmptyCustomFields).catch(() => {});
+      }
+
+      // Clear draft on success (local + server)
       if (callListItem && typeof window !== "undefined") {
         localStorage.removeItem(`call-draft-${callListItem.id}`);
+      }
+      if (callListItem) {
+        apiClient.deleteCallDraft(callListItem.id).catch(() => {});
       }
       toast.success("Call log created successfully");
       onOpenChange(false);
@@ -523,6 +587,59 @@ export function CallExecutionModal({
                       )}
                       {errors[question.id] && (
                         <p className="text-sm text-red-500">{errors[question.id]}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Custom Fields */}
+              {columns.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-[var(--groups1-text)]">Custom Fields</h3>
+                  {columns.map((col) => (
+                    <div key={col.key} className="space-y-2">
+                      <Label className="text-sm font-medium text-[var(--groups1-text)]">{col.label}</Label>
+                      {col.type === "text" && (
+                        <Input
+                          value={customFieldValues[col.key] || ""}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                          placeholder={`Enter ${col.label.toLowerCase()}...`}
+                          className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                          disabled={submitting}
+                        />
+                      )}
+                      {col.type === "number" && (
+                        <Input
+                          type="number"
+                          value={customFieldValues[col.key] || ""}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                          placeholder="0"
+                          className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                          disabled={submitting}
+                        />
+                      )}
+                      {col.type === "date" && (
+                        <Input
+                          type="date"
+                          value={customFieldValues[col.key] || ""}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                          className="bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+                          disabled={submitting}
+                        />
+                      )}
+                      {col.type === "select" && (
+                        <select
+                          value={customFieldValues[col.key] || ""}
+                          onChange={(e) => setCustomFieldValues((prev) => ({ ...prev, [col.key]: e.target.value }))}
+                          className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                          disabled={submitting}
+                        >
+                          <option value="">Select...</option>
+                          {col.options?.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
                       )}
                     </div>
                   ))}

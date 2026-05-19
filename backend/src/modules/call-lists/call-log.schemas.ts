@@ -42,6 +42,7 @@ export const ListCallLogsSchema = z.object({
   dateTo: z.string().optional(),
   batchId: z.string().optional(),
   groupId: z.string().optional(),
+  q: z.string().optional(),
 });
 
 export type CreateCallLogInput = z.infer<typeof CreateCallLogSchema>;

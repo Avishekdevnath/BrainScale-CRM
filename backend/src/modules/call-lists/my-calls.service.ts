@@ -176,7 +176,7 @@ export const getMyCalls = async (
       },
       orderBy: [
         { priority: 'desc' },
-        { createdAt: 'asc' },
+        { serialNumber: 'asc' },
       ],
       skip,
       take: size,
@@ -184,17 +184,22 @@ export const getMyCalls = async (
     prisma.callListItem.count({ where }),
   ]);
 
-  // Extract questions from call list meta and add callLog for backward compatibility
+  // Extract questions + statusOptions + columns from call list meta
   const itemsWithQuestions = items.map((item) => {
-    const questions = (item.callList.meta as any)?.questions || [];
+    const meta = (item.callList.meta as any) || {};
+    const questions = meta.questions || [];
+    const statusOptions = meta.statusOptions || [];
+    const columns = meta.columns || [];
     const messages = item.callList.messages || [];
     const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
-    
+
     return {
       ...item,
       callList: {
         ...item.callList,
         questions,
+        statusOptions,
+        columns,
         messages,
       },
       // Add callLog field for backward compatibility (latest call log)
@@ -258,17 +263,20 @@ export const getMyCalls = async (
       },
       orderBy: [
         { priority: 'desc' },
-        { createdAt: 'asc' },
+        { serialNumber: 'asc' },
       ],
     });
 
     const allItemsWithQuestions = allItems.map((item) => {
-      const questions = (item.callList.meta as any)?.questions || [];
+      const meta = (item.callList.meta as any) || {};
+      const questions = meta.questions || [];
+      const statusOptions = meta.statusOptions || [];
+      const columns = meta.columns || [];
       const messages = item.callList.messages || [];
       const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
       return {
         ...item,
-        callList: { ...item.callList, questions, messages },
+        callList: { ...item.callList, questions, statusOptions, columns, messages },
         callLog: latestCallLog,
       };
     });
@@ -700,8 +708,7 @@ export const getAllCalls = async (
         },
       },
       orderBy: [
-        { priority: 'desc' },
-        { createdAt: 'asc' },
+        { updatedAt: 'desc' },
       ],
       skip,
       take: size,
@@ -709,17 +716,22 @@ export const getAllCalls = async (
     prisma.callListItem.count({ where }),
   ]);
 
-  // Extract questions from call list meta and add callLog for backward compatibility
+  // Extract questions + statusOptions + columns from call list meta
   const itemsWithQuestions = items.map((item) => {
-    const questions = (item.callList.meta as any)?.questions || [];
+    const meta = (item.callList.meta as any) || {};
+    const questions = meta.questions || [];
+    const statusOptions = meta.statusOptions || [];
+    const columns = meta.columns || [];
     const messages = item.callList.messages || [];
     const latestCallLog = item.callLogs && item.callLogs.length > 0 ? item.callLogs[0] : null;
-    
+
     return {
       ...item,
       callList: {
         ...item.callList,
         questions,
+        statusOptions,
+        columns,
         messages,
       },
       // Add callLog field for backward compatibility (latest call log)

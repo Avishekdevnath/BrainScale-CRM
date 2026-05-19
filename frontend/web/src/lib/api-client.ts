@@ -1872,6 +1872,56 @@ export class ApiClient {
     });
   }
 
+  // Per-call-list status options (stored in meta.statusOptions)
+  addCallListStatusOption(listId: string, payload: { label: string }) {
+    return this.request<{ value: string; label: string; color: string }>(
+      `/call-lists/${listId}/status-options`,
+      { method: "POST", body: JSON.stringify(payload) }
+    );
+  }
+
+  removeCallListStatusOption(listId: string, value: string) {
+    return this.request<{ message: string }>(
+      `/call-lists/${listId}/status-options/${value}`,
+      { method: "DELETE" }
+    );
+  }
+
+  // Per-call-list custom column methods
+  listCallListColumns(listId: string) {
+    return this.request<{ key: string; label: string; type: string; options?: string[] }[]>(
+      `/call-lists/${listId}/columns`
+    );
+  }
+
+  addCallListColumn(listId: string, payload: { label: string; shortLabel?: string; type: string; options?: string[] }) {
+    return this.request<{ key: string; label: string; type: string; options?: string[] }>(
+      `/call-lists/${listId}/columns`,
+      { method: "POST", body: JSON.stringify(payload) }
+    );
+  }
+
+  updateCallListColumn(listId: string, key: string, payload: { label?: string; options?: string[] }) {
+    return this.request<{ key: string; label: string; type: string; options?: string[] }>(
+      `/call-lists/${listId}/columns/${key}`,
+      { method: "PATCH", body: JSON.stringify(payload) }
+    );
+  }
+
+  removeCallListColumn(listId: string, key: string) {
+    return this.request<{ message: string }>(
+      `/call-lists/${listId}/columns/${key}`,
+      { method: "DELETE" }
+    );
+  }
+
+  updateCallListItemCustom(listId: string, itemId: string, fields: Record<string, any>) {
+    return this.request<{ message: string }>(
+      `/call-lists/${listId}/items/${itemId}/custom`,
+      { method: "PATCH", body: JSON.stringify(fields) }
+    );
+  }
+
   // My Calls methods
   getMyCalls(params?: GetMyCallsParams): Promise<MyCallsResponse> {
     const queryString = buildQueryString({
@@ -1901,6 +1951,7 @@ export class ApiClient {
       state: params?.state,
       states: params?.states,
       followUpRequired: params?.followUpRequired,
+      assignedTo: params?.assignedTo,
     });
     return this.request<MyCallsResponse>(`/my-calls/all${queryString}`, {
       method: "GET",
@@ -1949,6 +2000,67 @@ export class ApiClient {
     });
   }
 
+  // Call Draft methods (server-synced drafts of in-progress call submissions)
+  listCallDrafts(params?: { callListId?: string }) {
+    const queryString = buildQueryString({ callListId: params?.callListId });
+    return this.request<
+      Array<{
+        id: string;
+        callListItemId: string;
+        userId: string;
+        payload: any;
+        updatedAt: string;
+        createdAt: string;
+        callListItem?: {
+          id: string;
+          callListId: string;
+          state: string;
+          studentId: string;
+          assignedTo: string | null;
+        };
+      }>
+    >(`/call-drafts${queryString}`, { method: "GET" });
+  }
+
+  getCallDraft(itemId: string) {
+    return this.request<{
+      id: string;
+      callListItemId: string;
+      userId: string;
+      payload: any;
+      updatedAt: string;
+      createdAt: string;
+    } | null>(`/call-drafts/${itemId}`, { method: "GET" });
+  }
+
+  upsertCallDraft(itemId: string, payload: Record<string, any>) {
+    return this.request<{ id: string; updatedAt: string }>(
+      `/call-drafts/${itemId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ payload }),
+      }
+    );
+  }
+
+  deleteCallDraft(itemId: string) {
+    return this.request<{ success: boolean }>(`/call-drafts/${itemId}`, {
+      method: "DELETE",
+    });
+  }
+
+  submitAllCallDrafts(params: { callListId?: string; itemIds?: string[] }) {
+    return this.request<{
+      total: number;
+      succeeded: number;
+      failed: number;
+      failures: Array<{ callListItemId: string; reason: string }>;
+    }>(`/call-drafts/submit-all`, {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  }
+
   // Follow-ups methods
   listFollowups(params?: ListFollowupsParams): Promise<FollowupsListResponse> {
     const queryString = buildQueryString({
@@ -1991,6 +2103,7 @@ export class ApiClient {
       dateTo: params?.dateTo,
       batchId: params?.batchId,
       groupId: params?.groupId,
+      q: params?.q,
     });
     return this.request<CallLogsResponse>(`/call-logs${queryString}`, {
       method: "GET",

@@ -1264,7 +1264,7 @@ export const listCallListItems = async (
     } as any,
     orderBy: [
       { priority: 'desc' },
-      { createdAt: 'asc' },
+      { serialNumber: 'asc' },
       { id: 'asc' },
     ],
     skip,
@@ -2340,10 +2340,29 @@ export const bulkUpdateCallListItems = async (
     throw new AppError(404, 'Call list not found');
   }
 
+  // When marking DONE, only update items with call logs
+  let itemsToUpdate = data.itemIds;
+  let skippedCount = 0;
+
+  if (data.state === 'DONE') {
+    // Find items with call logs
+    const itemsWithCallLogs = await prisma.callListItem.findMany({
+      where: {
+        id: { in: data.itemIds },
+        callListId: listId,
+        callLogId: { not: null },
+      },
+      select: { id: true },
+    });
+
+    itemsToUpdate = itemsWithCallLogs.map((item) => item.id);
+    skippedCount = data.itemIds.length - itemsToUpdate.length;
+  }
+
   // Update items
   const result = await prisma.callListItem.updateMany({
     where: {
-      id: { in: data.itemIds },
+      id: { in: itemsToUpdate },
       callListId: listId,
     },
     data: {
@@ -2354,7 +2373,7 @@ export const bulkUpdateCallListItems = async (
   // Get updated items
   const items = await prisma.callListItem.findMany({
     where: {
-      id: { in: data.itemIds },
+      id: { in: itemsToUpdate },
       callListId: listId,
     },
     include: {
@@ -2380,7 +2399,8 @@ export const bulkUpdateCallListItems = async (
   });
 
   return {
-    updated: result.count,
+    succeeded: result.count,
+    skipped: skippedCount,
     items,
   };
 };

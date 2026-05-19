@@ -905,7 +905,7 @@ export default function CallsManagerPage() {
           const followUp = followUpData[item.id];
           const itemOpts: CallListStatusOption[] =
             (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-              ? (item.callList.statusOptions as CallListStatusOption[])
+              ? (item.callList?.statusOptions as CallListStatusOption[])
               : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
           const selectedStatus = callStatuses[item.id] ?? (itemOpts[0]?.value ?? "completed");
           const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
@@ -1266,7 +1266,7 @@ export default function CallsManagerPage() {
                   const existingCallStatus = item.callLog?.status as CallLogStatus | undefined;
                   const mobileStatusOpts: CallListStatusOption[] =
                     (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-                      ? (item.callList.statusOptions as CallListStatusOption[])
+                      ? (item.callList?.statusOptions as CallListStatusOption[])
                       : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
                   const selectedCallStatus = callStatuses[item.id] ?? (mobileStatusOpts[0]?.value ?? "completed");
                   const displayedStatus = existingCallStatus ?? selectedCallStatus;
@@ -1506,7 +1506,7 @@ export default function CallsManagerPage() {
                     // Effective status options: call-list-specific > workspace defaults
                     const effectiveStatusOptions: CallListStatusOption[] =
                       (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-                        ? (item.callList.statusOptions as CallListStatusOption[])
+                        ? (item.callList?.statusOptions as CallListStatusOption[])
                         : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
 
                     // First Q&A reason

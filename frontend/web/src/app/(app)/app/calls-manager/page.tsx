@@ -576,7 +576,7 @@ export default function CallsManagerPage() {
       const followUp = followUpData[item.id];
       const itemStatusOptions: CallListStatusOption[] =
         (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-          ? (item.callList.statusOptions as CallListStatusOption[])
+          ? (item.callList?.statusOptions as CallListStatusOption[])
           : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
       const defaultStatus = itemStatusOptions[0]?.value ?? "completed";
       const selectedStatus = callStatuses[item.id] ?? defaultStatus;

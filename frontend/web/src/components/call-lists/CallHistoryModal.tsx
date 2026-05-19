@@ -156,7 +156,7 @@ export function CallHistoryModal({ open, onOpenChange, callListItem }: CallHisto
               )}
 
               {/* Follow-up note */}
-              {log.followUpRequired && (log.followUpDate || log.followUpNote || (log.notes && log.notes.includes("--- Follow-up Note ---"))) && (
+              {log.followUpRequired && (log.followUpDate || log.notes?.includes("--- Follow-up Note ---")) && (
                 <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800 px-3 py-2 space-y-1">
                   <div className="text-xs font-semibold text-orange-700 dark:text-orange-400 uppercase tracking-wide">
                     Follow-up
@@ -166,12 +166,7 @@ export function CallHistoryModal({ open, onOpenChange, callListItem }: CallHisto
                       Date: {new Date(log.followUpDate).toLocaleDateString()}
                     </div>
                   )}
-                  {log.followUpNote && (
-                    <div className="text-sm text-orange-800 dark:text-orange-300 whitespace-pre-wrap">
-                      {log.followUpNote}
-                    </div>
-                  )}
-                  {!log.followUpNote && log.notes?.includes("--- Follow-up Note ---") && (
+                  {log.notes?.includes("--- Follow-up Note ---") && (
                     <div className="text-sm text-orange-800 dark:text-orange-300 whitespace-pre-wrap">
                       {log.notes.split("--- Follow-up Note ---")[1]?.trim()}
                     </div>

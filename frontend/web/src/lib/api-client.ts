@@ -1838,7 +1838,7 @@ export class ApiClient {
   }
 
   bulkUpdateCallListItems(listId: string, payload: BulkUpdateCallListItemsPayload) {
-    return this.request<{ message: string; updated: number; items: CallListItem[] }>(
+    return this.request<{ message: string; succeeded: number; skipped: number; items: CallListItem[] }>(
       `/call-lists/${listId}/items/bulk`,
       {
         method: "PATCH",

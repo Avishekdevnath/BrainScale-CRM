@@ -90,7 +90,7 @@ export const exportResponses = asyncHandler(async (req: AuthRequest, res: Respon
 
 // Public get route (no auth) - fetch form by slug for rendering
 export const publicGetForm = asyncHandler(async (req: Request, res: Response) => {
-  const { slug } = req.params;
+  const { slug } = req.params as Record<string, string>;
 
   const form = await prisma.form.findFirst({
     where: { slug, status: 'published' },
@@ -119,7 +119,7 @@ export const publicGetForm = asyncHandler(async (req: Request, res: Response) =>
 
 // Public submit route (no auth) - find form by slug then submit
 export const publicSubmit = asyncHandler(async (req: Request, res: Response) => {
-  const { slug } = req.params;
+  const { slug } = req.params as Record<string, string>;
   const submission = (req as any).validatedData;
 
   const form = await prisma.form.findFirst({ where: { slug } });

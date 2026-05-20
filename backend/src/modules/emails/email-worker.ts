@@ -91,7 +91,7 @@ export async function processEmailBatch(): Promise<BatchResult> {
         const sendDuration = Date.now() - sendStartTime;
 
         // Mark as sent
-        await emailQueueService.markAsSent(email.id, result.id);
+        await emailQueueService.markAsSent(email.id, result.id ?? '');
 
         // Consume token
         await resendRateLimiter.consumeToken();

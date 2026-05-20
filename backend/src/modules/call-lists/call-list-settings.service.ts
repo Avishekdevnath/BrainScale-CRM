@@ -192,7 +192,7 @@ export const addCallListColumn = async (
 
   await prisma.callList.update({
     where: { id: callList.id },
-    data: { meta: { ...meta, columns: [...existing, newCol] } },
+    data: { meta: { ...meta, columns: [...existing, newCol] } as any },
   });
 
   return newCol;
@@ -219,7 +219,7 @@ export const updateCallListColumn = async (
 
   await prisma.callList.update({
     where: { id: callList.id },
-    data: { meta: { ...meta, columns: next } },
+    data: { meta: { ...meta, columns: next } as any },
   });
 
   return updated;
@@ -238,7 +238,7 @@ export const removeCallListColumn = async (
 
   await prisma.callList.update({
     where: { id: callList.id },
-    data: { meta: { ...meta, columns: next } },
+    data: { meta: { ...meta, columns: next } as any },
   });
 
   return { message: 'Column removed' };

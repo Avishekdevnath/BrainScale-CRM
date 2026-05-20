@@ -162,7 +162,8 @@ export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<
 
   // Use Resend API when EMAIL_PROVIDER is 'resend'
   if (provider === 'resend') {
-    return sendEmailWithResend(options, retryCount);
+    await sendEmailWithResend(options, retryCount);
+    return;
   }
 
   // For 'sendgrid-smtp' or 'smtp', use SMTP (SendGrid SMTP is auto-configured in env.ts)

@@ -13,12 +13,8 @@ export async function addSerialNumbersByState() {
     // For MongoDB, we just need to update documents
 
     // Step 2: Get all call lists
-    const callLists = await (prisma.callList as any).find({}).toArray?.() ||
-                      await prisma.$queryRaw`SELECT DISTINCT callListId FROM CallListItem`;
-
-    const callListIds = Array.isArray(callLists)
-      ? callLists.map((list: any) => list._id || list.callListId)
-      : [];
+    const callLists = await prisma.callList.findMany({ select: { id: true } });
+    const callListIds = callLists.map((list) => list.id);
 
     let totalProcessed = 0;
 

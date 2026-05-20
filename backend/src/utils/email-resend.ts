@@ -18,7 +18,7 @@ const RETRY_DELAY_MS = 2000;
 export const sendEmailWithResend = async (
   options: EmailOptions,
   retryCount = 0
-): Promise<void> => {
+): Promise<{ id?: string }> => {
   if (!env.RESEND_API_KEY || !resend) {
     const error = new Error('RESEND_API_KEY is missing. Please set it in environment variables.');
     logger.error({ error: error.message }, 'Cannot send email: Resend not configured');
@@ -73,6 +73,8 @@ export const sendEmailWithResend = async (
       },
       'Email sent via Resend'
     );
+
+    return { id: response.data.id };
   } catch (error: any) {
     const errorDetails: any = {
       to: options.to,
@@ -100,6 +102,7 @@ export const sendEmailWithResend = async (
     }
 
     logger.error(errorDetails, 'Failed to send email via Resend');
+
 
     // Provide specific error messages for common issues
     if (error?.message?.includes('invalid_api_key')) {

@@ -15,7 +15,7 @@ export const createForm = async ({ workspaceId, ownerUserId, data }: { workspace
         workspaceId,
         ownerUserId,
         title: data.title,
-        description: data.description ?? null,
+        description: (data.description as string | undefined) ?? null,
         type: data.type ?? 'general',
         status: data.status ?? 'draft',
         slug: data.slug ?? '',
@@ -82,7 +82,7 @@ export const updateForm = async ({ workspaceId, formId, data }: { workspaceId: s
       where: { id: formId },
       data: {
         title: data.title ?? existing.title,
-        description: data.description ?? existing.description,
+        description: (data.description as string | undefined) ?? existing.description,
         type: data.type ?? existing.type,
         status: data.status ?? existing.status,
         slug: data.slug ?? existing.slug,

@@ -138,7 +138,7 @@ export async function handleEditMessage(req: Request, res: Response, next: NextF
     }
 
     const workspaceId = (req as any).user?.workspaceId;
-    const { id: messageId } = req.params;
+    const { id: messageId } = req.params as Record<string, string>;
     const validatedInput = editMessageSchema.parse(req.body);
 
     const message = await editMessage(messageId, userId, validatedInput, workspaceId);
@@ -177,7 +177,7 @@ export async function handleDeleteMessage(req: Request, res: Response, next: Nex
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id: messageId } = req.params;
+    const { id: messageId } = req.params as Record<string, string>;
     const message = await deleteMessage(messageId, userId);
 
     return res.status(200).json(message);
@@ -203,7 +203,7 @@ export async function handleDeleteDirectMessage(req: Request, res: Response, nex
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id: messageId } = req.params;
+    const { id: messageId } = req.params as Record<string, string>;
     const message = await deleteDirectMessage(messageId, userId);
 
     return res.status(200).json(message);
@@ -366,7 +366,7 @@ export async function handleMarkChannelAsRead(req: Request, res: Response, next:
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id: channelId } = req.params;
+    const { id: channelId } = req.params as Record<string, string>;
     const result = await markChannelAsRead(userId, channelId);
 
     return res.status(200).json(result);
@@ -408,7 +408,7 @@ export async function handleMarkNotificationAsRead(req: Request, res: Response, 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { id: notificationId } = req.params;
+    const { id: notificationId } = req.params as Record<string, string>;
     const notification = await markNotificationAsRead(notificationId, userId);
 
     return res.status(200).json(notification);
@@ -476,7 +476,7 @@ export async function handleAddReaction(req: Request, res: Response, next: NextF
     const userId = (req as any).user?.sub;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { id: messageId } = req.params;
+    const { id: messageId } = req.params as Record<string, string>;
     const { emoji } = addReactionSchema.parse(req.body);
     const reaction = await addReaction(userId, messageId, emoji);
     return res.status(201).json(reaction);
@@ -498,7 +498,7 @@ export async function handleRemoveReaction(req: Request, res: Response, next: Ne
     const userId = (req as any).user?.sub;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { id: messageId, emoji } = req.params;
+    const { id: messageId, emoji } = req.params as Record<string, string>;
     await removeReaction(userId, messageId, decodeURIComponent(emoji));
     return res.status(200).json({ success: true });
   } catch (error) {

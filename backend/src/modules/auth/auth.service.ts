@@ -630,7 +630,7 @@ export const login = async (data: LoginInput) => {
 
   if (!user) {
     logger.warn({ email: data.email }, 'Login attempt: User not found');
-    throw new AppError(401, 'Invalid email or password');
+    throw new AppError(401, 'No account found with this email address');
   }
 
   // Verify password
@@ -638,7 +638,7 @@ export const login = async (data: LoginInput) => {
 
   if (!isValidPassword) {
     logger.warn({ email: data.email, userId: user.id }, 'Login attempt: Invalid password');
-    throw new AppError(401, 'Invalid email or password');
+    throw new AppError(401, 'Incorrect password');
   }
 
   // Type assertion needed until Prisma Client regenerates with new fields

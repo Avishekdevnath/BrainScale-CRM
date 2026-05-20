@@ -206,7 +206,7 @@ const withTimeout = async <T>(p: Promise<T>, ms: number): Promise<T> => {
 const checkDatabase = async (): Promise<CheckResult> => {
   const start = Date.now();
   try {
-    await withTimeout(prisma.$runCommandRaw({ ping: 1 }), 3000);
+    await withTimeout(prisma.$runCommandRaw({ ping: 1 }), 5000);
     return { status: 'ok', latencyMs: Date.now() - start };
   } catch (err: any) {
     return { status: 'error', latencyMs: Date.now() - start, message: err?.message || 'ping failed' };
@@ -234,14 +234,21 @@ const checkAI = (): CheckResult => {
   return { status: 'not_configured', message: `unknown AI_PROVIDER: ${provider}` };
 };
 
-app.get('/api/v1', async (req, res) => {
+app.get('/api/v1', healthCheckLimiter, async (req, res) => {
   const [database] = await Promise.all([checkDatabase()]);
   const resend = checkResend();
   const ai = checkAI();
 
-  const connections = { database, resend, ai };
   const blocking = [database.status, resend.status];
   const overall: 'ok' | 'degraded' = blocking.every((s) => s === 'ok') ? 'ok' : 'degraded';
+
+  const isProd = env.NODE_ENV === 'production';
+  const debugSecret = process.env.STATUS_DEBUG_SECRET;
+  const showDetails =
+    !isProd || (Boolean(debugSecret) && req.query.secret === debugSecret);
+
+  const sanitize = (c: CheckResult): CheckResult =>
+    showDetails ? c : { status: c.status };
 
   res.status(overall === 'ok' ? 200 : 503).json({
     message: 'BrainScale CRM SaaS API v1',
@@ -250,7 +257,11 @@ app.get('/api/v1', async (req, res) => {
     status: overall,
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
-    connections,
+    connections: {
+      database: sanitize(database),
+      resend: sanitize(resend),
+      ai: sanitize(ai),
+    },
   });
 });
 

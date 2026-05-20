@@ -28,7 +28,7 @@
   "crons": [
     {
       "path": "/api/cron/email-worker",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }

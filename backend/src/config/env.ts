@@ -18,8 +18,8 @@ export const env = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '900', // 15 minutes
   REFRESH_EXPIRES_IN: process.env.REFRESH_EXPIRES_IN || '604800', // 7 days
   
-  // Email provider selection: 'sendgrid' (API), 'sendgrid-smtp' (SMTP), 'smtp' (generic SMTP), or 'resend'
-  EMAIL_PROVIDER: (process.env.EMAIL_PROVIDER || 'sendgrid').trim().toLowerCase(),
+  // Email provider: 'resend' only
+  EMAIL_PROVIDER: 'resend',
   // SendGrid
   SENDGRID_API_KEY: (process.env.SENDGRID_API_KEY || '').trim(),
   // Resend

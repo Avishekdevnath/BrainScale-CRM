@@ -7,6 +7,7 @@ import { logger } from './config/logger';
 import { mountSwagger } from './config/swagger';
 import { errorHandler } from './middleware/error-handler';
 import { apiLimiter, healthCheckLimiter } from './middleware/rate-limit';
+import { prisma } from './db/client';
 
 // Create Express app
 export const app: Express = express();
@@ -161,28 +162,16 @@ app.get('/api/debug/email-config', (req, res) => {
     return;
   }
   
-  // Check current email provider
-  const currentProvider = env.EMAIL_PROVIDER;
-  const sendgridConfigured = Boolean(env.SENDGRID_API_KEY && env.SENDGRID_API_KEY.length > 0);
-  const smtpConfigured = Boolean(env.SMTP_USER && env.SMTP_PASS);
-  
+  const resendConfigured = Boolean(env.RESEND_API_KEY && env.RESEND_API_KEY.length > 0);
+
   const config = {
-    currentProvider,
-    sendgrid: {
-      configured: sendgridConfigured,
-      hasApiKey: Boolean(env.SENDGRID_API_KEY),
-      apiKeyPreview: env.SENDGRID_API_KEY 
-        ? `SG.${env.SENDGRID_API_KEY.substring(3, 6)}***${env.SENDGRID_API_KEY.slice(-4)}` 
+    currentProvider: 'resend',
+    resend: {
+      configured: resendConfigured,
+      hasApiKey: Boolean(env.RESEND_API_KEY),
+      apiKeyPreview: env.RESEND_API_KEY
+        ? `re_${env.RESEND_API_KEY.substring(3, 6)}***${env.RESEND_API_KEY.slice(-4)}`
         : 'not set',
-    },
-    smtp: {
-      configured: smtpConfigured,
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: env.SMTP_SECURE,
-      hasUser: Boolean(env.SMTP_USER),
-      hasPass: Boolean(env.SMTP_PASS),
-      userPreview: env.SMTP_USER ? `${env.SMTP_USER.substring(0, 3)}***` : 'not set',
     },
     email: {
       from: env.EMAIL_FROM,
@@ -190,50 +179,14 @@ app.get('/api/debug/email-config', (req, res) => {
       replyTo: env.EMAIL_REPLY_TO,
     },
   };
-  
-  // Determine status
-  let status = 'not_configured';
-  let message = '';
-  
-  if (currentProvider === 'sendgrid') {
-    if (sendgridConfigured) {
-      status = 'configured';
-      message = 'SendGrid API is configured. Check SendGrid Activity page if emails are not being delivered.';
-    } else {
-      status = 'not_configured';
-      message = 'SendGrid API is selected but SENDGRID_API_KEY is missing. Set it in Vercel environment variables.';
-    }
-  } else if (currentProvider === 'sendgrid-smtp') {
-    if (sendgridConfigured && smtpConfigured) {
-      status = 'configured';
-      message = 'SendGrid SMTP is configured. Using smtp.sendgrid.net with API key authentication.';
-    } else if (!sendgridConfigured) {
-      status = 'not_configured';
-      message = 'SendGrid SMTP is selected but SENDGRID_API_KEY is missing. Set it in Vercel environment variables.';
-    } else {
-      status = 'not_configured';
-      message = 'SendGrid SMTP configuration incomplete. Check SMTP settings.';
-    }
-  } else if (currentProvider === 'smtp') {
-    if (smtpConfigured) {
-      status = 'configured';
-      message = 'SMTP is configured. Check Vercel function logs if emails are not being sent.';
-    } else {
-      status = 'not_configured';
-      message = 'SMTP is selected but credentials are missing. Set SMTP_USER and SMTP_PASS in Vercel environment variables.';
-    }
-  } else {
-    status = 'invalid_provider';
-    message = `Invalid EMAIL_PROVIDER: ${currentProvider}. Must be 'sendgrid', 'sendgrid-smtp', or 'smtp'.`;
-  }
-  
+
   res.json({
-    status,
+    status: resendConfigured ? 'configured' : 'not_configured',
     config,
-    message,
-    recommendations: !sendgridConfigured && !smtpConfigured 
-      ? ['Set SENDGRID_API_KEY for SendGrid, or SMTP_USER/SMTP_PASS for SMTP']
-      : [],
+    message: resendConfigured
+      ? 'Resend API is configured. Check Resend dashboard if emails are not delivered.'
+      : 'RESEND_API_KEY is missing. Set it in environment variables.',
+    recommendations: resendConfigured ? [] : ['Set RESEND_API_KEY'],
   });
 });
 
@@ -241,11 +194,63 @@ app.get('/api/debug/email-config', (req, res) => {
 mountSwagger(app);
 
 // API Routes
-app.get('/api/v1', (req, res) => {
-  res.json({
+type CheckResult = { status: 'ok' | 'error' | 'not_configured' | 'disabled'; latencyMs?: number; message?: string };
+
+const withTimeout = async <T>(p: Promise<T>, ms: number): Promise<T> => {
+  return await Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms)),
+  ]);
+};
+
+const checkDatabase = async (): Promise<CheckResult> => {
+  const start = Date.now();
+  try {
+    await withTimeout(prisma.$runCommandRaw({ ping: 1 }), 3000);
+    return { status: 'ok', latencyMs: Date.now() - start };
+  } catch (err: any) {
+    return { status: 'error', latencyMs: Date.now() - start, message: err?.message || 'ping failed' };
+  }
+};
+
+const checkResend = (): CheckResult => {
+  if (!env.RESEND_API_KEY) return { status: 'not_configured', message: 'RESEND_API_KEY missing' };
+  return { status: 'ok', message: 'API key set (no live probe)' };
+};
+
+const checkAI = (): CheckResult => {
+  if (!env.AI_ENABLED) return { status: 'disabled' };
+  const provider = env.AI_PROVIDER;
+  if (provider === 'openai') {
+    return env.OPENAI_API_KEY
+      ? { status: 'ok', message: 'openai key set' }
+      : { status: 'not_configured', message: 'OPENAI_API_KEY missing' };
+  }
+  if (provider === 'anthropic') {
+    return env.ANTHROPIC_API_KEY
+      ? { status: 'ok', message: 'anthropic key set' }
+      : { status: 'not_configured', message: 'ANTHROPIC_API_KEY missing' };
+  }
+  return { status: 'not_configured', message: `unknown AI_PROVIDER: ${provider}` };
+};
+
+app.get('/api/v1', async (req, res) => {
+  const [database] = await Promise.all([checkDatabase()]);
+  const resend = checkResend();
+  const ai = checkAI();
+
+  const connections = { database, resend, ai };
+  const blocking = [database.status, resend.status];
+  const overall: 'ok' | 'degraded' = blocking.every((s) => s === 'ok') ? 'ok' : 'degraded';
+
+  res.status(overall === 'ok' ? 200 : 503).json({
     message: 'BrainScale CRM SaaS API v1',
     version: '1.0.0',
     docs: '/api/docs',
+    status: overall,
+    environment: env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+    connections,
   });
 });
 

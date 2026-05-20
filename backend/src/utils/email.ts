@@ -1,7 +1,5 @@
-import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 import { logger } from '../config/logger';
-import { sendEmailWithSendGrid } from './email-sendgrid';
 import { sendEmailWithResend } from './email-resend';
 import { queueTransactionalEmail } from '../modules/emails/helpers/queue-helpers';
 import {
@@ -12,101 +10,10 @@ import {
   teamChatMentionTemplate,
 } from './email-templates';
 
-// Validate SMTP configuration (warns but doesn't prevent server startup)
-const validateSmtpConfig = () => {
-  const missing: string[] = [];
-  
-  if (!env.SMTP_USER || env.SMTP_USER.trim() === '') {
-    missing.push('SMTP_USER (or GMAIL_USER)');
-  }
-  
-  if (!env.SMTP_PASS || env.SMTP_PASS.trim() === '') {
-    missing.push('SMTP_PASS (or GMAIL_APP_PASSWORD)');
-  }
-  
-  if (missing.length > 0) {
-    const warningMsg = `⚠️  Missing SMTP configuration: ${missing.join(', ')}. Email functionality will not work. Please set these environment variables in your .env file. See EMAIL_SETUP_GUIDE.md for details.`;
-    logger.warn({ missing }, warningMsg);
-    return false;
-  }
-  
-  logger.info({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    user: env.SMTP_USER?.substring(0, 3) + '***', // Log partial email for debugging
-  }, 'SMTP configuration validated');
-  return true;
-};
-
-// Validate on module load (non-blocking)
-const isSmtpConfigured = validateSmtpConfig();
-
-// Create reusable transporter
-// For port 587: use secure: false (STARTTLS)
-// For port 465: use secure: true (SSL/TLS)
-// In serverless (Vercel), disable connection pooling and reduce timeouts
-const isServerless = process.env.VERCEL === '1';
-
-// Base SMTP configuration
-const smtpConfig: any = {
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  // Allow explicit override via SMTP_SECURE; otherwise infer from port
-  secure: typeof env.SMTP_SECURE === 'boolean' ? env.SMTP_SECURE : env.SMTP_PORT === 465,
-  requireTLS: env.SMTP_PORT === 587, // Require TLS for port 587 (STARTTLS)
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-  tls: {
-    // Do not fail on invalid certificates (useful for development)
-    rejectUnauthorized: env.NODE_ENV === 'production',
-  },
-  // Connection timeout settings - reduced for serverless environments
-  connectionTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
-  greetingTimeout: isServerless ? 5000 : 60000, // 5 seconds for serverless, 60 seconds for traditional
-  socketTimeout: isServerless ? 10000 : 120000, // 10 seconds for serverless, 2 minutes for traditional
-};
-
-// Add pooling options only if not serverless
-if (!isServerless) {
-  smtpConfig.pool = true;
-  smtpConfig.maxConnections = 5;
-  smtpConfig.maxMessages = 100;
-  smtpConfig.rateDelta = 1000;
-  smtpConfig.rateLimit = 5;
-}
-
-const transporter = nodemailer.createTransport(smtpConfig);
-
-// Verify transporter connection on startup (non-blocking, only if configured)
-// Note: In production/Kubernetes environments, this may timeout due to network policies
-// The verification failure is non-blocking - emails will still attempt to send
-if (isSmtpConfigured) {
-  // Use a timeout to prevent hanging on verification
-  const verifyTimeout = setTimeout(() => {
-    logger.warn('SMTP verification is taking longer than expected. This is non-blocking and emails will still attempt to send.');
-  }, 10000); // 10 second warning
-
-  transporter.verify((error, success) => {
-    clearTimeout(verifyTimeout);
-    if (error) {
-      const errorDetails: any = {
-        error: error.message,
-      };
-      
-      // Add nodemailer-specific error properties if they exist
-      if ('code' in error) errorDetails.code = (error as any).code;
-      if ('command' in error) errorDetails.command = (error as any).command;
-      if ('response' in error) errorDetails.response = (error as any).response;
-      
-      // Log as warning instead of error since this is non-blocking
-      // In Kubernetes, network policies may block SMTP connections
-      logger.warn(errorDetails, 'SMTP connection verification failed (non-blocking). Emails will still attempt to send when needed. If emails fail, check SMTP credentials and network connectivity.');
-    } else {
-      logger.info('SMTP connection verified successfully');
-    }
-  });
+if (!env.RESEND_API_KEY) {
+  logger.warn('RESEND_API_KEY missing. Emails will fail until set.');
+} else {
+  logger.info('Resend configured');
 }
 
 export interface EmailOptions {
@@ -144,182 +51,12 @@ const queueOrSendTransactionalEmail = async (
  * Send email with retry logic for connection timeouts
  */
 export const sendEmail = async (options: EmailOptions, retryCount = 0): Promise<void> => {
-  // Email sending is disabled — skip silently
   if (process.env.EMAIL_DISABLED === 'true') {
     logger.info({ to: options.to, subject: options.subject }, 'Email sending disabled, skipping');
     return;
   }
 
-  const MAX_RETRIES = 2;
-  const RETRY_DELAY = 2000; // 2 seconds between retries
-
-  const provider = (env.EMAIL_PROVIDER || 'sendgrid').toLowerCase();
-
-  // Use SendGrid API when EMAIL_PROVIDER is 'sendgrid'
-  if (provider === 'sendgrid') {
-    return sendEmailWithSendGrid(options, retryCount);
-  }
-
-  // Use Resend API when EMAIL_PROVIDER is 'resend'
-  if (provider === 'resend') {
-    await sendEmailWithResend(options, retryCount);
-    return;
-  }
-
-  // For 'sendgrid-smtp' or 'smtp', use SMTP (SendGrid SMTP is auto-configured in env.ts)
-
-  // SMTP fallback
-  if (!env.SMTP_USER || !env.SMTP_PASS) {
-    const error = new Error('SMTP configuration is missing. Please set SMTP_USER and SMTP_PASS environment variables.');
-    logger.error({ 
-      error: error.message,
-      to: options.to,
-      subject: options.subject,
-    }, 'Cannot send email: SMTP not configured');
-    throw error;
-  }
-
-  try {
-    // Verify connection before sending (only on retries to check connectivity)
-    if (retryCount > 0) {
-      try {
-        await transporter.verify();
-        logger.info({ 
-          attempt: retryCount + 1,
-          host: env.SMTP_HOST,
-          port: env.SMTP_PORT,
-        }, 'SMTP connection verified, retrying send');
-      } catch (verifyError: any) {
-        logger.warn({ 
-          error: verifyError.message,
-          code: verifyError.code,
-          attempt: retryCount + 1,
-          host: env.SMTP_HOST,
-          port: env.SMTP_PORT,
-        }, 'SMTP connection verification failed on retry, will attempt to send anyway');
-        // Continue with send attempt even if verify fails
-      }
-    }
-
-    // Format sender name - only quote if it contains special characters that require quoting
-    // RFC 5322: Quotes are optional for simple names with spaces, but required for special chars
-    const fromName = env.EMAIL_FROM_NAME || 'BrainScale CRM';
-    const hasSpecialChars = /[<>,;:\[\]\\"]/.test(fromName);
-    const formattedFrom = hasSpecialChars
-      ? `"${fromName.replace(/"/g, '\\"')}" <${env.EMAIL_FROM}>`
-      : `${fromName} <${env.EMAIL_FROM}>`;
-
-    const info = await transporter.sendMail({
-      from: formattedFrom,
-      replyTo: env.EMAIL_REPLY_TO,
-      to: options.to,
-      subject: options.subject,
-      text: options.text || options.html.replace(/<[^>]*>/g, ''),
-      html: options.html,
-    });
-
-    // Explicitly verify email was accepted by SMTP server
-    // messageId indicates the SMTP server accepted the email
-    if (!info.messageId) {
-      const error = new Error('SMTP server did not return a message ID. Email may not have been accepted.');
-      logger.error({
-        response: info.response,
-        accepted: info.accepted,
-        rejected: info.rejected,
-        to: options.to,
-        subject: options.subject,
-        host: env.SMTP_HOST,
-        port: env.SMTP_PORT,
-      }, 'SMTP email not accepted - missing message ID');
-      throw error;
-    }
-
-    // Verify email was accepted (not rejected)
-    if (info.rejected && info.rejected.length > 0) {
-      const error = new Error(`SMTP server rejected email for recipients: ${info.rejected.join(', ')}`);
-      logger.error({
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-        to: options.to,
-        subject: options.subject,
-        host: env.SMTP_HOST,
-        port: env.SMTP_PORT,
-      }, 'SMTP email rejected by server');
-      throw error;
-    }
-
-    logger.info({ 
-      messageId: info.messageId,
-      accepted: info.accepted,
-      to: options.to,
-      subject: options.subject,
-      retryAttempt: retryCount,
-    }, 'Email sent successfully');
-  } catch (error: any) {
-    // Enhanced error logging with full details for debugging
-    const errorDetails: any = {
-      to: options.to,
-      subject: options.subject,
-      error: error.message,
-      retryAttempt: retryCount,
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      provider: env.EMAIL_PROVIDER,
-      isServerless: process.env.VERCEL === '1',
-      nodeEnv: process.env.NODE_ENV,
-    };
-
-    // Add nodemailer-specific error details
-    if (error.code) {
-      errorDetails.code = error.code;
-    }
-    if (error.command) {
-      errorDetails.command = error.command;
-    }
-    if (error.response) {
-      errorDetails.response = error.response;
-    }
-    if (error.responseCode) {
-      errorDetails.responseCode = error.responseCode;
-    }
-    if (error.stack) {
-      errorDetails.stack = error.stack;
-    }
-
-    // Retry logic for connection/timeout errors
-    const isRetryableError = 
-      error.code === 'ETIMEDOUT' || 
-      error.code === 'ECONNECTION' || 
-      error.code === 'ESOCKET' ||
-      (error.command === 'CONN' && retryCount < MAX_RETRIES);
-
-    if (isRetryableError && retryCount < MAX_RETRIES) {
-      logger.warn({
-        ...errorDetails,
-        nextRetryIn: RETRY_DELAY,
-      }, 'Email send failed with retryable error, will retry');
-
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
-
-      // Retry the send
-      return sendEmail(options, retryCount + 1);
-    }
-
-    logger.error(errorDetails, 'Failed to send email');
-    
-    // Provide more helpful error messages
-    if (error.code === 'EAUTH') {
-      throw new Error('SMTP authentication failed. Please check your SMTP_USER and SMTP_PASS credentials.');
-    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-      throw new Error(`Cannot connect to SMTP server at ${env.SMTP_HOST}:${env.SMTP_PORT}. Please check your SMTP_HOST and SMTP_PORT settings, and ensure the server is reachable from your network.`);
-    } else if (error.code === 'EENVELOPE') {
-      throw new Error(`Invalid email address: ${options.to}`);
-    }
-    
-    throw error;
-  }
+  await sendEmailWithResend(options, retryCount);
 };
 
 export const sendInvitationEmail = async (

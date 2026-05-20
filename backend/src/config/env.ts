@@ -10,7 +10,7 @@ export const env = {
   IS_VERCEL: process.env.VERCEL === '1',
   
   // Database - MongoDB
-  MONGODB_URL: (process.env.MONGO_URL || process.env.MONGODB_URL!).replace(/^["']|["']$/g, ''),
+  MONGODB_URL: (process.env.MONGO_URL || process.env.MONGODB_URL || '').replace(/^["']|["']$/g, ''),
   
   // JWT
   JWT_SECRET: process.env.JWT_SECRET!,

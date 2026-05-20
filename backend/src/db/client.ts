@@ -1,12 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
 // Strip accidental quotes from connection string (copied from .env with quotes)
-if (process.env.MONGO_URL) {
-  process.env.MONGO_URL = process.env.MONGO_URL.replace(/^["']|["']$/g, '');
-}
-if (process.env.MONGODB_URL) {
-  process.env.MONGODB_URL = process.env.MONGODB_URL.replace(/^["']|["']$/g, '');
-}
+if (process.env.MONGO_URL) process.env.MONGO_URL = process.env.MONGO_URL.replace(/^["']|["']$/g, '');
+if (process.env.MONGODB_URL) process.env.MONGODB_URL = process.env.MONGODB_URL.replace(/^["']|["']$/g, '');
 
 const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 

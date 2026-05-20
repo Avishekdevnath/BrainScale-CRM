@@ -15,7 +15,7 @@ COPY prisma ./prisma/
 
 # Install all dependencies (including devDependencies for build)
 # Use npm install since package-lock.json may not exist in repo
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -52,7 +52,7 @@ COPY --from=builder /app/package-lock.json ./
 COPY prisma ./prisma/
 
 # Install production dependencies only
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist

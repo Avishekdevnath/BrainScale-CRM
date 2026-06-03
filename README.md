@@ -1,5 +1,7 @@
 # BrainScale CRM
 
+**Live:** [https://brainscale-crm.vercel.app/](https://brainscale-crm.vercel.app/)
+
 BrainScale CRM is a multi-tenant CRM for managing students/customers, call workflows, follow-ups, and team collaboration. The repository contains a Node.js/TypeScript API and a Next.js web frontend.
 
 ## Features
@@ -109,6 +111,7 @@ When the backend is running, Swagger is available at:
 
 ## Deployment Notes
 
+- **Live URL:** [https://brainscale-crm.vercel.app/](https://brainscale-crm.vercel.app/)
 - Ensure all environment variables are set in your hosting environment.
 - Run backend build and prisma generate as part of your deployment pipeline.
 - Configure NEXT_PUBLIC_API_URL to point at the deployed API.

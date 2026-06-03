@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import compression from 'compression';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -11,6 +12,9 @@ import { prisma } from './db/client';
 
 // Create Express app
 export const app: Express = express();
+
+// Compress all responses (gzip/deflate) — skip small responses (<1kb) automatically
+app.use(compression());
 
 // Prevent accidental cross-user caching (ETag/304) for API responses behind shared caches/browsers.
 // All authenticated API routes should be treated as non-cacheable unless explicitly designed otherwise.
@@ -144,9 +148,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
-// Recommended interval: 10 minutes (configure in Kubernetes liveness/readiness probes)
-// Rate limiter: 10 requests per 10 minutes per IP (skip successful requests)
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     tags:
+ *       - System
+ *     summary: Health check
+ *     description: Returns server status. Use for uptime monitoring and liveness probes.
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: ok
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ */
 app.get('/health', healthCheckLimiter, (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -203,13 +228,21 @@ const withTimeout = async <T>(p: Promise<T>, ms: number): Promise<T> => {
   ]);
 };
 
+let dbPingCache: { result: CheckResult; expiresAt: number } | null = null;
+const DB_PING_TTL_MS = 30_000;
+
 const checkDatabase = async (): Promise<CheckResult> => {
+  if (dbPingCache && Date.now() < dbPingCache.expiresAt) return dbPingCache.result;
   const start = Date.now();
   try {
     await withTimeout(prisma.$runCommandRaw({ ping: 1 }), 5000);
-    return { status: 'ok', latencyMs: Date.now() - start };
+    const result: CheckResult = { status: 'ok', latencyMs: Date.now() - start };
+    dbPingCache = { result, expiresAt: Date.now() + DB_PING_TTL_MS };
+    return result;
   } catch (err: any) {
-    return { status: 'error', latencyMs: Date.now() - start, message: err?.message || 'ping failed' };
+    const result: CheckResult = { status: 'error', latencyMs: Date.now() - start, message: err?.message || 'ping failed' };
+    dbPingCache = { result, expiresAt: Date.now() + DB_PING_TTL_MS };
+    return result;
   }
 };
 

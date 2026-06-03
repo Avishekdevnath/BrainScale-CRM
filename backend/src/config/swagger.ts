@@ -70,7 +70,7 @@ const options: swaggerJSDoc.Options = {
       },
     ],
   },
-  apis: ['./src/modules/**/*.ts', './src/modules/**/*.router.ts'],
+  apis: ['./src/app.ts', './src/modules/**/*.ts', './src/modules/**/*.router.ts'],
 };
 
 export const mountSwagger = (app: Express) => {

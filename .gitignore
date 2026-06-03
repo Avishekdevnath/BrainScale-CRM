@@ -51,3 +51,5 @@ guide/
 *.backup
 archive/
 archive.zip
+docs/
+.code-review-graph/

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,16 @@ export interface QuestionsBuilderProps {
 }
 
 export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBuilderProps) {
+  const lastQuestionRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(questions.length);
+
+  useEffect(() => {
+    if (questions.length > prevLengthRef.current) {
+      lastQuestionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    prevLengthRef.current = questions.length;
+  }, [questions.length]);
+
   const addQuestion = () => {
     const newQuestion: Question = {
       id: buildQuestionId(),
@@ -113,7 +123,7 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="sticky top-0 z-10 flex items-center justify-between bg-[var(--groups1-surface)] py-2 border-b border-[var(--groups1-border)] mb-2">
         <Label className="text-sm font-medium text-[var(--groups1-text)]">
           Questions to Ask
           <span className="text-gray-400 text-xs font-normal ml-1">(Optional)</span>
@@ -138,6 +148,7 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
           {sortedQuestions.map((question, index) => (
             <div
               key={question.id}
+              ref={index === sortedQuestions.length - 1 ? lastQuestionRef : undefined}
               className="p-4 border border-[var(--groups1-border)] rounded-lg bg-[var(--groups1-surface)]"
             >
               <div className="flex items-start gap-2 mb-3">

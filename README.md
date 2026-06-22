@@ -116,6 +116,15 @@ When the backend is running, Swagger is available at:
 - Run backend build and prisma generate as part of your deployment pipeline.
 - Configure NEXT_PUBLIC_API_URL to point at the deployed API.
 
+## Redis Caching (Optional — Ready, Not Connected)
+
+Redis cache module exists at `backend/src/lib/cache.ts`. Falls back to in-memory if `REDIS_URL` not set. Not wired into routes yet — plug in when needed.
+
+Set `REDIS_URL` in `backend/.env` to enable:
+```
+REDIS_URL=redis://localhost:6379
+```
+
 ## License
 
 MIT License. See LICENSE.

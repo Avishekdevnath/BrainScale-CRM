@@ -17,13 +17,14 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight, History, RefreshCw, Plus, X, Bookmark, ChevronDown, Check, Pencil } from "lucide-react";
+import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight, History, RefreshCw, Plus, X, Bookmark, ChevronDown, Check, Pencil, MessageSquare } from "lucide-react";
 import { mutate } from "swr";
 import { useCallStatusOptions } from "@/hooks/useCallLists";
 import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer, CallListStatusOption, CustomColumnDef } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
+import { QuestionsBuilder } from "@/components/call-lists/QuestionsBuilder";
 
 // --- Draft persistence (localStorage) ---
 const DRAFT_PREFIX = "calls-manager:drafts:";
@@ -257,6 +258,9 @@ export default function CallsManagerPage() {
   const [batchId, setBatchId] = useState<string>("");
   const [callListId, setCallListId] = useState<string>("");
   const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
+  const [draftGroupId, setDraftGroupId] = useState<string>("");
+  const [draftBatchId, setDraftBatchId] = useState<string>("");
+  const [draftCallListId, setDraftCallListId] = useState<string>("");
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [submittingItemId, setSubmittingItemId] = useState<string | null>(null);
@@ -283,8 +287,11 @@ export default function CallsManagerPage() {
   const [historyItem, setHistoryItem] = useState<CallListItem | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [columnsEditMode, setColumnsEditMode] = useState(false);
-  const [columnModal, setColumnModal] = useState<{ label: string; shortLabel: string; type: string; selectOptions: string } | null>(null);
+  const [columnModal, setColumnModal] = useState<{ label: string; shortLabel: string; type: string; selectOptions: string[] } | null>(null);
   const [savingColumn, setSavingColumn] = useState(false);
+  const [questionsModalOpen, setQuestionsModalOpen] = useState(false);
+  const [draftQuestions, setDraftQuestions] = useState<Question[]>([]);
+  const [savingQuestions, setSavingQuestions] = useState(false);
 
   const { data: stats } = useMyCallsStats();
   const { data: groupsData } = useGroups();
@@ -805,8 +812,8 @@ export default function CallsManagerPage() {
     if (!callListId || !columnModal?.label.trim()) return;
     setSavingColumn(true);
     try {
-      const options = columnModal.type === "select" && columnModal.selectOptions.trim()
-        ? columnModal.selectOptions.split(",").map(s => s.trim()).filter(Boolean)
+      const options = columnModal.type === "select" && columnModal.selectOptions.length > 0
+        ? columnModal.selectOptions.map(s => s.trim()).filter(Boolean)
         : undefined;
       await apiClient.addCallListColumn(callListId, {
         label: columnModal.label.trim(),
@@ -821,6 +828,29 @@ export default function CallsManagerPage() {
       toast.error(e?.message || "Failed to add column");
     } finally {
       setSavingColumn(false);
+    }
+  };
+
+  const handleOpenQuestionsModal = () => {
+    const cl = callListsData?.callLists?.find(c => c.id === callListId);
+    const existing = (cl?.questions || (cl?.meta as any)?.questions || []) as Question[];
+    setDraftQuestions([...existing]);
+    setQuestionsModalOpen(true);
+  };
+
+  const handleSaveQuestions = async () => {
+    if (!callListId) return;
+    setSavingQuestions(true);
+    try {
+      await apiClient.updateCallList(callListId, { questions: draftQuestions });
+      await mutateCallLists();
+      await mutateCalls();
+      setQuestionsModalOpen(false);
+      toast.success("Questions saved");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to save questions");
+    } finally {
+      setSavingQuestions(false);
     }
   };
 
@@ -1069,7 +1099,12 @@ export default function CallsManagerPage() {
         {/* Add filter popover */}
         <div className="relative flex-shrink-0">
           <button
-            onClick={() => setFilterPopoverOpen(v => !v)}
+            onClick={() => {
+              setDraftGroupId(groupId);
+              setDraftBatchId(batchId);
+              setDraftCallListId(callListId);
+              setFilterPopoverOpen(v => !v);
+            }}
             className="flex items-center gap-1 text-xs text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] border border-dashed border-[var(--groups1-border)] rounded-lg px-2.5 py-1.5 hover:bg-[var(--groups1-secondary)]"
           >
             <Plus className="w-3 h-3" />
@@ -1084,8 +1119,8 @@ export default function CallsManagerPage() {
                 <div className="px-2 pb-1">
                   <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Group</div>
                   <select
-                    value={groupId}
-                    onChange={(e) => { setGroupId(e.target.value); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
+                    value={draftGroupId}
+                    onChange={(e) => { setDraftGroupId(e.target.value); setDraftCallListId(""); }}
                     className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
                   >
                     <option value="">All groups</option>
@@ -1096,8 +1131,8 @@ export default function CallsManagerPage() {
                 <div className="px-2 pb-1">
                   <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Batch</div>
                   <select
-                    value={batchId}
-                    onChange={(e) => { setBatchId(e.target.value); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
+                    value={draftBatchId}
+                    onChange={(e) => { setDraftBatchId(e.target.value); setDraftCallListId(""); }}
                     className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
                   >
                     <option value="">All batches</option>
@@ -1108,24 +1143,36 @@ export default function CallsManagerPage() {
                 <div className="px-2 pb-1">
                   <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Call List</div>
                   <select
-                    value={callListId}
-                    onChange={(e) => { setCallListId(e.target.value); setPage(1); setFilterPopoverOpen(false); }}
+                    value={draftCallListId}
+                    onChange={(e) => setDraftCallListId(e.target.value)}
                     className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
                   >
-                    {/* <option value="">All call lists</option> */}
+                    <option value="">All call lists</option>
                     {(callListsData?.callLists ?? []).map(cl => <option key={cl.id} value={cl.id}>{cl.name}</option>)}
                   </select>
                 </div>
-                {(groupId || batchId || callListId) && (
-                  <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2">
+                <div className="border-t border-[var(--groups1-border)] mt-1 pt-2 px-2 pb-1 flex items-center gap-2">
+                  {(draftGroupId || draftBatchId || draftCallListId) && (
                     <button
-                      onClick={() => { setGroupId(""); setBatchId(""); setCallListId(""); setPage(1); setFilterPopoverOpen(false); }}
-                      className="w-full text-left text-xs text-red-500 hover:text-red-600 px-1 py-1.5"
+                      onClick={() => { setDraftGroupId(""); setDraftBatchId(""); setDraftCallListId(""); }}
+                      className="text-xs text-red-500 hover:text-red-600 px-1 py-1.5"
                     >
-                      Clear all filters
+                      Clear
                     </button>
-                  </div>
-                )}
+                  )}
+                  <button
+                    onClick={() => {
+                      setGroupId(draftGroupId);
+                      setBatchId(draftBatchId);
+                      setCallListId(draftCallListId);
+                      setPage(1);
+                      setFilterPopoverOpen(false);
+                    }}
+                    className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                  >
+                    Apply
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -1168,6 +1215,18 @@ export default function CallsManagerPage() {
             {columnsEditMode
               ? <><Check className="w-3 h-3" />Done</>
               : <><Pencil className="w-3 h-3" />Edit</>}
+          </button>
+        )}
+
+        {/* Edit Questions — only when a single call list is selected */}
+        {callListId && (
+          <button
+            onClick={handleOpenQuestionsModal}
+            className="flex-shrink-0 flex items-center gap-1 text-xs border border-[var(--groups1-border)] rounded-lg px-2.5 py-1.5 bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)]"
+            title="Edit questions for this call list"
+          >
+            <MessageSquare className="w-3 h-3" />
+            Questions
           </button>
         )}
       </div>
@@ -1453,9 +1512,15 @@ export default function CallsManagerPage() {
                     <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Student</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Phone</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Status</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
-                      {tableQuestions[0] ? (tableQuestions[0].shortLabel?.trim() || tableQuestions[0].question || "Reason") : "Reason"}
-                    </th>
+                    {tableQuestions.length > 0 ? tableQuestions.map((q) => (
+                      <th key={q.id} className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
+                        {q.shortLabel?.trim() || q.question || "Question"}
+                      </th>
+                    )) : (
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                        Reason
+                      </th>
+                    )}
                     {/* Custom columns — before Follow-up */}
                     {tableColumns.map((col) => (
                       <th key={col.key} className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap" title={col.label}>
@@ -1477,7 +1542,7 @@ export default function CallsManagerPage() {
                     {columnsEditMode && (
                       <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
                         <button
-                          onClick={() => setColumnModal({ label: "", shortLabel: "", type: "text", selectOptions: "" })}
+                          onClick={() => setColumnModal({ label: "", shortLabel: "", type: "text", selectOptions: [] })}
                           className="flex items-center gap-0.5 text-[var(--groups1-primary)] hover:text-[var(--groups1-primary-hover)] whitespace-nowrap border border-dashed border-[var(--groups1-primary)]/40 rounded px-1.5 py-0.5"
                         >
                           <Plus className="w-3 h-3" />Add
@@ -1509,13 +1574,6 @@ export default function CallsManagerPage() {
                         ? (item.callList?.statusOptions as CallListStatusOption[])
                         : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
 
-                    // First Q&A reason
-                    const firstQ = tableQuestions[0];
-                    const firstAnswerFromLog = item.callLog?.answers?.find((a: any) => a.questionId === firstQ?.id)?.answer;
-                    const firstAnswerLocal = firstQ ? itemAnswers[item.id]?.[firstQ.id] : undefined;
-                    const reasonText = existingCallStatus
-                      ? (firstAnswerFromLog != null ? String(firstAnswerFromLog) : item.callLog?.notes || "—")
-                      : (firstAnswerLocal != null ? String(firstAnswerLocal) : null);
 
                     return (
                       <tr key={item.id} className="hover:bg-[var(--groups1-secondary)] transition-colors">
@@ -1603,16 +1661,25 @@ export default function CallsManagerPage() {
                           )}
                         </td>
 
-                        {/* Reason (first Q&A answer) */}
-                        <td className="py-2 px-3 max-w-[220px]">
-                          {existingCallStatus ? (
-                            <span className="text-sm text-[var(--groups1-text)] truncate block">{reasonText || "—"}</span>
-                          ) : firstQ ? (
-                            renderQuestionInput(item, firstQ, isSubmitting)
-                          ) : (
+                        {/* Q&A columns — one per question */}
+                        {tableQuestions.length > 0 ? tableQuestions.map((q) => {
+                          const answerFromLog = item.callLog?.answers?.find((a: any) => a.questionId === q.id)?.answer;
+                          return (
+                            <td key={q.id} className="py-2 px-3 max-w-[220px]">
+                              {existingCallStatus ? (
+                                <span className="text-sm text-[var(--groups1-text)] truncate block">
+                                  {answerFromLog != null ? String(answerFromLog) : "—"}
+                                </span>
+                              ) : (
+                                renderQuestionInput(item, q, isSubmitting)
+                              )}
+                            </td>
+                          );
+                        }) : (
+                          <td className="py-2 px-3 max-w-[220px]">
                             <span className="text-sm text-[var(--groups1-text-secondary)] italic">—</span>
-                          )}
-                        </td>
+                          </td>
+                        )}
 
                         {/* Custom column cells — before Follow-up */}
                         {tableColumns.map((col) => (
@@ -1908,22 +1975,58 @@ export default function CallsManagerPage() {
                 </select>
               </div>
               {columnModal.type === "select" && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-[var(--groups1-text)]">Options</label>
-                  <input
-                    value={columnModal.selectOptions}
-                    onChange={(e) => setColumnModal(m => m ? { ...m, selectOptions: e.target.value } : m)}
-                    placeholder="Option A, Option B, Option C"
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                  />
-                  <p className="text-[11px] text-[var(--groups1-text-secondary)]">Comma-separated list of options</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-[var(--groups1-text)]">
+                      Options <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setColumnModal(m => m ? { ...m, selectOptions: [...m.selectOptions, ""] } : m)}
+                      className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)]"
+                    >
+                      <Plus className="w-3 h-3" />Add Option
+                    </button>
+                  </div>
+                  {columnModal.selectOptions.length === 0 ? (
+                    <p className="text-[12px] text-[var(--groups1-text-secondary)] italic">No options yet — click Add Option</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {columnModal.selectOptions.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input
+                            value={opt}
+                            onChange={(e) => setColumnModal(m => {
+                              if (!m) return m;
+                              const next = [...m.selectOptions];
+                              next[i] = e.target.value;
+                              return { ...m, selectOptions: next };
+                            })}
+                            placeholder={`Option ${i + 1}…`}
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setColumnModal(m => m ? { ...m, selectOptions: m.selectOptions.filter((_, idx) => idx !== i) } : m)}
+                            disabled={columnModal.selectOptions.length <= 1}
+                            className="p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {columnModal.selectOptions.length < 2 && columnModal.selectOptions.length > 0 && (
+                    <p className="text-[11px] text-red-500">Add at least 2 options</p>
+                  )}
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" onClick={() => setColumnModal(null)} disabled={savingColumn}>Cancel</Button>
                 <Button
                   onClick={() => void handleAddColumn()}
-                  disabled={savingColumn || !columnModal.label.trim()}
+                  disabled={savingColumn || !columnModal.label.trim() || (columnModal.type === "select" && columnModal.selectOptions.filter(s => s.trim()).length < 2)}
                   className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
                 >
                   {savingColumn ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Adding…</> : "Add Column"}
@@ -1931,6 +2034,37 @@ export default function CallsManagerPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Questions Modal */}
+      <Dialog open={questionsModalOpen} onOpenChange={(open) => { if (!open) setQuestionsModalOpen(false); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Edit Questions — {callListsData?.callLists?.find(c => c.id === callListId)?.name ?? "Call List"}
+            </DialogTitle>
+            <DialogClose onClose={() => setQuestionsModalOpen(false)} />
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto pb-2 pr-1">
+            <QuestionsBuilder
+              questions={draftQuestions}
+              onChange={setDraftQuestions}
+              disabled={savingQuestions}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-3 border-t border-[var(--groups1-border)]">
+            <Button variant="outline" onClick={() => setQuestionsModalOpen(false)} disabled={savingQuestions}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleSaveQuestions()}
+              disabled={savingQuestions}
+              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            >
+              {savingQuestions ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save Questions"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -1513,11 +1513,11 @@ export default function CallsManagerPage() {
                     <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Phone</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">Status</th>
                     {tableQuestions.length > 0 ? tableQuestions.map((q) => (
-                      <th key={q.id} className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
+                      <th key={q.id} className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap w-[150px]">
                         {q.shortLabel?.trim() || q.question || "Question"}
                       </th>
                     )) : (
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider">
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider w-[150px]">
                         Reason
                       </th>
                     )}
@@ -1665,7 +1665,7 @@ export default function CallsManagerPage() {
                         {tableQuestions.length > 0 ? tableQuestions.map((q) => {
                           const answerFromLog = item.callLog?.answers?.find((a: any) => a.questionId === q.id)?.answer;
                           return (
-                            <td key={q.id} className="py-2 px-3 max-w-[220px]">
+                            <td key={q.id} className="py-2 px-3 w-[150px] max-w-[150px]">
                               {existingCallStatus ? (
                                 <span className="text-sm text-[var(--groups1-text)] truncate block">
                                   {answerFromLog != null ? String(answerFromLog) : "—"}

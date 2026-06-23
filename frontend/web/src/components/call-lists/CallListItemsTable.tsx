@@ -108,13 +108,20 @@ export function CallListItemsTable({
   });
   const [updatingItemId, setUpdatingItemId] = React.useState<string | null>(null);
 
-  // Update filters when page size or filter changes
+  // Debounce the search box so we don't hit the server on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Update filters when page size / filters / search change.
+  // All filtering is server-side so pagination + totals stay consistent across pages.
   React.useEffect(() => {
     setFilters((prev) => ({
       ...prev,
       page: 1, // Reset to page 1 when filter or page size changes
       size: pageSize,
-      // Use server-side filtering so pagination is consistent (no client-side "holes")
       state:
         activeFilter === "all" || activeFilter === "follow_up"
           ? undefined
@@ -126,8 +133,10 @@ export function CallListItemsTable({
       followUpRequired: activeFilter === "follow_up" ? true : undefined,
       assignment: assignmentFilter === "all" || assignmentFilter === "member" ? undefined : assignmentFilter,
       assignedTo: assignmentFilter === "member" ? memberFilterId || undefined : undefined,
+      q: debouncedSearch || undefined,
+      hideDone: hideDone || undefined,
     }));
-  }, [pageSize, activeFilter, assignmentFilter, memberFilterId]);
+  }, [pageSize, activeFilter, assignmentFilter, memberFilterId, debouncedSearch, hideDone]);
 
   const { data: callListDetails } = useCallList(listId);
   const { data, isLoading, error, mutate } = useCallListItems(listId, filters);
@@ -181,25 +190,13 @@ export function CallListItemsTable({
     });
   }, [data?.items, isAdmin]);
 
-  // Fetch call logs for follow-up filter
-  // Server already returns paginated + filtered items.
+  // Server returns paginated + filtered items (search + hideDone applied server-side,
+  // so results & pagination are correct across ALL pages, not just the current one).
   const paginatedItems = React.useMemo(() => data?.items ?? [], [data?.items]);
   const serverTotalItems = data?.pagination?.total ?? 0;
 
-  // Filter items by search query and "Hide done" toggle.
-  const filteredItems = React.useMemo(() => {
-    let items = paginatedItems;
-    if (hideDone) {
-      items = items.filter((item) => item.state !== "DONE");
-    }
-    if (!searchQuery.trim()) return items;
-    const q = searchQuery.toLowerCase();
-    return items.filter(item => {
-      const studentName = item.student?.name?.toLowerCase().includes(q);
-      const studentPhone = item.student?.phones?.some(p => p.phone?.includes(q));
-      return studentName || studentPhone;
-    });
-  }, [paginatedItems, searchQuery, hideDone]);
+  // No client-side filtering — `filteredItems` mirrors the server page.
+  const filteredItems = paginatedItems;
 
   // Pre-compute state-specific serial numbers.
   // Pending and done each get their own #1, #2, #3...
@@ -232,8 +229,8 @@ export function CallListItemsTable({
     return map;
   }, [filteredItems, filters.page, pageSize, activeFilter]);
 
-  // When search or hideDone is active, count rendered rows; otherwise use server total
-  const totalItems = searchQuery.trim() || hideDone ? filteredItems.length : serverTotalItems;
+  // Server total already reflects search + hideDone filters
+  const totalItems = serverTotalItems;
   const totalPages = Math.ceil(totalItems / pageSize);
 
   const questions = React.useMemo(() => {
@@ -508,6 +505,15 @@ export function CallListItemsTable({
     }
   }, [selectedItemIds, listId, mutate, onItemsUpdated, paginatedItems]);
 
+  // Assignee display: first name (first word) → email local-part → "Assigned"
+  const getAssigneeFirstName = (item: CallListItem): string => {
+    const name = item.assignee?.user?.name?.trim();
+    if (name) return name.split(/\s+/)[0];
+    const email = item.assignee?.user?.email?.trim();
+    if (email) return email.split("@")[0];
+    return "Assigned";
+  };
+
   const getStateVariant = (state: CallListItemState): "success" | "warning" | "info" | "error" => {
     const color = getStateColor(state);
     switch (color) {
@@ -621,7 +627,10 @@ export function CallListItemsTable({
     const shortFromCamel = question.shortLabel?.trim();
     const shortFromSnake = (question as unknown as { short_label?: string }).short_label?.trim();
     const short = shortFromCamel || shortFromSnake;
-    return short && short.length > 0 ? short : "-";
+    if (short && short.length > 0) return short;
+    // Fall back to the full question text when no short label is set
+    const full = question.question?.trim();
+    return full && full.length > 0 ? full : "-";
   };
 
   const getQuestionExportLabel = (question: Question): string => {
@@ -1102,8 +1111,11 @@ export function CallListItemsTable({
                       <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                         <div className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
                           <div className="text-[var(--groups1-text-secondary)]">Assigned</div>
-                          <div className="mt-0.5 text-[var(--groups1-text)] break-all">
-                            {item.assignedTo ? item.assignee?.user?.email || "Assigned" : "Unassigned"}
+                          <div
+                            className="mt-0.5 text-[var(--groups1-text)] break-all"
+                            title={item.assignedTo ? (item.assignee?.user?.name || item.assignee?.user?.email || "Assigned") : undefined}
+                          >
+                            {item.assignedTo ? getAssigneeFirstName(item) : "Unassigned"}
                           </div>
                         </div>
                         <div className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] px-2 py-1.5">
@@ -1279,9 +1291,9 @@ export function CallListItemsTable({
                             <span className="text-sm text-[var(--groups1-text)]">
                               <span
                                 className="block max-w-[220px] truncate"
-                                title={item.assignee?.user?.email || "Assigned"}
+                                title={item.assignee?.user?.name || item.assignee?.user?.email || "Assigned"}
                               >
-                                {item.assignee?.user?.email || "Assigned"}
+                                {getAssigneeFirstName(item)}
                               </span>
                             </span>
                           ) : (

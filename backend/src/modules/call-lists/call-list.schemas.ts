@@ -144,6 +144,17 @@ export const ListCallListItemsSchema = z.object({
   assignedTo: z.string().optional(),
   assignment: z.enum(['assigned', 'unassigned']).optional(),
   callLogStatus: z.string().optional(), // relaxed: workspace may have custom statuses
+  q: z.string().optional(), // Search by student name / email / phone (server-side, all pages)
+  hideDone: z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return undefined;
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'string') {
+      const normalized = val.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+    }
+    return undefined;
+  }, z.boolean().optional()),
   followUpRequired: z.preprocess((val) => {
     if (val === undefined || val === null || val === '') return undefined;
     if (typeof val === 'boolean') return val;

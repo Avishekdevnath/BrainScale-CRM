@@ -1165,6 +1165,23 @@ export const listCallListItems = async (
     where.state = options.state;
   }
 
+  // Hide completed items (DB-level) unless an explicit state filter is set
+  if ((options as any).hideDone && !options.state) {
+    where.NOT = [...(Array.isArray(where.NOT) ? where.NOT : where.NOT ? [where.NOT] : []), { state: 'DONE' }];
+  }
+
+  // Search by student name / email / phone (DB-level, across all pages)
+  const q = (options as any).q?.trim();
+  if (q) {
+    where.student = {
+      OR: [
+        { name: { contains: q, mode: 'insensitive' } },
+        { email: { contains: q, mode: 'insensitive' } },
+        { phones: { some: { phone: { contains: q } } } },
+      ],
+    };
+  }
+
   // Assignment filtering must happen before pagination (DB-level)
   // Note: for MongoDB + optional fields, unassigned may be stored as:
   // - null

@@ -1683,6 +1683,8 @@ export class ApiClient {
       assignment: (params as any)?.assignment,
       callLogStatus: params?.callLogStatus,
       followUpRequired: params?.followUpRequired,
+      q: params?.q,
+      hideDone: params?.hideDone,
     });
     return this.request<CallListItemsListResponse>(
       `/call-lists/${listId}/items${queryString}`,

@@ -235,6 +235,8 @@ export interface CallListItemsListParams {
   assignment?: "assigned" | "unassigned" | "member";
   callLogStatus?: CallLogStatus;
   followUpRequired?: boolean;
+  q?: string; // server-side search: student name / email / phone
+  hideDone?: boolean; // server-side: exclude completed items
 }
 
 export interface CallListItemsListResponse {

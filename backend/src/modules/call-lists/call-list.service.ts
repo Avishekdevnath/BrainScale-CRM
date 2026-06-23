@@ -1528,9 +1528,7 @@ export const updateCallListItem = async (
   const item = await prisma.callListItem.findFirst({
     where: {
       id: itemId,
-      callList: {
-        workspaceId,
-      },
+      workspaceId,
     },
   });
 
@@ -1868,9 +1866,7 @@ export const deleteCallListItem = async (itemId: string, workspaceId: string, us
   const item = await prisma.callListItem.findFirst({
     where: {
       id: itemId,
-      callList: {
-        workspaceId,
-      },
+      workspaceId,
     },
     include: {
       callList: {

@@ -95,8 +95,9 @@ app.use(helmet({
 }));
 
 // Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 4MB stays under Vercel's 4.5MB serverless request body cap
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
 // Cookie parsing (required for httpOnly refresh token cookies)
 app.use(cookieParser());

@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { Loader2, Phone, User, CheckCircle2, Calendar, Trash2, CheckCheck, Search, ChevronLeft, ChevronRight, History, RefreshCw, Plus, X, Bookmark, ChevronDown, Check, Pencil, MessageSquare } from "lucide-react";
 import { mutate } from "swr";
 import { useCallStatusOptions } from "@/hooks/useCallLists";
-import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer, CallListStatusOption, CustomColumnDef } from "@/types/call-lists.types";
+import type { CallListItem, CreateCallLogRequest, CallLogStatus, CallListItemState, Question, Answer, CallListStatusOption, CustomColumnDef, MyCallsStats } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
@@ -97,6 +97,26 @@ function dropDraftIds(workspaceId: string, ids: string[]) {
   }
 }
 
+// Merge workspace default status options with call-list-specific custom ones.
+// Defaults always shown; custom options appended; dedupe by value (list wins).
+function mergeStatusOptions(
+  listOptions: CallListStatusOption[] | undefined,
+  workspaceOptions: { value: string; label: string; color?: string }[],
+): CallListStatusOption[] {
+  const defaults: CallListStatusOption[] = workspaceOptions.map((o) => ({
+    value: o.value,
+    label: o.label,
+    color: o.color ?? "#6b7280",
+  }));
+  const merged = [...defaults];
+  for (const opt of listOptions || []) {
+    const idx = merged.findIndex((m) => m.value === opt.value);
+    if (idx >= 0) merged[idx] = opt;
+    else merged.push(opt);
+  }
+  return merged;
+}
+
 // ---------------------------------------------------------------------------
 // StatusSelect — badge-style dropdown with inline "add status" input
 // ---------------------------------------------------------------------------
@@ -152,7 +172,9 @@ function StatusSelect({
     if (!label || !callListId) return;
     setSaving(true);
     try {
-      await apiClient.addCallListStatusOption(callListId, { label });
+      // Add to the workspace status list (shared across all call lists),
+      // so new statuses appear in Call List Settings and everywhere.
+      await apiClient.createCallStatusOption({ label });
       onOptionAdded?.();
       setNewLabel("");
       toast.success(`Status "${label}" added`);
@@ -327,7 +349,7 @@ export default function CallsManagerPage() {
     groupId: groupId || undefined,
     batchId: batchId || undefined,
   });
-  const { data: workspaceStatusOptions = [] } = useCallStatusOptions();
+  const { data: workspaceStatusOptions = [], mutate: mutateStatusOptions } = useCallStatusOptions();
 
   const counts = useMemo(() => {
     return {
@@ -371,6 +393,43 @@ export default function CallsManagerPage() {
   const fromItem = items.length > 0 ? (page - 1) * pageSize + 1 : 0;
   const toItem = Math.min(page * pageSize, totalItems);
   const pageItemIds = useMemo(() => items.map((item) => item.id), [items]);
+
+  const statsKey = workspaceId ? `${workspaceId}:my-calls-stats` : null;
+
+  // Optimistically drop items from the current calls page + adjust the total.
+  const removeItemsOptimistic = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    void mutateCalls(
+      (cur) => {
+        if (!cur) return cur;
+        const remaining = cur.items.filter((it) => !idSet.has(it.id));
+        const removed = cur.items.length - remaining.length;
+        return {
+          ...cur,
+          items: remaining,
+          pagination: { ...cur.pagination, total: Math.max(0, cur.pagination.total - removed) },
+        };
+      },
+      { revalidate: false }
+    );
+  }, [mutateCalls]);
+
+  // Local stats bump for completed calls: -pending, +completed.
+  const bumpStatsDone = useCallback((count: number) => {
+    if (!statsKey || count <= 0) return;
+    void mutate<MyCallsStats>(
+      statsKey,
+      (cur) => (cur ? { ...cur, pending: Math.max(0, cur.pending - count), completed: cur.completed + count } : cur),
+      { revalidate: false }
+    );
+  }, [statsKey]);
+
+  // Targeted background revalidation — only the current page + stats. No wildcard, no await.
+  const revalidateCalls = useCallback(() => {
+    void mutateCalls();
+    if (statsKey) void mutate(statsKey);
+  }, [mutateCalls, statsKey]);
 
   const pageNumbers = useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -602,71 +661,59 @@ export default function CallsManagerPage() {
       return;
     }
 
+    const followUp = followUpData[item.id];
+    const itemStatusOptions: CallListStatusOption[] = mergeStatusOptions(
+      item.callList?.statusOptions as CallListStatusOption[] | undefined,
+      workspaceStatusOptions,
+    );
+    const defaultStatus = itemStatusOptions[0]?.value ?? "completed";
+    const selectedStatus = callStatuses[item.id] ?? defaultStatus;
+    const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    );
+    const answers = buildAnswersForItem(item, questions);
+    const validation = validateCallLog(answers, questions);
+    if (!validation.valid) {
+      toast.error(validation.errors[0] || "Please answer all required questions");
+      return;
+    }
+
+    const payload: CreateCallLogRequest = {
+      callListItemId: item.id,
+      status: selectedStatus,
+      answers,
+      followUpRequired: followUp?.followUpRequired || false,
+      followUpDate: followUp?.followUpRequired && followUp?.followUpDate
+        ? new Date(followUp.followUpDate).toISOString()
+        : undefined,
+      followUpNote: followUp?.followUpRequired && followUp?.followUpNote
+        ? followUp.followUpNote
+        : undefined,
+    };
+
+    // Optimistic: drop the row + bump stats immediately so the action feels instant.
+    // Drafts are kept until the POST succeeds so a failure can be retried.
     setSubmittingItemId(item.id);
+    removeItemsOptimistic([item.id]);
+    bumpStatsDone(1);
+
     try {
-      const followUp = followUpData[item.id];
-      const itemStatusOptions: CallListStatusOption[] =
-        (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-          ? (item.callList?.statusOptions as CallListStatusOption[])
-          : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
-      const defaultStatus = itemStatusOptions[0]?.value ?? "completed";
-      const selectedStatus = callStatuses[item.id] ?? defaultStatus;
-      const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
-        (a, b) => (a.order ?? 0) - (b.order ?? 0)
-      );
-      const answers = buildAnswersForItem(item, questions);
-      const validation = validateCallLog(answers, questions);
-      if (!validation.valid) {
-        toast.error(validation.errors[0] || "Please answer all required questions");
-        return;
-      }
-
-      // Create a minimal call log
-      // Note: Backend allows empty answers array if there are no required questions
-      const payload: CreateCallLogRequest = {
-        callListItemId: item.id,
-        status: selectedStatus,
-        answers,
-        followUpRequired: followUp?.followUpRequired || false,
-        followUpDate: followUp?.followUpRequired && followUp?.followUpDate 
-          ? new Date(followUp.followUpDate).toISOString() 
-          : undefined,
-        followUpNote: followUp?.followUpRequired && followUp?.followUpNote 
-          ? followUp.followUpNote 
-          : undefined,
-      };
-
       await apiClient.createCallLog(payload);
       toast.success("Call completed successfully");
 
-      // Clear local state for this item
-      setCallStatuses((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
-      setFollowUpData((prev) => {
-        const newData = { ...prev };
-        delete newData[item.id];
-        return newData;
-      });
-      setItemAnswers((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
+      // Clear local state for this item now that it's persisted.
+      setCallStatuses((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+      setFollowUpData((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
+      setItemAnswers((prev) => { const next = { ...prev }; delete next[item.id]; return next; });
       clearDraftForItems([item.id]);
 
-      // Refresh data - force refresh to update follow-ups list
-      await mutateCalls();
-      await mutate(`${workspaceId}:my-calls-stats`);
-      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
-      
-      // If we're viewing follow-ups, the list should update automatically
-      // The API will return items with followUpRequired: true from their call logs
+      // Background reconcile — current page + stats only, no await, no wildcard.
+      revalidateCalls();
     } catch (error: any) {
       console.error("Failed to complete call:", error);
       toast.error(error?.message || "Failed to complete call");
+      // Rollback: refetch truth so the row reappears and stats restore. Drafts intact.
+      revalidateCalls();
     } finally {
       setSubmittingItemId(null);
     }
@@ -926,14 +973,16 @@ export default function CallsManagerPage() {
         clearDraftForItems(unassignedIds);
       }
 
+      // Optimistic: drop unassigned rows immediately; they leave this user's queue.
+      removeItemsOptimistic(unassignedIds);
       setSelectedItemIds(new Set());
-      await mutateCalls();
-      await mutate(`${workspaceId}:my-calls-stats`);
-      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
       closeBulkDialog();
+      // Background reconcile — current page + stats only, no await, no wildcard.
+      revalidateCalls();
     } catch (error: any) {
       console.error(error);
       toast.error(error?.message || "Failed to unassign calls");
+      revalidateCalls();
     } finally {
       setBulkActionDialog((prev) => ({ ...prev, working: false }));
     }
@@ -957,10 +1006,10 @@ export default function CallsManagerPage() {
           const item = selectedItemsCopy.shift();
           if (!item) return;
           const followUp = followUpData[item.id];
-          const itemOpts: CallListStatusOption[] =
-            (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-              ? (item.callList?.statusOptions as CallListStatusOption[])
-              : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+          const itemOpts: CallListStatusOption[] = mergeStatusOptions(
+            item.callList?.statusOptions as CallListStatusOption[] | undefined,
+            workspaceStatusOptions,
+          );
           const selectedStatus = callStatuses[item.id] ?? (itemOpts[0]?.value ?? "completed");
           const questions = ([...(item.callList?.questions || [])] as Question[]).sort(
             (a, b) => (a.order ?? 0) - (b.order ?? 0)
@@ -1016,16 +1065,20 @@ export default function CallsManagerPage() {
         setCallStatuses((prev) => stripById(prev));
         setFollowUpData((prev) => stripById(prev));
         clearDraftForItems(completedIds);
+
+        // Optimistic: drop succeeded rows + bump stats once for the batch.
+        removeItemsOptimistic(completedIds);
+        bumpStatsDone(completedIds.length);
       }
 
       setSelectedItemIds(new Set());
-      await mutateCalls();
-      await mutate(`${workspaceId}:my-calls-stats`);
-      await mutate((key) => typeof key === "string" && key.startsWith(`${workspaceId}:my-calls`));
       closeBulkDialog();
+      // Background reconcile — single targeted revalidation, no await, no wildcard.
+      revalidateCalls();
     } catch (error: any) {
       console.error(error);
       toast.error(error?.message || "Failed to bulk mark done");
+      revalidateCalls();
     } finally {
       setBulkActionDialog((prev) => ({ ...prev, working: false }));
     }
@@ -1045,7 +1098,7 @@ export default function CallsManagerPage() {
           </div>
         </div>
         <button
-          onClick={() => { void mutateCalls(); void mutate("my-calls-stats"); }}
+          onClick={() => revalidateCalls()}
           className="flex items-center gap-1.5 text-sm border border-[var(--groups1-border)] rounded-lg px-3 py-1.5 bg-[var(--groups1-surface)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
         >
           <RefreshCw className="w-3.5 h-3.5" />
@@ -1347,10 +1400,10 @@ export default function CallsManagerPage() {
                   const callListName = item.callList?.name ?? null;
                   const groupName = item.callList?.group?.name ?? null;
                   const existingCallStatus = item.callLog?.status as CallLogStatus | undefined;
-                  const mobileStatusOpts: CallListStatusOption[] =
-                    (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-                      ? (item.callList?.statusOptions as CallListStatusOption[])
-                      : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+                  const mobileStatusOpts: CallListStatusOption[] = mergeStatusOptions(
+                    item.callList?.statusOptions as CallListStatusOption[] | undefined,
+                    workspaceStatusOptions,
+                  );
                   const selectedCallStatus = callStatuses[item.id] ?? (mobileStatusOpts[0]?.value ?? "completed");
                   const displayedStatus = existingCallStatus ?? selectedCallStatus;
                   const isSelected = selectedItemIds.has(item.id);
@@ -1443,7 +1496,7 @@ export default function CallsManagerPage() {
                               onChange={(v) => handleCallStatusChange(item.id, v as CallLogStatus)}
                               options={mobileStatusOpts}
                               callListId={item.callListId ?? undefined}
-                              onOptionAdded={() => { void mutateCalls(); void mutateCallLists(); }}
+                              onOptionAdded={() => { void mutateStatusOptions(); void mutateCalls(); }}
                               disabled={isSubmitting}
                             />
                           )}
@@ -1593,10 +1646,10 @@ export default function CallsManagerPage() {
                     const isSelected = selectedItemIds.has(item.id);
 
                     // Effective status options: call-list-specific > workspace defaults
-                    const effectiveStatusOptions: CallListStatusOption[] =
-                      (item.callList?.statusOptions as CallListStatusOption[] | undefined)?.length
-                        ? (item.callList?.statusOptions as CallListStatusOption[])
-                        : workspaceStatusOptions.map((o) => ({ value: o.value, label: o.label, color: o.color }));
+                    const effectiveStatusOptions: CallListStatusOption[] = mergeStatusOptions(
+                      item.callList?.statusOptions as CallListStatusOption[] | undefined,
+                      workspaceStatusOptions,
+                    );
 
 
                     return (
@@ -1679,7 +1732,7 @@ export default function CallsManagerPage() {
                               onChange={(v) => handleCallStatusChange(item.id, v as CallLogStatus)}
                               options={effectiveStatusOptions}
                               callListId={item.callListId ?? undefined}
-                              onOptionAdded={() => { void mutateCalls(); void mutateCallLists(); }}
+                              onOptionAdded={() => { void mutateStatusOptions(); void mutateCalls(); }}
                               disabled={isSubmitting}
                             />
                           )}

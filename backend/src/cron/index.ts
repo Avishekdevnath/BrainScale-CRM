@@ -8,13 +8,14 @@ import { handleDailyScheduleSyncCron } from './schedule-task-sync.cron';
 export const initializeCronJobs = async () => {
   logger.info('Initializing cron jobs...');
 
+  // Cron jobs disabled for now — keep code, re-enable later
   // Setup hourly check for daily schedule sync
   // Note: This uses a simple interval; for production consider node-cron or Vercel Crons
-  setInterval(() => {
-    handleDailyScheduleSyncCron().catch((err) => {
-      logger.error({ err }, 'Uncaught error in schedule sync cron');
-    });
-  }, 60 * 60 * 1000); // Every 60 minutes
+  // setInterval(() => {
+  //   handleDailyScheduleSyncCron().catch((err) => {
+  //     logger.error({ err }, 'Uncaught error in schedule sync cron');
+  //   });
+  // }, 60 * 60 * 1000); // Every 60 minutes
 
   logger.info('Cron jobs initialized');
 };

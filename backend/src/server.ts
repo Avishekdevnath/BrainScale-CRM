@@ -2,7 +2,8 @@ import { app } from './app';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { prisma } from './db/client';
-import { initializeCronJobs } from './cron';
+// Cron disabled for now — keep import for re-enable
+// import { initializeCronJobs } from './cron';
 
 // Only start server if not in Vercel environment
 // In Vercel, the serverless function handler (api/index.ts) handles requests
@@ -20,12 +21,12 @@ if (process.env.VERCEL !== '1') {
     logger.info(`📚 API Docs available at ${docsUrl}`);
     logger.info(`🌍 Environment: ${env.NODE_ENV}`);
 
-    // Initialize cron jobs
-    try {
-      await initializeCronJobs();
-    } catch (err) {
-      logger.error({ err }, 'Failed to initialize cron jobs');
-    }
+    // Cron jobs disabled for now — keep code, re-enable later
+    // try {
+    //   await initializeCronJobs();
+    // } catch (err) {
+    //   logger.error({ err }, 'Failed to initialize cron jobs');
+    // }
   });
 
   // Graceful shutdown (only for traditional server environments)

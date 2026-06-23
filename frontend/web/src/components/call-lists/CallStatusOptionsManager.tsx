@@ -101,16 +101,29 @@ function StatusRow({
     );
   }
 
+  const hex = (c: string, a: string) => c + a;
+
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] group">
-      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: option.color }} />
-      <span className="text-sm text-[var(--groups1-text)] flex-1">{option.label}</span>
+    <div className="flex items-center gap-3 p-2.5 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] group hover:border-[var(--groups1-primary)] transition-colors">
+      {/* Live badge preview — matches how the status renders in calls */}
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full text-[11.5px] font-semibold px-2.5 py-1 flex-shrink-0"
+        style={{
+          background: hex(option.color, "22"),
+          color: option.color,
+          border: `1px solid ${hex(option.color, "44")}`,
+        }}
+      >
+        <span className="w-[5px] h-[5px] rounded-full" style={{ background: option.color }} />
+        {option.label}
+      </span>
+      <code className="text-[11px] text-[var(--groups1-text-secondary)] truncate flex-1">{option.value}</code>
       {option.isDefault && (
-        <span className="text-xs text-[var(--groups1-text-secondary)] flex items-center gap-1">
+        <span className="text-[11px] text-[var(--groups1-text-secondary)] flex items-center gap-1 flex-shrink-0">
           <Lock className="w-3 h-3" /> Default
         </span>
       )}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
         <Button variant="ghost" size="sm" onClick={() => setEditing(true)} className="h-7 w-7 p-0">
           <Pencil className="w-3 h-3" />
         </Button>
@@ -176,13 +189,17 @@ export function CallStatusOptionsManager() {
     );
   }
 
+  const all = options ?? [];
+  const defaults = all.filter((o) => o.isDefault);
+  const custom = all.filter((o) => !o.isDefault);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-[var(--groups1-text)]">Call Status Options</h2>
           <p className="text-xs text-[var(--groups1-text-secondary)] mt-0.5">
-            Default statuses cannot be deleted. Labels and colors are editable.
+            {all.length} status{all.length === 1 ? "" : "es"} · default statuses cannot be deleted, labels & colors are editable.
           </p>
         </div>
         <Button
@@ -225,19 +242,42 @@ export function CallStatusOptionsManager() {
         </form>
       )}
 
-      <div className="space-y-2">
-        {(options ?? []).map((option) => (
-          <StatusRow
-            key={option.id}
-            option={option}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-        {(options ?? []).length === 0 && (
-          <p className="text-sm text-[var(--groups1-text-secondary)] text-center py-6">No status options found.</p>
-        )}
-      </div>
+      {all.length === 0 && (
+        <p className="text-sm text-[var(--groups1-text-secondary)] text-center py-6">No status options found.</p>
+      )}
+
+      {defaults.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Lock className="w-3 h-3 text-[var(--groups1-text-secondary)]" />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+              Default statuses
+            </h3>
+            <span className="text-[11px] text-[var(--groups1-text-secondary)]">{defaults.length}</span>
+          </div>
+          <div className="space-y-2">
+            {defaults.map((option) => (
+              <StatusRow key={option.id} option={option} onEdit={handleEdit} onDelete={handleDelete} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {custom.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+              Custom statuses
+            </h3>
+            <span className="text-[11px] text-[var(--groups1-text-secondary)]">{custom.length}</span>
+          </div>
+          <div className="space-y-2">
+            {custom.map((option) => (
+              <StatusRow key={option.id} option={option} onEdit={handleEdit} onDelete={handleDelete} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

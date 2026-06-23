@@ -11,7 +11,8 @@ export const AnswerSchema = z.object({
 export const CreateCallLogSchema = z.object({
   callListItemId: z.string(),
   callDuration: z.number().int().min(0).optional(),
-  status: z.enum(['completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other']),
+  // Dynamic: any workspace status slug (defaults + custom). See CallStatusOption.
+  status: z.string().min(1),
   answers: z.array(AnswerSchema).optional().default([]),
   notes: z.string().optional(),
   callerNote: z.string().optional(),
@@ -22,7 +23,8 @@ export const CreateCallLogSchema = z.object({
 
 export const UpdateCallLogSchema = z.object({
   callDuration: z.number().int().min(0).optional(),
-  status: z.enum(['completed', 'missed', 'busy', 'no_answer', 'voicemail', 'other']).optional(),
+  // Dynamic: any workspace status slug (defaults + custom). See CallStatusOption.
+  status: z.string().min(1).optional(),
   answers: z.array(AnswerSchema).optional(),
   notes: z.string().optional(),
   callerNote: z.string().optional(),

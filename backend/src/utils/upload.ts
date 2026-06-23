@@ -24,14 +24,13 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilt
   }
 };
 
-// Note: Vercel has a 4.5MB request body limit (free and pro plans)
-// Current limit is 10MB, which may need adjustment for Vercel deployment
-// Consider reducing to 4MB to stay within Vercel limits
+// Vercel has a 4.5MB request body limit (free and pro plans)
+// 4MB stays safely under that cap for serverless deployment
 export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max (may need to reduce to 4MB for Vercel)
+    fileSize: 4 * 1024 * 1024, // 4MB max (Vercel serverless cap)
   },
 });
 

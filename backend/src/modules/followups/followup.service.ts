@@ -61,9 +61,7 @@ export const createFollowup = async (
     const previousCallLog = await prisma.callLog.findFirst({
       where: {
         id: data.previousCallLogId,
-        callList: {
-          workspaceId,
-        },
+        workspaceId,
       },
     });
     if (!previousCallLog) {

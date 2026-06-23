@@ -23,7 +23,9 @@ export function useMyCalls(params?: GetMyCallsParams) {
     key,
     async () => apiClient.getMyCalls(params),
     {
-      revalidateOnFocus: true,
+      // Heavy list payload — don't refetch on every window focus (alt-tab storms).
+      // Optimistic mutations + reconnect revalidation keep it fresh.
+      revalidateOnFocus: false,
       revalidateOnReconnect: true,
       dedupingInterval: 2000,
     }

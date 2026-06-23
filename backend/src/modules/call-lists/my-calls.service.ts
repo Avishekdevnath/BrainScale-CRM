@@ -24,12 +24,11 @@ export const getMyCalls = async (
     throw new AppError(403, 'Access denied');
   }
 
-  // Build where clause: assignedTo = user's member ID
+  // Build where clause: filter by the item's OWN workspaceId (not via the
+  // callList relation) so the [workspaceId, assignedTo, state] index engages.
   const where: any = {
+    workspaceId,
     assignedTo: member.id,
-    callList: {
-      workspaceId,
-    },
   };
 
   // Apply filters
@@ -80,31 +79,13 @@ export const getMyCalls = async (
     // We'll filter by followUpRequired after fetching, based on latest call log
   }
 
-  // Filter by groupId via callList.groupId
+  // Group/batch filters genuinely need the callList relation (the item doesn't
+  // store groupId/batchId). Only attach where.callList when one is requested.
   if (options.groupId) {
-    where.callList = {
-      ...where.callList,
-      groupId: options.groupId,
-    };
+    where.callList = { ...where.callList, groupId: options.groupId };
   }
-
-  // Filter by batchId via callList.group.batchId
   if (options.batchId) {
-    if (where.callList.groupId) {
-      where.callList = {
-        ...where.callList,
-        group: {
-          batchId: options.batchId,
-        },
-      };
-    } else {
-      where.callList = {
-        ...where.callList,
-        group: {
-          batchId: options.batchId,
-        },
-      };
-    }
+    where.callList = { ...where.callList, group: { batchId: options.batchId } };
   }
 
   // Pagination
@@ -334,160 +315,77 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
     throw new AppError(403, 'Access denied');
   }
 
-  // Count total assigned
+  // Counts filter by the item's OWN workspaceId so the
+  // [workspaceId, assignedTo, state] index engages (no relation round-trip).
   const totalAssigned = await prisma.callListItem.count({
-    where: {
-      assignedTo: member.id,
-      callList: {
-        workspaceId,
-      },
-    },
+    where: { workspaceId, assignedTo: member.id },
   });
 
   // Count completed (DONE)
   const completed = await prisma.callListItem.count({
-    where: {
-      assignedTo: member.id,
-      state: 'DONE',
-      callList: {
-        workspaceId,
-      },
-    },
+    where: { workspaceId, assignedTo: member.id, state: 'DONE' },
   });
 
   // Count pending (QUEUED or CALLING)
   const pending = await prisma.callListItem.count({
-    where: {
-      assignedTo: member.id,
-      state: { in: ['QUEUED', 'CALLING'] },
-      callList: {
-        workspaceId,
-      },
-    },
+    where: { workspaceId, assignedTo: member.id, state: { in: ['QUEUED', 'CALLING'] } },
   });
 
-  // Count by call list
+  // Count by call list (one grouped query — no item hauling)
   const byCallList = await prisma.callListItem.groupBy({
     by: ['callListId'],
-    where: {
-      assignedTo: member.id,
-      callList: {
-        workspaceId,
-      },
-    },
-    _count: {
-      id: true,
-    },
+    where: { workspaceId, assignedTo: member.id },
+    _count: { id: true },
   });
 
-  // Get call list names
+  // Fetch each call list's name + group + batch in a single query, then derive
+  // byCallList / byBatch / byGroup from the grouped counts above. This replaces
+  // two unbounded findMany scans over every assigned item.
   const callListIds = byCallList.map((item) => item.callListId);
   const callLists = await prisma.callList.findMany({
-    where: {
-      id: { in: callListIds },
-      workspaceId,
-    },
+    where: { id: { in: callListIds }, workspaceId },
     select: {
       id: true,
       name: true,
+      group: {
+        select: {
+          id: true,
+          name: true,
+          batch: { select: { id: true, name: true } },
+        },
+      },
     },
   });
+  const callListMap = new Map(callLists.map((cl) => [cl.id, cl]));
 
-  const callListMap = new Map(callLists.map((cl) => [cl.id, cl.name]));
   const byCallListWithNames = byCallList.map((item) => ({
     callListId: item.callListId,
-    callListName: callListMap.get(item.callListId) || 'Unknown',
+    callListName: callListMap.get(item.callListId)?.name || 'Unknown',
     count: item._count.id,
   }));
 
-  // Count by batch
-  const itemsWithBatches = await prisma.callListItem.findMany({
-    where: {
-      assignedTo: member.id,
-      callList: {
-        workspaceId,
-        group: {
-          batchId: { not: null },
-        },
-      },
-    },
-    include: {
-      callList: {
-        include: {
-          group: {
-            include: {
-              batch: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
+  // Aggregate per-call-list counts up into batch and group totals in memory.
   const batchCounts = new Map<string, { batchId: string; batchName: string; count: number }>();
-  itemsWithBatches.forEach((item) => {
-    const batch = item.callList.group?.batch;
-    if (batch) {
-      const existing = batchCounts.get(batch.id);
-      if (existing) {
-        existing.count++;
-      } else {
-        batchCounts.set(batch.id, {
-          batchId: batch.id,
-          batchName: batch.name,
-          count: 1,
-        });
+  const groupCounts = new Map<string, { groupId: string; groupName: string; count: number }>();
+  for (const item of byCallList) {
+    const cl = callListMap.get(item.callListId);
+    const count = item._count.id;
+    const group = cl?.group;
+    if (group) {
+      const g = groupCounts.get(group.id);
+      if (g) g.count += count;
+      else groupCounts.set(group.id, { groupId: group.id, groupName: group.name, count });
+
+      const batch = group.batch;
+      if (batch) {
+        const b = batchCounts.get(batch.id);
+        if (b) b.count += count;
+        else batchCounts.set(batch.id, { batchId: batch.id, batchName: batch.name, count });
       }
     }
-  });
+  }
 
   const byBatch = Array.from(batchCounts.values());
-
-  // Count by group
-  const itemsWithGroups = await prisma.callListItem.findMany({
-    where: {
-      assignedTo: member.id,
-      callList: {
-        workspaceId,
-        groupId: { not: null },
-      },
-    },
-    include: {
-      callList: {
-        include: {
-          group: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  const groupCounts = new Map<string, { groupId: string; groupName: string; count: number }>();
-  itemsWithGroups.forEach((item) => {
-    const group = item.callList.group;
-    if (group) {
-      const existing = groupCounts.get(group.id);
-      if (existing) {
-        existing.count++;
-      } else {
-        groupCounts.set(group.id, {
-          groupId: group.id,
-          groupName: group.name,
-          count: 1,
-        });
-      }
-    }
-  });
-
   const byGroup = Array.from(groupCounts.values());
 
   // Count call logs created this week
@@ -504,12 +402,11 @@ export const getMyCallsStats = async (workspaceId: string, userId: string) => {
   });
 
   // 1. Pending follow-ups (items where LATEST call log requires follow-up)
+  // TODO: denormalize latestFollowUpRequired onto CallListItem to remove this scan.
   const itemsWithCallLogs = await prisma.callListItem.findMany({
     where: {
+      workspaceId,
       assignedTo: member.id,
-      callList: {
-        workspaceId,
-      },
       callLogs: {
         some: {
           assignedTo: member.id,
@@ -564,11 +461,10 @@ export const getAllCalls = async (
   workspaceId: string,
   options: GetMyCallsInput
 ) => {
-  // Build where clause: all calls in workspace (no assignedTo filter)
+  // Build where clause: filter by the item's OWN workspaceId (not via the
+  // callList relation) so the [workspaceId, state] index engages.
   const where: any = {
-    callList: {
-      workspaceId,
-    },
+    workspaceId,
   };
 
   // Apply filters

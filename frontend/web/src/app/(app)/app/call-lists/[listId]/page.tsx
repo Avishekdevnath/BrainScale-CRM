@@ -20,10 +20,14 @@ import { useBatch } from "@/hooks/useBatches";
 import { apiClient } from "@/lib/api-client";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useHasPermission } from "@/hooks/useHasPermission";
 
 function CallListDetailPageContent() {
-  const isAdmin = useIsAdmin();
+  // OWNER/ADMIN bypass inside useHasPermission; members gated by DB permissions
+  const canEditList = useHasPermission("call_lists", "update");
+  const canDeleteList = useHasPermission("call_lists", "delete");
+  const canManageItems = canEditList; // managing list items requires update
+  const canShowActions = canEditList || canDeleteList;
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -164,7 +168,7 @@ function CallListDetailPageContent() {
             </span>
           </div>
         </div>
-        {isAdmin && (
+        {canShowActions && (
           <div className="self-start">
             <CallListActionsMenu
               onEdit={handleEdit}
@@ -181,7 +185,9 @@ function CallListDetailPageContent() {
                 }
               }}
               onDelete={handleDelete}
-              isAdmin={isAdmin}
+              canEdit={canEditList}
+              canAddStudents={canEditList}
+              canDelete={canDeleteList}
             />
           </div>
         )}
@@ -211,7 +217,7 @@ function CallListDetailPageContent() {
           setSelectedItemIds([]);
           setClearSelectionKey((prev) => prev + 1);
         }}
-        isAdmin={isAdmin}
+        isAdmin={canManageItems}
       />
 
       {/* Items Table */}
@@ -220,7 +226,7 @@ function CallListDetailPageContent() {
         onItemsUpdated={handleItemsUpdated}
         onSelectionChange={setSelectedItemIds}
         onSelectionMetaChange={setSelectionMeta}
-        isAdmin={isAdmin}
+        isAdmin={canManageItems}
         clearSelectionKey={clearSelectionKey}
       />
 

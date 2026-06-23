@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useMyCalls, useMyCallsStats } from "@/hooks/useMyCalls";
 import { useGroups } from "@/hooks/useGroups";
@@ -117,15 +118,31 @@ function StatusSelect({
   const [open, setOpen] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [saving, setSaving] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const MENU_HEIGHT = 220;
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (!triggerRef.current?.contains(target) && !(document.getElementById("status-select-portal")?.contains(target))) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow < MENU_HEIGHT) {
+      setMenuStyle({ position: "fixed", top: rect.top - MENU_HEIGHT, left: rect.left, width: 176 });
+    } else {
+      setMenuStyle({ position: "fixed", top: rect.bottom + 6, left: rect.left, width: 176 });
+    }
   }, [open]);
 
   const selected = options.find((o) => o.value === value);
@@ -148,9 +165,56 @@ function StatusSelect({
 
   const hex = (color: string, alpha: string) => color + alpha;
 
+  const menu = open && typeof document !== "undefined" ? createPortal(
+    <>
+      <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+      <div
+        id="status-select-portal"
+        style={{ ...menuStyle, zIndex: 9999 }}
+        className="bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-1"
+      >
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => { onChange(opt.value); setOpen(false); }}
+            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-sm text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] text-left"
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: opt.color }} />
+            <span className="flex-1 truncate">{opt.label}</span>
+            {opt.value === value && <Check className="w-3.5 h-3.5 text-[var(--groups1-primary)] flex-shrink-0" />}
+          </button>
+        ))}
+        {callListId && (
+          <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2 pb-1.5">
+            <div className="flex items-center gap-1">
+              <input
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleAdd(); e.stopPropagation(); }}
+                placeholder="Add status…"
+                className="flex-1 min-w-0 text-[12px] bg-transparent outline-none text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {saving
+                ? <Loader2 className="w-3 h-3 animate-spin text-[var(--groups1-text-secondary)]" />
+                : newLabel.trim() && (
+                  <button type="button" onClick={() => void handleAdd()} className="text-[var(--groups1-primary)]">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                )}
+            </div>
+          </div>
+        )}
+      </div>
+    </>,
+    document.body
+  ) : null;
+
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled}
@@ -168,47 +232,7 @@ function StatusSelect({
         {selected?.label ?? "Set status"}
         <ChevronDown className="w-3 h-3 opacity-60" />
       </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1.5 z-50 w-44 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-1">
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => { onChange(opt.value); setOpen(false); }}
-                className="flex items-center gap-2.5 w-full px-3 py-1.5 text-sm text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] text-left"
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: opt.color }} />
-                <span className="flex-1 truncate">{opt.label}</span>
-                {opt.value === value && <Check className="w-3.5 h-3.5 text-[var(--groups1-primary)] flex-shrink-0" />}
-              </button>
-            ))}
-            {callListId && (
-              <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2 pb-1.5">
-                <div className="flex items-center gap-1">
-                  <input
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleAdd(); e.stopPropagation(); }}
-                    placeholder="Add status…"
-                    className="flex-1 min-w-0 text-[12px] bg-transparent outline-none text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)]"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                  {saving
-                    ? <Loader2 className="w-3 h-3 animate-spin text-[var(--groups1-text-secondary)]" />
-                    : newLabel.trim() && (
-                      <button type="button" onClick={() => void handleAdd()} className="text-[var(--groups1-primary)]">
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      {menu}
     </div>
   );
 }

@@ -5,6 +5,7 @@ export interface CustomRole {
   workspaceId: string;
   name: string;
   description: string | null;
+  level: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM"
   isSystem: boolean;
   createdAt: string;
   updatedAt: string;

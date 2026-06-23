@@ -536,14 +536,37 @@ export const updateStudent = async (
       tags: data.tags,
       notes: data.notes !== undefined ? (data.notes === null ? null : data.notes) : undefined,
     },
-    include: {
-      phones: {
-        orderBy: { isPrimary: 'desc' },
-      },
-    },
   });
 
-  return updated;
+  if (data.phones !== undefined) {
+    await prisma.studentPhone.deleteMany({ where: { studentId } });
+
+    const phonesToCreate = data.phones
+      .filter((p) => p.phone.trim())
+      .map((p) => ({ ...p, phone: p.phone.replace(/\s+/g, '') }));
+
+    if (phonesToCreate.length > 0 && !phonesToCreate.some((p) => p.isPrimary)) {
+      phonesToCreate[0].isPrimary = true;
+    }
+
+    if (phonesToCreate.length > 0) {
+      await prisma.studentPhone.createMany({
+        data: phonesToCreate.map((p) => ({
+          studentId,
+          workspaceId,
+          phone: p.phone,
+          isPrimary: p.isPrimary ?? false,
+        })),
+      });
+    }
+  }
+
+  return prisma.student.findFirst({
+    where: { id: studentId },
+    include: {
+      phones: { orderBy: { isPrimary: 'desc' } },
+    },
+  });
 };
 
 /**

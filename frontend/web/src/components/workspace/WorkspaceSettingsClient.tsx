@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Loader2, Trash2 } from "lucide-react";
 
 function getErrorMessage(err: unknown): string {
@@ -28,8 +29,8 @@ export function WorkspaceSettingsClient() {
   const clearWorkspace = useWorkspaceStore((state) => state.clear);
   const clearGroup = useGroupStore((state) => state.clear);
 
-  const { data: currentMember, isLoading: isLoadingMember } = useCurrentMember(workspaceId || "");
-  const isAdmin = currentMember?.role === "ADMIN";
+  const { isLoading: isLoadingMember } = useCurrentMember(workspaceId || "");
+  const isAdmin = useIsAdmin();
 
   const [confirmText, setConfirmText] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);

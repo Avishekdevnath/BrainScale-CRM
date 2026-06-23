@@ -311,6 +311,7 @@ import callListRouter, { callListItemRouter } from './modules/call-lists/call-li
 import callLogRouter from './modules/call-lists/call-log.router';
 import callDraftRouter from './modules/call-lists/call-draft.router';
 import myCallsRouter from './modules/call-lists/my-calls.router';
+import questionPresetRouter from './modules/question-presets/question-preset.router';
 import studentRouter from './modules/students/student.router';
 import groupRouter, { batchGroupRouter } from './modules/groups/group.router';
 import batchRouter from './modules/batches/batch.router';
@@ -331,12 +332,15 @@ import auditLogRouter from './modules/audit-logs/audit-log.router';
 import teamChatRouter from './modules/team-chat/team-chat.router';
 
 app.use('/api/v1/auth', authRouter);
+// roleRouter MUST mount before workspaceRouter: its literal routes
+// (/available-permissions, /initialize-permissions) would otherwise be
+// shadowed by workspaceRouter's GET /:workspaceId catch-all.
+app.use('/api/v1/workspaces', roleRouter); // Nested under workspaces
 app.use('/api/v1/workspaces', workspaceRouter);
 app.use('/api/v1/workspaces', invitationRouter); // Nested under workspaces
 app.use('/api/v1', publicInvitationRouter); // Public invitation endpoint
 app.use('/api/v1/workspaces', formsRouter); // Forms management (workspace-scoped)
 app.use('/api/v1', publicFormsRouter); // Public forms submit endpoint
-app.use('/api/v1/workspaces', roleRouter); // Nested under workspaces
 // Note: /permissions endpoint is handled by roleRouter above
 app.use('/api/v1/calls', callRouter); // Calls routes
 app.use('/api/v1/students', studentRouter); // Students routes
@@ -354,6 +358,7 @@ app.use('/api/v1/call-list-items', callListItemRouter); // Call list items route
 app.use('/api/v1/call-logs', callLogRouter); // Call logs routes
 app.use('/api/v1/call-drafts', callDraftRouter); // Call drafts routes
 app.use('/api/v1/my-calls', myCallsRouter); // My Calls routes
+app.use('/api/v1/question-presets', questionPresetRouter); // Question Presets routes
 app.use('/api/v1/courses', courseRouter); // Courses routes
 app.use('/api/v1/courses', courseModuleRouter); // Course modules nested route
 app.use('/api/v1/modules', moduleRouter); // Modules routes

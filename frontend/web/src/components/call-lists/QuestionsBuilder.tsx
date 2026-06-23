@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ChevronDown, BookOpen, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { buildQuestionId } from "@/lib/call-list-utils";
 import type { Question, QuestionType } from "@/types/call-lists.types";
+import { useQuestionPresets } from "@/hooks/useQuestionPresets";
+import { apiClient } from "@/lib/api-client";
 
 export interface QuestionsBuilderProps {
   questions: Question[];
@@ -18,6 +20,54 @@ export interface QuestionsBuilderProps {
 export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBuilderProps) {
   const lastQuestionRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(questions.length);
+
+  const { data: presetsData, mutate: mutatePresets } = useQuestionPresets();
+  const presets = presetsData?.presets ?? [];
+
+  const [confirmPresetId, setConfirmPresetId] = useState<string | null>(null);
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [savePresetName, setSavePresetName] = useState("");
+  const [savePresetDesc, setSavePresetDesc] = useState("");
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [presetError, setPresetError] = useState<string | null>(null);
+
+  const handleLoadPreset = (presetId: string) => {
+    setConfirmPresetId(presetId);
+  };
+
+  const handleConfirmLoad = () => {
+    const preset = presets.find((p) => p.id === confirmPresetId);
+    if (!preset) return;
+    const fresh = preset.questions.map((q, i) => ({
+      ...q,
+      id: buildQuestionId(),
+      order: i,
+    }));
+    onChange(fresh);
+    setConfirmPresetId(null);
+  };
+
+  const handleSavePreset = async () => {
+    if (!savePresetName.trim()) { setPresetError("Name is required"); return; }
+    setSavingPreset(true);
+    setPresetError(null);
+    try {
+      await apiClient.createQuestionPreset({
+        name: savePresetName.trim(),
+        description: savePresetDesc.trim() || undefined,
+        questions,
+      });
+      await mutatePresets();
+      setSavePresetOpen(false);
+      setSavePresetName("");
+      setSavePresetDesc("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save preset";
+      setPresetError(msg);
+    } finally {
+      setSavingPreset(false);
+    }
+  };
 
   useEffect(() => {
     if (questions.length > prevLengthRef.current) {
@@ -123,22 +173,119 @@ export function QuestionsBuilder({ questions, onChange, disabled }: QuestionsBui
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 flex items-center justify-between bg-[var(--groups1-surface)] py-2 border-b border-[var(--groups1-border)] mb-2">
-        <Label className="text-sm font-medium text-[var(--groups1-text)]">
-          Questions to Ask
-          <span className="text-gray-400 text-xs font-normal ml-1">(Optional)</span>
-        </Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addQuestion}
-          disabled={disabled}
-          className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          Add Question
-        </Button>
+      <div className="sticky top-0 z-10 bg-[var(--groups1-surface)] py-2 border-b border-[var(--groups1-border)] mb-2">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-sm font-medium text-[var(--groups1-text)] shrink-0">
+            Questions to Ask
+            <span className="text-gray-400 text-xs font-normal ml-1">(Optional)</span>
+          </Label>
+          <div className="flex items-center gap-1.5">
+            {presets.length > 0 && (
+              <select
+                className="h-8 text-xs px-2 rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                value=""
+                onChange={(e) => { if (e.target.value) handleLoadPreset(e.target.value); }}
+                disabled={disabled}
+              >
+                <option value="">Load Preset...</option>
+                {presets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+            {questions.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setSavePresetOpen(true); setPresetError(null); }}
+                disabled={disabled}
+                className="h-8 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+              >
+                <Save className="w-3 h-3 mr-1" />
+                Save as Preset
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addQuestion}
+              disabled={disabled}
+              className="h-8 bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Question
+            </Button>
+          </div>
+        </div>
+
+        {/* Confirm load preset */}
+        {confirmPresetId && (
+          <div className="mt-2 p-2 rounded-md bg-[var(--groups1-secondary)] border border-[var(--groups1-border)] text-xs text-[var(--groups1-text)]">
+            Replace current questions with &quot;{presets.find((p) => p.id === confirmPresetId)?.name}&quot;?
+            <div className="flex gap-2 mt-1.5">
+              <button
+                type="button"
+                onClick={handleConfirmLoad}
+                className="px-2 py-0.5 rounded bg-[var(--groups1-primary)] text-white text-xs"
+              >
+                Replace
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmPresetId(null)}
+                className="px-2 py-0.5 rounded border border-[var(--groups1-border)] text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Save as preset form */}
+        {savePresetOpen && (
+          <div className="mt-2 p-3 rounded-md bg-[var(--groups1-secondary)] border border-[var(--groups1-border)] space-y-2">
+            <p className="text-xs font-medium text-[var(--groups1-text)]">Save as Preset</p>
+            <Input
+              value={savePresetName}
+              onChange={(e) => setSavePresetName(e.target.value)}
+              placeholder="Preset name *"
+              className="h-7 text-xs bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              disabled={savingPreset}
+            />
+            <Input
+              value={savePresetDesc}
+              onChange={(e) => setSavePresetDesc(e.target.value)}
+              placeholder="Description (optional)"
+              className="h-7 text-xs bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              disabled={savingPreset}
+            />
+            {presetError && <p className="text-xs text-red-500">{presetError}</p>}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSavePreset}
+                disabled={savingPreset || !savePresetName.trim()}
+                className="h-7 text-xs"
+              >
+                <BookOpen className="w-3 h-3 mr-1" />
+                {savingPreset ? "Saving..." : "Save"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { setSavePresetOpen(false); setPresetError(null); }}
+                disabled={savingPreset}
+                className="h-7 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {sortedQuestions.length === 0 ? (

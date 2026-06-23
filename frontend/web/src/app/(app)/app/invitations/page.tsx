@@ -6,6 +6,7 @@ import { SendInvitationDialog } from "@/components/invitations/SendInvitationDia
 import { useInvitations, useCancelInvitation, useResendInvitation } from "@/hooks/useInvitations";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, Send, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
@@ -18,6 +19,7 @@ export default function InvitationsPage() {
   const { invitations, isLoading, mutate } = useInvitations(workspaceId);
   const cancelInvitation = useCancelInvitation(workspaceId || "");
   const resendInvitation = useResendInvitation(workspaceId || "");
+  const canInvite = useHasPermission("members", "invite");
 
   const [isSendDialogOpen, setIsSendDialogOpen] = React.useState(false);
   const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
@@ -77,19 +79,14 @@ export default function InvitationsPage() {
     );
   }
 
-  // Check if user is admin
-  // Note: customRoleId check would require fetching custom role details
-  // For now, just check if role is ADMIN
-  const isAdmin = currentMember?.role === "ADMIN";
-
-  if (!isLoadingCurrentMember && !isAdmin) {
+  // Access gated by members:invite (OWNER/ADMIN bypass inside the hook)
+  if (!isLoadingCurrentMember && !canInvite) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Invitations</h1>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
-            You don't have permission to access this page. Only workspace admins can manage
-            invitations.
+            You don't have permission to access this page.
           </p>
         </div>
       </div>

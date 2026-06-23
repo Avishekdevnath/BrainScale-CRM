@@ -41,12 +41,15 @@ import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useMyCallsStats } from "@/hooks/useMyCalls";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useHasPermission } from "@/hooks/useHasPermission";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  // Hide unless the current member has this permission (OWNER/ADMIN bypass). "resource:action"
+  permission?: string;
 }
 
 interface NavSection {
@@ -55,6 +58,8 @@ interface NavSection {
   items: NavItem[];
   adminOnly?: boolean;
   collapsible?: boolean;
+  // Hide entire section unless the current member has this permission (OWNER/ADMIN bypass)
+  permission?: string;
 }
 
 export interface WorkspaceSidebarProps {
@@ -95,7 +100,7 @@ const navSections: NavSection[] = [
       { href: "/app/calls-manager", label: "My Calls", icon: Phone },
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
-      { href: "/app/forms", label: "Forms", icon: ClipboardList },
+      { href: "/app/forms", label: "Forms", icon: ClipboardList, permission: "forms:read" },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
       { href: "/app/followups", label: "Follow-ups", icon: Clock },
     ],
@@ -106,6 +111,7 @@ const navSections: NavSection[] = [
     label: "Tasks",
     icon: CheckSquare,
     collapsible: true,
+    permission: "tasks:read",
     items: [
       { href: "/app/tasks", label: "Dashboard", icon: LayoutDashboard },
       { href: "/app/schedule", label: "Duty Schedule", icon: CalendarDays },
@@ -212,12 +218,23 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
     });
   };
 
-  // Filter sections and items based on admin status
+  // Permission-gated nav items (OWNER/ADMIN bypass built into useHasPermission)
+  const canForms = useHasPermission("forms", "read");
+  const canTasks = useHasPermission("tasks", "read");
+  const navPermFlags: Record<string, boolean> = {
+    "forms:read": canForms,
+    "tasks:read": canTasks,
+  };
+  const hasNavPermission = (perm?: string) => !perm || navPermFlags[perm] === true;
+
+  // Filter sections and items based on admin status + permissions
   const visibleSections = navSections
-    .filter((section) => !section.adminOnly || isAdmin)
+    .filter((section) => (!section.adminOnly || isAdmin) && hasNavPermission(section.permission))
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => !item.adminOnly || isAdmin),
+      items: section.items.filter(
+        (item) => (!item.adminOnly || isAdmin) && hasNavPermission(item.permission)
+      ),
     }))
     .filter((section) => section.items.length > 0); // Only show sections with visible items
 

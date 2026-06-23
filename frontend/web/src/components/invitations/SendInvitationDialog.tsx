@@ -10,6 +10,10 @@ import type { SendInvitationPayload } from "@/types/members.types";
 import { Loader2, Copy, Check, Mail, KeyRound } from "lucide-react";
 import { useGroups } from "@/hooks/useGroups";
 import { toast } from "sonner";
+import useSWR from "swr";
+import { apiClient } from "@/lib/api-client";
+import type { CustomRole } from "@/types/roles.types";
+import { LevelBadge } from "@/components/members/LevelBadge";
 
 // Type for the API response when sending invitation
 interface InvitationResult {
@@ -38,11 +42,11 @@ export function SendInvitationDialog({
   onSuccess,
 }: SendInvitationDialogProps) {
   const [email, setEmail] = React.useState("");
-  const [role, setRole] = React.useState<"ADMIN" | "MEMBER">("MEMBER");
+  const [customRoleId, setCustomRoleId] = React.useState<string>("");
   const [selectedGroupIds, setSelectedGroupIds] = React.useState<string[]>([]);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
+
   // State for the success modal with password
   const [showPasswordModal, setShowPasswordModal] = React.useState(false);
   const [invitationResult, setInvitationResult] = React.useState<InvitationResult | null>(null);
@@ -50,6 +54,30 @@ export function SendInvitationDialog({
 
   const sendInvitation = useSendInvitation(workspaceId);
   const { data: groups } = useGroups({ isActive: true });
+
+  const { data: roles, isLoading: isLoadingRoles } = useSWR<CustomRole[]>(
+    workspaceId ? `custom-roles-${workspaceId}` : null,
+    () => apiClient.listCustomRoles(workspaceId),
+    { revalidateOnFocus: false }
+  );
+
+  // Owner non-transferable — never offered
+  const assignableRoles = React.useMemo(
+    () => (roles || []).filter((r) => r.level !== "OWNER"),
+    [roles]
+  );
+
+  const selectedRole = React.useMemo(
+    () => assignableRoles.find((r) => r.id === customRoleId) || null,
+    [assignableRoles, customRoleId]
+  );
+
+  React.useEffect(() => {
+    if (!customRoleId && assignableRoles.length > 0) {
+      const memberRole = assignableRoles.find((r) => r.level === "MEMBER");
+      setCustomRoleId(memberRole?.id || assignableRoles[0].id);
+    }
+  }, [assignableRoles, customRoleId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,9 +94,14 @@ export function SendInvitationDialog({
       return;
     }
 
+    if (!customRoleId) {
+      setErrors({ customRoleId: "Please select a role" });
+      return;
+    }
+
     const payload: SendInvitationPayload = {
       email,
-      role: role,
+      customRoleId,
       groupIds: selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
     };
 
@@ -90,7 +123,7 @@ export function SendInvitationDialog({
 
   const handleClose = () => {
     setEmail("");
-    setRole("MEMBER");
+    setCustomRoleId("");
     setSelectedGroupIds([]);
     setErrors({});
     setShowPasswordModal(false);
@@ -150,33 +183,32 @@ export function SendInvitationDialog({
 
             {/* Role Selection */}
             <div>
-              <Label>Role *</Label>
-              <div className="mt-2 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="MEMBER"
-                    checked={role === "MEMBER"}
-                    onChange={() => setRole("MEMBER")}
-                    disabled={isSubmitting}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-[var(--groups1-text)]">Member</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="ADMIN"
-                    checked={role === "ADMIN"}
-                    onChange={() => setRole("ADMIN")}
-                    disabled={isSubmitting}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm text-[var(--groups1-text)]">Admin</span>
-                </label>
-              </div>
+              <Label htmlFor="send-invite-role">Role *</Label>
+              <select
+                id="send-invite-role"
+                value={customRoleId}
+                onChange={(e) => setCustomRoleId(e.target.value)}
+                disabled={isSubmitting || isLoadingRoles}
+                className="mt-1 w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                aria-label="Select role"
+              >
+                <option value="">{isLoadingRoles ? "Loading roles..." : "Select a role"}</option>
+                {assignableRoles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                    {r.isSystem ? "" : " (custom)"}
+                  </option>
+                ))}
+              </select>
+              {errors.customRoleId && (
+                <p className="mt-1 text-sm text-red-600">{errors.customRoleId}</p>
+              )}
+              {selectedRole && (
+                <div className="mt-2 flex items-center gap-2 text-xs text-[var(--groups1-text-secondary)]">
+                  <LevelBadge level={selectedRole.level} />
+                  <span>{selectedRole.permissions?.length || 0} permissions</span>
+                </div>
+              )}
             </div>
 
             {/* Group Access */}

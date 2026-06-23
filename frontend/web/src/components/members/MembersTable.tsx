@@ -3,9 +3,9 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { LevelBadge } from "@/components/members/LevelBadge";
 import type { WorkspaceMember } from "@/types/members.types";
-import { formatMemberName, getRoleLabel, formatDate } from "@/lib/member-utils";
+import { formatMemberName, getMemberLevel, getMemberRoleName, formatDate } from "@/lib/member-utils";
 import { MoreVertical, User, Mail, Calendar, Shield, Users, Send, UserX, Pencil } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Loader2 } from "lucide-react";
@@ -20,6 +20,9 @@ export interface MembersTableProps {
   onDeleteAccount?: (memberId: string) => void;
   isLoading?: boolean;
   currentUserId?: string;
+  canUpdate?: boolean;
+  canRemove?: boolean;
+  canInvite?: boolean;
 }
 
 export function MembersTable({
@@ -32,6 +35,9 @@ export function MembersTable({
   onDeleteAccount,
   isLoading = false,
   currentUserId,
+  canUpdate = false,
+  canRemove = false,
+  canInvite = false,
 }: MembersTableProps) {
   const [searchTerm, setSearchTerm] = React.useState("");
 
@@ -124,8 +130,10 @@ export function MembersTable({
                   const groupAccess = member.groupAccess || [];
                   const visibleGroups = groupAccess.slice(0, 3);
                   const remainingGroups = groupAccess.length - 3;
-                  const canReinvite = !!onReinvite && !isCurrentUser;
-                  const canDeleteAccount = !!onDeleteAccount && !isCurrentUser;
+                  const level = getMemberLevel(member);
+                  const isOwnerRow = level === "OWNER";
+                  const canReinvite = canInvite && !!onReinvite && !isCurrentUser;
+                  const canDeleteAccount = canRemove && !!onDeleteAccount && !isCurrentUser && !isOwnerRow;
 
                   return (
                     <tr
@@ -154,12 +162,12 @@ export function MembersTable({
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge
-                          variant={member.role === "ADMIN" ? "success" : "info"}
-                          size="sm"
-                        >
-                          {getRoleLabel(member.role)}
-                        </StatusBadge>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[var(--groups1-text)]">
+                            {getMemberRoleName(member)}
+                          </span>
+                          <LevelBadge level={level} />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {groupAccess.length > 0 ? (
@@ -204,13 +212,15 @@ export function MembersTable({
                               className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
                               align="end"
                             >
-                              <DropdownMenu.Item
-                                className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                                onSelect={() => onEditDetails(member.id)}
-                              >
-                                <Pencil className="w-4 h-4 mr-2" />
-                                Edit Details
-                              </DropdownMenu.Item>
+                              {canUpdate && (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={() => onEditDetails(member.id)}
+                                >
+                                  <Pencil className="w-4 h-4 mr-2" />
+                                  Edit Details
+                                </DropdownMenu.Item>
+                              )}
                               {canReinvite ? (
                                 <DropdownMenu.Item
                                   className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -220,21 +230,27 @@ export function MembersTable({
                                   Reset Password
                                 </DropdownMenu.Item>
                               ) : null}
-                              <DropdownMenu.Item
-                                className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                                onSelect={() => onUpdateRole(member.id)}
-                              >
-                                <Shield className="w-4 h-4 mr-2" />
-                                Update Role
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Item
-                                className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                                onSelect={() => onGrantAccess(member.id)}
-                              >
-                                <Users className="w-4 h-4 mr-2" />
-                                Grant Group Access
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                              {canUpdate && !isOwnerRow && (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={() => onUpdateRole(member.id)}
+                                >
+                                  <Shield className="w-4 h-4 mr-2" />
+                                  Update Role
+                                </DropdownMenu.Item>
+                              )}
+                              {canUpdate && !isOwnerRow && (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={() => onGrantAccess(member.id)}
+                                >
+                                  <Users className="w-4 h-4 mr-2" />
+                                  Grant Group Access
+                                </DropdownMenu.Item>
+                              )}
+                              {canRemove && (canDeleteAccount || (!isCurrentUser && !isOwnerRow)) && (
+                                <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+                              )}
                               {canDeleteAccount ? (
                                 <DropdownMenu.Item
                                   className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-red-700 hover:bg-red-50"
@@ -244,13 +260,15 @@ export function MembersTable({
                                   Delete User Account
                                 </DropdownMenu.Item>
                               ) : null}
-                              <DropdownMenu.Item
-                                className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                                onSelect={() => onRemove(member.id)}
-                                disabled={isCurrentUser}
-                              >
-                                Remove Member
-                              </DropdownMenu.Item>
+                              {canRemove && !isOwnerRow && (
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                  onSelect={() => onRemove(member.id)}
+                                  disabled={isCurrentUser}
+                                >
+                                  Remove Member
+                                </DropdownMenu.Item>
+                              )}
                             </DropdownMenu.Content>
                           </DropdownMenu.Portal>
                         </DropdownMenu.Root>

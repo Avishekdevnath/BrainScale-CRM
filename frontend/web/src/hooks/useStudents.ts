@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth";
 import { useWorkspaceStore } from "@/store/workspace";
-import type { StudentsListParams, StudentsListResponse } from "@/types/students.types";
+import type { StudentsListParams, StudentsListResponse, StudentDetail } from "@/types/students.types";
 
 // Helper to build SWR cache key from params
 function buildCacheKey(baseKey: string, params?: StudentsListParams): string {
@@ -19,6 +19,20 @@ function buildCacheKey(baseKey: string, params?: StudentsListParams): string {
   if (params.status) searchParams.append("status", params.status);
   const queryString = searchParams.toString();
   return queryString ? `${baseKey}?${queryString}` : baseKey;
+}
+
+export function useStudent(studentId: string | undefined) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const cacheKey = workspaceId && accessToken && studentId
+    ? `${workspaceId}:student:${studentId}`
+    : null;
+
+  return useSWR<StudentDetail>(
+    cacheKey,
+    () => apiClient.getStudent(studentId!),
+    { revalidateOnFocus: false, revalidateOnReconnect: true }
+  );
 }
 
 export function useStudents(params?: StudentsListParams) {

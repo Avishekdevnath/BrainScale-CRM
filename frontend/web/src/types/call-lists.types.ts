@@ -596,16 +596,46 @@ export interface BulkPasteCallListResponse {
   message: string;
 }
 
+// Question Presets
+export interface QuestionPreset {
+  id: string;
+  name: string;
+  description?: string | null;
+  questions: Question[];
+  workspaceId: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateQuestionPresetPayload {
+  name: string;
+  description?: string;
+  questions: Question[];
+}
+
+export interface UpdateQuestionPresetPayload {
+  name?: string;
+  description?: string | null;
+  questions?: Question[];
+}
+
+export interface QuestionPresetsListResponse {
+  presets: QuestionPreset[];
+}
+
 // Current Workspace Member Type
 export interface CurrentWorkspaceMember {
   id: string; // WorkspaceMember ID
   userId: string; // User ID
   workspaceId: string;
-  role: string;
+  role: string; // legacy: "ADMIN" | "MEMBER"
+  roleLevel?: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM"
   customRole?: {
     id: string;
     name: string;
     description: string | null;
+    level?: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM"
   } | null;
   permissions?: Array<{
     id: string;

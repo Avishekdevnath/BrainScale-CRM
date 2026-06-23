@@ -4,10 +4,10 @@ import { env } from '../config/env';
 export interface JWTPayload {
   sub: string; // user id
   workspaceId: string;
-  role: string; // 'ADMIN' | 'MEMBER' or custom role
-  permissions?: Array<{ resource: string; action: string }>; // Permissions from custom role
+  role: string; // legacy: 'ADMIN' | 'MEMBER'
+  roleLevel?: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM" — set by tenantGuard or on token issue
+  permissions?: Array<{ resource: string; action: string }>;
 }
-//test comment
 
 export interface RefreshTokenPayload {
   sub: string;

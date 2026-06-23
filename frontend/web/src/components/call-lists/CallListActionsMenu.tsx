@@ -11,7 +11,9 @@ export interface CallListActionsMenuProps {
   onViewFollowups: () => void;
   onViewDetails: () => void;
   onDelete: () => void;
-  isAdmin?: boolean;
+  canEdit?: boolean;
+  canAddStudents?: boolean;
+  canDelete?: boolean;
 }
 
 export function CallListActionsMenu({
@@ -20,9 +22,12 @@ export function CallListActionsMenu({
   onViewFollowups,
   onViewDetails,
   onDelete,
-  isAdmin = false,
+  canEdit = false,
+  canAddStudents = false,
+  canDelete = false,
 }: CallListActionsMenuProps) {
-  if (!isAdmin) return null;
+  // Nothing actionable → hide entire menu
+  if (!canEdit && !canAddStudents && !canDelete) return null;
 
   return (
     <DropdownMenu.Root>
@@ -40,30 +45,36 @@ export function CallListActionsMenu({
           sideOffset={4}
           className="min-w-[200px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg z-50"
         >
-          <DropdownMenu.Item
-            className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
-            onSelect={(event) => {
-              event.preventDefault();
-              onAddStudents();
-            }}
-          >
-            <UserPlus className="h-4 w-4" />
-            <span className="font-medium">Add Students</span>
-          </DropdownMenu.Item>
-          
-          <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
-          
-          <DropdownMenu.Item
-            className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
-            onSelect={(event) => {
-              event.preventDefault();
-              onEdit();
-            }}
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </DropdownMenu.Item>
-          
+          {canAddStudents && (
+            <DropdownMenu.Item
+              className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+              onSelect={(event) => {
+                event.preventDefault();
+                onAddStudents();
+              }}
+            >
+              <UserPlus className="h-4 w-4" />
+              <span className="font-medium">Add Students</span>
+            </DropdownMenu.Item>
+          )}
+
+          {canAddStudents && (
+            <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+          )}
+
+          {canEdit && (
+            <DropdownMenu.Item
+              className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+              onSelect={(event) => {
+                event.preventDefault();
+                onEdit();
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </DropdownMenu.Item>
+          )}
+
           <DropdownMenu.Item
             className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
             onSelect={(event) => {
@@ -86,18 +97,22 @@ export function CallListActionsMenu({
             View Details
           </DropdownMenu.Item>
           
-          <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
-          
-          <DropdownMenu.Item
-            className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-red-600 dark:text-red-300 outline-none hover:bg-red-50 dark:hover:bg-red-900/30 focus:bg-red-50 dark:focus:bg-red-900/30"
-            onSelect={(event) => {
-              event.preventDefault();
-              onDelete();
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </DropdownMenu.Item>
+          {canDelete && (
+            <>
+              <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+
+              <DropdownMenu.Item
+                className="flex cursor-pointer select-none items-center gap-2 rounded px-3 py-2 text-sm text-red-600 dark:text-red-300 outline-none hover:bg-red-50 dark:hover:bg-red-900/30 focus:bg-red-50 dark:focus:bg-red-900/30"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onDelete();
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </DropdownMenu.Item>
+            </>
+          )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

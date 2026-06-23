@@ -237,21 +237,22 @@ export const assignPermissions = async (
 };
 
 /**
- * List all available permissions
+ * List all available permissions for a workspace
  */
-export const listPermissions = async () => {
+export const listPermissions = async (workspaceId: string) => {
   const permissions = await prisma.permission.findMany({
+    where: { workspaceId },
     orderBy: [{ resource: 'asc' }, { action: 'asc' }],
   });
 
-  logger.debug({ count: permissions.length }, '[listPermissions service] Retrieved permissions from database');
+  logger.debug({ workspaceId, count: permissions.length }, '[listPermissions service] Retrieved permissions from database');
   return permissions;
 };
 
 /**
- * Initialize default permissions (call this in seed or migration)
+ * Initialize default permissions for a workspace (idempotent upsert per workspace)
  */
-export const initializeDefaultPermissions = async () => {
+export const initializeDefaultPermissions = async (workspaceId: string) => {
   const defaultPermissions = [
     // Students
     { resource: 'students', action: 'create', description: 'Create students' },
@@ -351,22 +352,133 @@ export const initializeDefaultPermissions = async () => {
     { resource: 'exports', action: 'create', description: 'Create exports' },
     { resource: 'exports', action: 'read', description: 'View exports' },
     { resource: 'exports', action: 'manage', description: 'Full access to exports' },
+
+    // Tasks
+    { resource: 'tasks', action: 'create', description: 'Create tasks' },
+    { resource: 'tasks', action: 'read', description: 'View tasks' },
+    { resource: 'tasks', action: 'update', description: 'Update tasks' },
+    { resource: 'tasks', action: 'delete', description: 'Delete tasks' },
+    { resource: 'tasks', action: 'manage', description: 'Full access to tasks' },
+
+    // Forms
+    { resource: 'forms', action: 'create', description: 'Create forms' },
+    { resource: 'forms', action: 'read', description: 'View forms and responses' },
+    { resource: 'forms', action: 'update', description: 'Update forms' },
+    { resource: 'forms', action: 'delete', description: 'Delete forms' },
+    { resource: 'forms', action: 'manage', description: 'Full access to forms' },
   ];
 
-  for (const perm of defaultPermissions) {
-    await prisma.permission.upsert({
-      where: {
-        resource_action: {
-          resource: perm.resource,
-          action: perm.action,
-        },
-      },
-      update: {},
-      create: perm,
+  // Check existing so we only create missing ones (idempotent)
+  const existing = await prisma.permission.findMany({
+    where: { workspaceId },
+    select: { resource: true, action: true },
+  });
+  const existingSet = new Set(existing.map((p) => `${p.resource}:${p.action}`));
+  const toCreate = defaultPermissions.filter(
+    (p) => !existingSet.has(`${p.resource}:${p.action}`)
+  );
+
+  if (toCreate.length > 0) {
+    await prisma.permission.createMany({
+      data: toCreate.map((p) => ({ workspaceId, ...p })),
     });
   }
 
   return { message: 'Default permissions initialized' };
+};
+
+/**
+ * Base permissions granted to MEMBER system role.
+ * These match what was previously hardcoded in tenant-guard and permission-guard.
+ */
+const MEMBER_BASE_PERMISSIONS = [
+  'workspace:read',
+  'groups:read', 'groups:create',
+  'students:read',
+  'batches:read',
+  'courses:read',
+  'modules:read',
+  'enrollments:read',
+  'followups:read', 'followups:create', 'followups:update',
+  'calls:create', 'calls:read',
+  'call_lists:create', 'call_lists:update', 'call_lists:read',
+  'tasks:create', 'tasks:read', 'tasks:update', 'tasks:delete',
+  'forms:read',
+  'members:read',
+];
+
+/**
+ * Seed Owner/Admin/Member system roles for a workspace.
+ * Idempotent — safe to call on existing workspaces.
+ * Returns the three system role records.
+ */
+export const seedWorkspaceSystemRoles = async (workspaceId: string) => {
+  // Only init workspace permissions if none exist yet for this workspace
+  const permCount = await prisma.permission.count({ where: { workspaceId } });
+  if (permCount === 0) {
+    await initializeDefaultPermissions(workspaceId);
+  }
+
+  const allPermissions = await prisma.permission.findMany({ where: { workspaceId } });
+  const allPermIds = allPermissions.map((p) => p.id);
+
+  const memberPermIds = allPermissions
+    .filter((p) => MEMBER_BASE_PERMISSIONS.includes(`${p.resource}:${p.action}`))
+    .map((p) => p.id);
+
+  const upsertRole = async (
+    name: string,
+    level: string,
+    description: string,
+    permissionIds: string[],
+  ) => {
+    const existing = await prisma.customRole.findUnique({
+      where: { workspaceId_name: { workspaceId, name } },
+    });
+
+    if (!existing) {
+      return prisma.customRole.create({
+        data: {
+          workspaceId,
+          name,
+          description,
+          level,
+          isSystem: true,
+          permissions: {
+            create: permissionIds.map((permissionId) => ({ permissionId })),
+          },
+        },
+      });
+    }
+
+    // Ensure level + isSystem are correct on existing role
+    await prisma.customRole.update({
+      where: { id: existing.id },
+      data: { level, isSystem: true } as any,
+    });
+
+    // Reset permissions to canonical set — chunked sequential to avoid write conflicts
+    await prisma.rolePermission.deleteMany({ where: { customRoleId: existing.id } });
+    const CHUNK = 10;
+    for (let i = 0; i < permissionIds.length; i += CHUNK) {
+      const chunk = permissionIds.slice(i, i + CHUNK);
+      await Promise.all(
+        chunk.map((permissionId) =>
+          prisma.rolePermission.create({ data: { customRoleId: existing.id, permissionId } }).catch(() => null)
+        )
+      );
+    }
+
+    return existing;
+  };
+
+  const [ownerRole, adminRole, memberRole] = await Promise.all([
+    upsertRole('Owner', 'OWNER', 'Full workspace ownership — non-transferable', allPermIds),
+    upsertRole('Admin', 'ADMIN', 'Administrative access to all features', allPermIds),
+    upsertRole('Member', 'MEMBER', 'Default member access', memberPermIds),
+  ]);
+
+  return { ownerRole, adminRole, memberRole };
 };
 
 /**

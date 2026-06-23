@@ -271,10 +271,14 @@ export function InvitationsTable({
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge
-                          variant={invitation.role === "ADMIN" ? "success" : "info"}
+                          variant={
+                            invitation.customRole?.name || invitation.role === "ADMIN"
+                              ? "success"
+                              : "info"
+                          }
                           size="sm"
                         >
-                          {invitation.role}
+                          {invitation.customRole?.name || invitation.role}
                         </StatusBadge>
                       </td>
                       <td className="px-4 py-3">

@@ -15,6 +15,22 @@ import { toast } from "sonner";
 import { Check, Loader2, Plus, Shield, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const LEVEL_BADGE: Record<string, { label: string; className: string }> = {
+  OWNER:  { label: "Owner",  className: "bg-amber-100 text-amber-700 border-amber-200" },
+  ADMIN:  { label: "Admin",  className: "bg-blue-100 text-blue-700 border-blue-200" },
+  MEMBER: { label: "Member", className: "bg-green-100 text-green-700 border-green-200" },
+  CUSTOM: { label: "Custom", className: "bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border-[var(--groups1-border)]" },
+};
+
+function LevelBadge({ level }: { level: string }) {
+  const badge = LEVEL_BADGE[level] ?? LEVEL_BADGE.CUSTOM;
+  return (
+    <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", badge.className)}>
+      {badge.label}
+    </span>
+  );
+}
+
 function groupPermissions(perms: Permission[]) {
   const byResource: Record<string, Permission[]> = {};
   for (const p of perms) {
@@ -36,7 +52,7 @@ export default function AccessControlPage() {
   const isAdmin = useIsAdmin();
 
   const { data: permissions, isLoading: isLoadingPermissions, mutate: mutatePermissions } = useSWR(
-    workspaceId ? "permissions" : null,
+    workspaceId ? `permissions-${workspaceId}` : null,
     () => apiClient.listPermissions(),
     { revalidateOnFocus: false }
   );
@@ -123,7 +139,7 @@ export default function AccessControlPage() {
       <Card variant="groups1">
         <CardHeader variant="groups1" className="flex-row items-center justify-between">
           <CardTitle>Permissions</CardTitle>
-          <div className="flex items-center gap-2">
+          {!hasPermissions && (
             <Button
               variant="outline"
               disabled={isLoadingPermissions}
@@ -139,22 +155,7 @@ export default function AccessControlPage() {
             >
               Initialize permissions
             </Button>
-            <Button
-              variant="outline"
-              disabled={isLoadingRoles}
-              onClick={async () => {
-                try {
-                  await apiClient.createDefaultRoles(workspaceId);
-                  toast.success("Default roles created/updated");
-                  await mutateRoles();
-                } catch (e: any) {
-                  toast.error(e?.message || "Failed to create default roles");
-                }
-              }}
-            >
-              Create default roles
-            </Button>
-          </div>
+          )}
         </CardHeader>
         <CardContent variant="groups1" className="text-sm text-[var(--groups1-text-secondary)]">
           {isLoadingPermissions ? (
@@ -197,14 +198,10 @@ export default function AccessControlPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-[var(--groups1-text-secondary)]" />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Shield className="w-4 h-4 text-[var(--groups1-text-secondary)] shrink-0" />
                         <div className="font-semibold text-[var(--groups1-text)] truncate">{role.name}</div>
-                        {role.isSystem ? (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)]">
-                            System
-                          </span>
-                        ) : null}
+                        <LevelBadge level={role.level} />
                       </div>
                       {role.description ? (
                         <div className="text-sm text-[var(--groups1-text-secondary)] mt-1 line-clamp-2">
@@ -216,7 +213,7 @@ export default function AccessControlPage() {
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => openEdit(role)} disabled={!hasPermissions}>
-                        Edit
+                        {role.level === "OWNER" || role.level === "ADMIN" ? "View" : "Edit"}
                       </Button>
                       <Button
                         variant="outline"
@@ -274,30 +271,47 @@ export default function AccessControlPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">Role name</div>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Caller, Manager"
-                    disabled={saving || !!editingRole?.isSystem}
-                  />
-                  {editingRole?.isSystem ? (
-                    <div className="text-xs text-[var(--groups1-text-secondary)]">System role name cannot be changed.</div>
-                  ) : null}
+              {/* Role name + description — hidden for system roles, shown for MEMBER + CUSTOM */}
+              {(!editingRole || editingRole.level === "MEMBER" || editingRole.level === "CUSTOM") && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-[var(--groups1-text)]">Role name</div>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Caller, Manager"
+                      disabled={saving || editingRole?.level === "MEMBER"}
+                    />
+                    {editingRole?.level === "MEMBER" && (
+                      <div className="text-xs text-[var(--groups1-text-secondary)]">System role name cannot be changed.</div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-[var(--groups1-text)]">Description</div>
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Optional"
+                      className="min-h-[40px]"
+                      disabled={saving || editingRole?.level === "MEMBER"}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-[var(--groups1-text)]">Description</div>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Optional"
-                    className="min-h-[40px]"
-                    disabled={saving || !!editingRole?.isSystem}
-                  />
+              )}
+
+              {/* OWNER / ADMIN: read-only notice */}
+              {(editingRole?.level === "OWNER" || editingRole?.level === "ADMIN") && (
+                <div className="rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-secondary)] px-4 py-3 text-sm text-[var(--groups1-text-secondary)]">
+                  <span className="font-semibold text-[var(--groups1-text)]">{editingRole.name}</span> has full access to all features — permission list is informational only.
                 </div>
-              </div>
+              )}
+
+              {/* MEMBER: editable label */}
+              {editingRole?.level === "MEMBER" && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                  These are the default permissions for every new member. Changes take effect on their next request.
+                </div>
+              )}
 
               <div className="rounded-xl border border-[var(--groups1-border)]">
                 <div className="px-4 py-3 border-b border-[var(--groups1-border)] flex items-center justify-between">
@@ -313,13 +327,16 @@ export default function AccessControlPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {perms.map((p) => {
                           const checked = selectedPermissionIds.has(p.id);
+                          const isReadOnly = editingRole?.level === "OWNER" || editingRole?.level === "ADMIN";
                           return (
                             <button
                               key={p.id}
                               type="button"
-                              onClick={() => togglePermission(p.id)}
+                              onClick={() => !isReadOnly && togglePermission(p.id)}
+                              disabled={isReadOnly}
                               className={cn(
                                 "flex items-start gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                                isReadOnly ? "cursor-default opacity-70" : "cursor-pointer",
                                 checked
                                   ? "border-[var(--groups1-primary)] bg-[var(--groups1-secondary)]"
                                   : "border-[var(--groups1-border)] bg-[var(--groups1-surface)] hover:bg-[var(--groups1-secondary)]"
@@ -327,7 +344,7 @@ export default function AccessControlPage() {
                             >
                               <span
                                 className={cn(
-                                  "mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border",
+                                  "mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border shrink-0",
                                   checked
                                     ? "border-[var(--groups1-primary)] bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
                                     : "border-[var(--groups1-border)] bg-[var(--groups1-background)]"
@@ -353,45 +370,47 @@ export default function AccessControlPage() {
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={saving}>
-                  Cancel
+                  {editingRole?.level === "OWNER" || editingRole?.level === "ADMIN" ? "Close" : "Cancel"}
                 </Button>
-                <Button
-                  disabled={saving || !name.trim() || selectedPermissionIds.size === 0}
-                  onClick={async () => {
-                    setSaving(true);
-                    try {
-                      let roleId = editingRole?.id;
-                      if (!roleId) {
-                        const created = await apiClient.createCustomRole(workspaceId, {
-                          name: name.trim(),
-                          description: description.trim() ? description.trim() : null,
+                {(editingRole?.level !== "OWNER" && editingRole?.level !== "ADMIN") && (
+                  <Button
+                    disabled={saving || !name.trim() || selectedPermissionIds.size === 0}
+                    onClick={async () => {
+                      setSaving(true);
+                      try {
+                        let roleId = editingRole?.id;
+                        if (!roleId) {
+                          const created = await apiClient.createCustomRole(workspaceId, {
+                            name: name.trim(),
+                            description: description.trim() ? description.trim() : null,
+                          });
+                          roleId = created.id;
+                        } else if (editingRole?.level === "CUSTOM") {
+                          await apiClient.updateCustomRole(workspaceId, roleId, {
+                            name: name.trim(),
+                            description: description.trim() ? description.trim() : null,
+                          });
+                        }
+
+                        await apiClient.assignPermissionsToRole(workspaceId, roleId!, {
+                          permissionIds: Array.from(selectedPermissionIds),
                         });
-                        roleId = created.id;
-                      } else if (!editingRole?.isSystem) {
-                        await apiClient.updateCustomRole(workspaceId, roleId, {
-                          name: name.trim(),
-                          description: description.trim() ? description.trim() : null,
-                        });
+
+                        toast.success("Role saved");
+                        await mutateRoles();
+                        setEditorOpen(false);
+                      } catch (e: any) {
+                        toast.error(e?.message || "Failed to save role");
+                      } finally {
+                        setSaving(false);
                       }
-
-                      await apiClient.assignPermissionsToRole(workspaceId, roleId!, {
-                        permissionIds: Array.from(selectedPermissionIds),
-                      });
-
-                      toast.success("Role saved");
-                      await mutateRoles();
-                      setEditorOpen(false);
-                    } catch (e: any) {
-                      toast.error(e?.message || "Failed to save role");
-                    } finally {
-                      setSaving(false);
-                    }
-                  }}
-                  className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  Save
-                </Button>
+                    }}
+                    className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)]"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    Save
+                  </Button>
+                )}
               </div>
             </div>
           )}

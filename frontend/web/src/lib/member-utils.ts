@@ -15,6 +15,26 @@ export function getRoleLabel(role: MemberRole | string): string {
 }
 
 /**
+ * Effective role level for a member ("OWNER" | "ADMIN" | "MEMBER" | "CUSTOM").
+ * Prefers customRole.level / roleLevel; falls back to legacy role string.
+ */
+export function getMemberLevel(member: WorkspaceMember): string {
+  return (
+    member.customRole?.level ||
+    member.roleLevel ||
+    (member.role === "ADMIN" ? "ADMIN" : "MEMBER")
+  );
+}
+
+/**
+ * Display name for a member's role: the assigned role's name when present,
+ * otherwise the legacy role label.
+ */
+export function getMemberRoleName(member: WorkspaceMember): string {
+  return member.customRole?.name || getRoleLabel(member.role);
+}
+
+/**
  * Get color for role badge
  */
 export function getRoleColor(role: MemberRole | string): string {

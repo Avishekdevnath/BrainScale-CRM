@@ -108,10 +108,15 @@ export const sendInvitation = async (
         id: data.customRoleId,
         workspaceId,
       },
+      select: { id: true, level: true },
     });
 
     if (!customRole) {
       throw new AppError(404, 'Custom role not found');
+    }
+
+    if ((customRole as any).level === 'OWNER') {
+      throw new AppError(403, 'Cannot invite a member as Owner');
     }
   }
 
@@ -330,13 +335,23 @@ export const acceptInvitation = async (token: string, userId: string) => {
   const meta = invitation.meta as { groupIds?: string[] } | null;
   const groupIds = meta?.groupIds || [];
 
+  // Resolve customRoleId — if invitation has none, fall back to workspace Member system role
+  let resolvedCustomRoleId: string | null = invitation.customRoleId ?? null;
+  if (!resolvedCustomRoleId) {
+    const memberSystemRole = await prisma.customRole.findFirst({
+      where: { workspaceId: invitation.workspaceId, isSystem: true, name: 'Member' },
+      select: { id: true },
+    });
+    if (memberSystemRole) resolvedCustomRoleId = memberSystemRole.id;
+  }
+
   // Create workspace membership with group access
   const member = await prisma.workspaceMember.create({
     data: {
       userId,
       workspaceId: invitation.workspaceId,
       role: invitation.role,
-      customRoleId: invitation.customRoleId,
+      customRoleId: resolvedCustomRoleId,
       groupAccess: groupIds.length > 0
         ? {
             create: groupIds.map((groupId) => ({

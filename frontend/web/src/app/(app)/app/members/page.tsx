@@ -11,11 +11,12 @@ import { EditMemberDetailsDialog } from "@/components/members/EditMemberDetailsD
 import { useReinviteMemberWithAccount, useWorkspaceMembers } from "@/hooks/useMembers";
 import { useWorkspaceStore } from "@/store/workspace";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
+import { useHasPermission } from "@/hooks/useHasPermission";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { LevelBadge } from "@/components/members/LevelBadge";
 import { cn } from "@/lib/utils";
-import { formatDate, formatMemberName, getRoleLabel } from "@/lib/member-utils";
+import { formatDate, formatMemberName, getMemberLevel, getMemberRoleName } from "@/lib/member-utils";
 import { UserPlus, Users, Shield, User, Search, Mail, Calendar, Key, Trash2, Send, Copy, UserX, Pencil } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,6 +30,12 @@ export default function MembersPage() {
   );
   const { members, isLoading, mutate } = useWorkspaceMembers(workspaceId);
   const reinvite = useReinviteMemberWithAccount(workspaceId || "");
+
+  // Permission gating (OWNER/ADMIN bypass built into useHasPermission)
+  const canView = useHasPermission("members", "read");
+  const canInvite = useHasPermission("members", "invite");
+  const canUpdate = useHasPermission("members", "update");
+  const canRemove = useHasPermission("members", "remove");
   const [mobileSearch, setMobileSearch] = React.useState("");
   const [reinviteInfo, setReinviteInfo] = React.useState<{ email: string; temporaryPassword: string } | null>(null);
 
@@ -100,12 +107,19 @@ export default function MembersPage() {
     mutate();
   };
 
-  // Calculate statistics
+  // Calculate statistics (by effective role level)
   const stats = React.useMemo(() => {
     const total = members.length;
-    const admins = members.filter((m) => m.role === "ADMIN").length;
-    const regularMembers = members.filter((m) => m.role === "MEMBER" && !m.customRoleId).length;
-    const customRoleMembers = members.filter((m) => m.customRoleId).length;
+    let admins = 0;
+    let regularMembers = 0;
+    let customRoleMembers = 0;
+
+    for (const m of members) {
+      const level = getMemberLevel(m);
+      if (level === "OWNER" || level === "ADMIN") admins++;
+      else if (level === "MEMBER") regularMembers++;
+      else customRoleMembers++; // CUSTOM
+    }
 
     return {
       total,
@@ -150,19 +164,14 @@ export default function MembersPage() {
     );
   }
 
-  // Check if user is admin
-  // Note: customRoleId check would require fetching custom role details
-  // For now, just check if role is ADMIN
-  const isAdmin = currentMember?.role === "ADMIN";
-
-  if (!isLoadingCurrentMember && !isAdmin) {
+  // Access gated by members:read (OWNER/ADMIN bypass inside the hook)
+  if (!isLoadingCurrentMember && !canView) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Members & Roles</h1>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
-            You don&apos;t have permission to access this page. Only workspace admins can manage
-            members.
+            You don&apos;t have permission to access this page.
           </p>
         </div>
       </div>
@@ -181,14 +190,16 @@ export default function MembersPage() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={() => setIsInviteDialogOpen(true)}
-          disabled={isLoading}
-          className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-        >
-          <UserPlus className="w-4 h-4 mr-2" />
-          Invite Member
-        </Button>
+        {canInvite && (
+          <Button
+            onClick={() => setIsInviteDialogOpen(true)}
+            disabled={isLoading}
+            className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Invite Member
+          </Button>
+        )}
       </div>
 
       {/* Header (Desktop) */}
@@ -199,16 +210,18 @@ export default function MembersPage() {
             Manage workspace members and their roles
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setIsInviteDialogOpen(true)}
-            disabled={isLoading}
-          >
-            <UserPlus className="w-4 h-4 mr-2" />
-            Invite Member
-          </Button>
-        </div>
+        {canInvite && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsInviteDialogOpen(true)}
+              disabled={isLoading}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Invite Member
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Statistics Cards */}
@@ -330,8 +343,10 @@ export default function MembersPage() {
                   const groupAccess = m.groupAccess || [];
                   const visibleGroups = groupAccess.slice(0, 2);
                   const remainingGroups = groupAccess.length - visibleGroups.length;
-                  const roleLabel = m.customRole?.name ? m.customRole.name : getRoleLabel(m.role);
-                  const canReinvite = !isYou;
+                  const level = getMemberLevel(m);
+                  const isOwnerRow = level === "OWNER";
+                  const roleLabel = getMemberRoleName(m);
+                  const canReinvite = canInvite && !isYou;
 
                   return (
                     <div
@@ -368,9 +383,10 @@ export default function MembersPage() {
                                 <Send className="w-4 h-4" />
                               </Button>
                             ) : null}
-                            <StatusBadge variant={m.role === "ADMIN" ? "success" : "info"} size="sm">
-                              {roleLabel}
-                            </StatusBadge>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-[var(--groups1-text)]">{roleLabel}</span>
+                              <LevelBadge level={level} />
+                            </div>
                           </div>
                         </div>
 
@@ -412,55 +428,65 @@ export default function MembersPage() {
                       </div>
 
                       <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-9"
-                          onClick={() => handleEditDetails(m.id)}
-                        >
-                          <Pencil className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-9"
-                          disabled={isYou}
-                          onClick={() => handleUpdateRole(m.id)}
-                        >
-                          <Key className="w-4 h-4 mr-2" />
-                          Role
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 h-9"
-                          disabled={isYou}
-                          onClick={() => handleGrantAccess(m.id)}
-                        >
-                          <Users className="w-4 h-4 mr-2" />
-                          Access
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 w-10 p-0 text-red-600 border-red-200 hover:bg-red-50"
-                          disabled={isYou}
-                          onClick={() => handleRemove(m.id)}
-                          aria-label="Remove member"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 w-10 p-0 text-red-700 border-red-300 hover:bg-red-100"
-                          disabled={isYou}
-                          onClick={() => handleDeleteAccount(m.id)}
-                          aria-label="Delete user account"
-                        >
-                          <UserX className="w-4 h-4" />
-                        </Button>
+                        {canUpdate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-9"
+                            onClick={() => handleEditDetails(m.id)}
+                          >
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </Button>
+                        )}
+                        {canUpdate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-9"
+                            disabled={isYou || isOwnerRow}
+                            onClick={() => handleUpdateRole(m.id)}
+                          >
+                            <Key className="w-4 h-4 mr-2" />
+                            Role
+                          </Button>
+                        )}
+                        {canUpdate && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 h-9"
+                            disabled={isYou || isOwnerRow}
+                            onClick={() => handleGrantAccess(m.id)}
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            Access
+                          </Button>
+                        )}
+                        {canRemove && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 w-10 p-0 text-red-600 border-red-200 hover:bg-red-50"
+                            disabled={isYou || isOwnerRow}
+                            onClick={() => handleRemove(m.id)}
+                            aria-label="Remove member"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canRemove && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 w-10 p-0 text-red-700 border-red-300 hover:bg-red-100"
+                            disabled={isYou || isOwnerRow}
+                            onClick={() => handleDeleteAccount(m.id)}
+                            aria-label="Delete user account"
+                          >
+                            <UserX className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -483,6 +509,9 @@ export default function MembersPage() {
           onDeleteAccount={handleDeleteAccount}
           isLoading={isLoading}
           currentUserId={currentMember?.userId}
+          canUpdate={canUpdate}
+          canRemove={canRemove}
+          canInvite={canInvite}
         />
       </div>
 

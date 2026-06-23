@@ -3,9 +3,9 @@ import { AuthRequest } from './auth-guard';
 import { AppError } from './error-handler';
 
 /**
- * Middleware to check if user has required permission
- * ADMIN role bypasses all permission checks (full access)
- * Custom roles must have explicit permission or "manage" permission for the resource
+ * Middleware to check if user has required permission.
+ * OWNER and ADMIN bypass all checks (full access).
+ * MEMBER and CUSTOM roles must have explicit DB permission or "manage" for the resource.
  */
 export const requirePermission = (resource: string, action: string) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -13,76 +13,27 @@ export const requirePermission = (resource: string, action: string) => {
       return next(new AppError(401, 'Authentication required'));
     }
 
-    // ADMIN role has full access - bypass permission checks (case-insensitive)
-    if (req.user.role?.toUpperCase() === 'ADMIN') {
+    // OWNER and ADMIN have full access — bypass all permission checks
+    const level = req.user.roleLevel || req.user.role?.toUpperCase();
+    if (level === 'OWNER' || level === 'ADMIN') {
       return next();
     }
 
-    // Product rule: all workspace members can create/update call lists.
-    if (
-      req.user.role?.toUpperCase() === 'MEMBER' &&
-      resource === 'call_lists' &&
-      (action === 'create' || action === 'update')
-    ) {
-      return next();
-    }
-
-    // Product rule: all workspace members can create and read groups.
-    if (
-      req.user.role?.toUpperCase() === 'MEMBER' &&
-      resource === 'groups' &&
-      (action === 'create' || action === 'read')
-    ) {
-      return next();
-    }
-
-    // Product rule: all workspace members can create, read, and update tasks.
-    if (
-      req.user.role?.toUpperCase() === 'MEMBER' &&
-      resource === 'tasks' &&
-      (action === 'create' || action === 'read' || action === 'update' || action === 'delete')
-    ) {
-      return next();
-    }
-
-    // Product rule: team chat needs the workspace member directory available
-    // to every workspace member (channel/DM recipient lookup, mentions, presence).
-    // Allow MEMBER read-only access to the members list.
-    if (
-      req.user.role?.toUpperCase() === 'MEMBER' &&
-      resource === 'members' &&
-      action === 'read'
-    ) {
-      return next();
-    }
-
-    // Get user permissions (loaded by tenantGuard)
+    // Check DB-loaded permissions (set by tenantGuard from customRole)
     const permissions = req.user.permissions || [];
 
-    // Check if user has the specific permission
-    const hasSpecificPermission = permissions.some(
-      (p) => p.resource === resource && p.action === action
+    const hasPermission = permissions.some(
+      (p) =>
+        p.resource === resource &&
+        (p.action === action || p.action === 'manage')
     );
 
-    if (hasSpecificPermission) {
+    if (hasPermission) {
       return next();
     }
 
-    // Check if user has "manage" permission for the resource (grants all actions)
-    const hasManagePermission = permissions.some(
-      (p) => p.resource === resource && p.action === 'manage'
-    );
-
-    if (hasManagePermission) {
-      return next();
-    }
-
-    // Permission denied
     return next(
-      new AppError(
-        403,
-        `Insufficient permissions. Required: ${resource}:${action}`
-      )
+      new AppError(403, `Insufficient permissions. Required: ${resource}:${action}`)
     );
   };
 };

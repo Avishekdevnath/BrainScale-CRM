@@ -27,6 +27,7 @@ interface CreateTaskDialogProps {
   members: WorkspaceMember[];
   currentMemberId: string;
   onSuccess?: () => void;
+  initialLinkedEntity?: { type: LinkedEntityType; id: string };
 }
 
 export function CreateTaskDialog({
@@ -35,6 +36,7 @@ export function CreateTaskDialog({
   members,
   currentMemberId,
   onSuccess,
+  initialLinkedEntity,
 }: CreateTaskDialogProps) {
   const [saving, setSaving] = useState(false);
   const { data: taskTypes = [] } = useTaskTypes();
@@ -73,14 +75,14 @@ export function CreateTaskDialog({
         dueDate: "",
         priority: "NORMAL",
         taskTypeId: "",
-        linkedEntityType: "",
-        linkedEntityId: "",
+        linkedEntityType: initialLinkedEntity?.type ?? "",
+        linkedEntityId: initialLinkedEntity?.id ?? "",
         hasReferrer: false,
         referredByMemberId: "",
         referredByName: "",
       });
     }
-  }, [open, currentMemberId]);
+  }, [open, currentMemberId, initialLinkedEntity]);
 
   const isSelfAssigned = form.assignedToId === currentMemberId;
 

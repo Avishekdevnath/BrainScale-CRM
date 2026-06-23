@@ -73,6 +73,10 @@ import type {
   BulkEmailPasteRequest,
   BulkEmailPasteResponse,
   CallStatusOption,
+  QuestionPreset,
+  CreateQuestionPresetPayload,
+  UpdateQuestionPresetPayload,
+  QuestionPresetsListResponse,
 } from "@/types/call-lists.types";
 import type { BulkDeleteStudentsPayload, BulkDeleteStudentsResponse } from "@/types/students.types";
 import {
@@ -123,6 +127,7 @@ import type {
   FollowupsListResponse,
   FollowupCallContext,
   CreateFollowupCallLogRequest,
+  CreateFollowupPayload,
 } from "@/types/followups.types";
 import type {
   NotificationPreference,
@@ -744,16 +749,10 @@ export class ApiClient {
   }
 
   getCurrentWorkspaceMember(workspaceId: string) {
-    return this.request<{
-      id: string;
-      userId: string;
-      workspaceId: string;
-      role: string;
-      createdAt: string;
-      updatedAt: string;
-    }>(`/workspaces/${workspaceId}/members/me`, {
-      method: "GET",
-    });
+    return this.request<import("@/types/call-lists.types").CurrentWorkspaceMember>(
+      `/workspaces/${workspaceId}/members/me`,
+      { method: "GET" }
+    );
   }
 
   // Member Management methods
@@ -2062,6 +2061,13 @@ export class ApiClient {
   }
 
   // Follow-ups methods
+  createFollowup(data: CreateFollowupPayload): Promise<Followup> {
+    return this.request<Followup>("/followups", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
   listFollowups(params?: ListFollowupsParams): Promise<FollowupsListResponse> {
     const queryString = buildQueryString({
       callListId: params?.callListId,
@@ -2870,6 +2876,31 @@ export class ApiClient {
     return this.request<Message>(`/team-chat/messages/${messageId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+  }
+
+  // Question Presets
+  getQuestionPresets(): Promise<QuestionPresetsListResponse> {
+    return this.request<QuestionPresetsListResponse>("/question-presets");
+  }
+
+  createQuestionPreset(payload: CreateQuestionPresetPayload): Promise<QuestionPreset> {
+    return this.request<QuestionPreset>("/question-presets", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  updateQuestionPreset(id: string, payload: UpdateQuestionPresetPayload): Promise<QuestionPreset> {
+    return this.request<QuestionPreset>(`/question-presets/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  deleteQuestionPreset(id: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/question-presets/${id}`, {
+      method: "DELETE",
     });
   }
 

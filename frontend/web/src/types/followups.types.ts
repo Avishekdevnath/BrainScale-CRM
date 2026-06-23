@@ -161,3 +161,12 @@ export interface CreateFollowupCallLogRequest {
   followUpNote?: string; // Note for the new follow-up when scheduling
 }
 
+export interface CreateFollowupPayload {
+  studentId: string;
+  groupId: string;
+  callListId?: string;
+  previousCallLogId?: string;
+  assignedTo?: string;
+  dueAt: string; // ISO 8601
+  notes?: string;
+}

@@ -22,6 +22,15 @@ export const UpdateStudentSchema = z.object({
   discordId: z.string().optional().nullable(),
   tags: z.array(z.string()).optional(),
   notes: z.string().optional().nullable(),
+  phones: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        phone: z.string().min(1, 'Phone number is required'),
+        isPrimary: z.boolean().optional().default(false),
+      })
+    )
+    .optional(),
 });
 
 export const ListStudentsSchema = z.object({

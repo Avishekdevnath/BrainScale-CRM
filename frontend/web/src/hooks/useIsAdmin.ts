@@ -11,8 +11,9 @@ export function useIsAdmin(): boolean {
   const { data: currentMember } = useCurrentMember(workspaceId);
 
   if (!currentMember) return false;
-  
-  // Check if role is ADMIN (case-insensitive)
-  return currentMember.role?.toUpperCase() === "ADMIN";
+
+  // Check roleLevel first (set by new RBAC system), fall back to legacy role string
+  const level = currentMember.roleLevel || currentMember.role?.toUpperCase();
+  return level === "OWNER" || level === "ADMIN";
 }
 

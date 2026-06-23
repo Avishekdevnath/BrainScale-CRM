@@ -15,6 +15,7 @@ import {
   CreateMemberWithAccountInput,
 } from './workspace.schemas';
 import * as auditLogService from '../audit-logs/audit-log.service';
+import { seedWorkspaceSystemRoles } from '../roles/role.service';
 
 export const createWorkspace = async (userId: string, data: CreateWorkspaceInput) => {
   // Current constraint: one admin can have only one workspace.
@@ -80,12 +81,19 @@ export const createWorkspace = async (userId: string, data: CreateWorkspaceInput
     },
   });
 
+  // Seed system roles (Owner/Admin/Member) and assign creator to Owner
+  const { ownerRole } = await seedWorkspaceSystemRoles(workspace.id);
+  await prisma.workspaceMember.update({
+    where: { id: workspace.members[0].id },
+    data: { customRoleId: ownerRole.id } as any,
+  });
+
   // Generate new access token with the new workspace ID
-  // This ensures the user's JWT token has the correct workspaceId for subsequent requests
   const accessToken = signAccessToken({
     sub: userId,
     workspaceId: workspace.id,
     role: 'ADMIN',
+    roleLevel: 'OWNER',
   });
 
   const refreshToken = signRefreshToken(userId);
@@ -461,6 +469,14 @@ export const getMembers = async (workspaceId: string) => {
           name: true,
         },
       },
+      customRole: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          level: true,
+        },
+      },
       groupAccess: {
         include: {
           group: {
@@ -474,20 +490,27 @@ export const getMembers = async (workspaceId: string) => {
     },
   });
 
-  return members;
+  // Derive roleLevel for each member (mirror getCurrentMember)
+  return members.map((member) => ({
+    ...member,
+    roleLevel:
+      (member.customRole as any)?.level ??
+      (member.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'MEMBER'),
+  }));
 };
 
 export const updateMember = async (
   memberId: string,
   data: UpdateMemberInput
 ) => {
-  // Get current member to check workspace and role
+  // Get current member with its custom role level (single source of truth)
   const currentMember = await prisma.workspaceMember.findUnique({
     where: { id: memberId },
-    select: { 
+    select: {
       workspaceId: true,
       role: true,
       customRoleId: true,
+      customRole: { select: { level: true } },
     },
   });
 
@@ -504,18 +527,64 @@ export const updateMember = async (
     throw new AppError(404, 'Workspace not found');
   }
 
-  // Check if member is currently an admin (either via role or custom role)
-  const isCurrentlyAdmin = currentMember.role === 'ADMIN';
-  
-  // Check if trying to demote from ADMIN to MEMBER
-  const isDemotingAdmin = isCurrentlyAdmin && data.role === 'MEMBER';
-  
-  // If demoting an admin, check if they're the last admin
-  if (isDemotingAdmin) {
+  const currentLevel: string =
+    (currentMember.customRole as any)?.level ??
+    (currentMember.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'MEMBER');
+
+  // Owner role is non-transferable — cannot be changed via API
+  if (currentLevel === 'OWNER') {
+    throw new AppError(403, 'Owner role cannot be changed');
+  }
+
+  // Resolve the target CustomRole (always assign via customRoleId — unified model)
+  let targetRoleId: string;
+  let targetLevel: string;
+
+  if (data.customRoleId) {
+    const customRole = await prisma.customRole.findFirst({
+      where: { id: data.customRoleId, workspaceId: currentMember.workspaceId },
+      select: { id: true, level: true },
+    });
+
+    if (!customRole) {
+      throw new AppError(404, 'Custom role not found or does not belong to this workspace');
+    }
+
+    if ((customRole as any).level === 'OWNER') {
+      throw new AppError(403, 'Cannot assign the Owner role');
+    }
+
+    targetRoleId = customRole.id;
+    targetLevel = (customRole as any).level || 'CUSTOM';
+  } else if (data.role) {
+    // Back-compat: translate legacy role string to the matching system role
+    const systemRoleName = data.role.toUpperCase() === 'ADMIN' ? 'Admin' : 'Member';
+    const systemRole = await prisma.customRole.findFirst({
+      where: { workspaceId: currentMember.workspaceId, isSystem: true, name: systemRoleName },
+      select: { id: true, level: true },
+    });
+
+    if (!systemRole) {
+      throw new AppError(500, `System role "${systemRoleName}" not found for this workspace`);
+    }
+
+    targetRoleId = systemRole.id;
+    targetLevel = (systemRole as any).level || (data.role.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'MEMBER');
+  } else {
+    throw new AppError(400, 'Either role or customRoleId must be provided');
+  }
+
+  // Last-admin guard (by level): block demoting the last OWNER/ADMIN-level member
+  const isDemotingFromAdmin =
+    (currentLevel === 'OWNER' || currentLevel === 'ADMIN') &&
+    targetLevel !== 'OWNER' &&
+    targetLevel !== 'ADMIN';
+
+  if (isDemotingFromAdmin) {
     const adminCount = await prisma.workspaceMember.count({
       where: {
         workspaceId: currentMember.workspaceId,
-        role: 'ADMIN',
+        customRole: { level: { in: ['OWNER', 'ADMIN'] } },
       },
     });
 
@@ -527,64 +596,11 @@ export const updateMember = async (
     }
   }
 
-  // Validate custom role if provided
-  if (data.customRoleId) {
-    const customRole = await prisma.customRole.findFirst({
-      where: {
-        id: data.customRoleId,
-        workspaceId: currentMember.workspaceId,
-      },
-      include: {
-        permissions: {
-          include: {
-            permission: true,
-          },
-        },
-      },
-    });
-
-    if (!customRole) {
-      throw new AppError(404, 'Custom role not found or does not belong to this workspace');
-    }
-
-    // Check if custom role has admin-equivalent permissions
-    // If demoting from ADMIN to a custom role, check if it's the last admin
-    if (isCurrentlyAdmin) {
-      // Check if custom role has workspace management permissions (admin-like)
-      const hasAdminPermissions = customRole.permissions.some(
-        (rp) => rp.permission.resource === 'workspace' && 
-                (rp.permission.action === 'manage' || rp.permission.action === 'update')
-      );
-
-      // If custom role doesn't have admin permissions, treat as demotion
-      if (!hasAdminPermissions) {
-        const adminCount = await prisma.workspaceMember.count({
-          where: {
-            workspaceId: currentMember.workspaceId,
-            role: 'ADMIN',
-          },
-        });
-
-        if (adminCount <= 1) {
-          throw new AppError(
-            400,
-            'Cannot demote the last admin. Please promote another member to admin first, or assign a custom role with admin permissions.'
-          );
-        }
-      }
-    }
-  }
-
-  // Prepare update data
-  const updateData: any = {};
-  
-  if (data.role) {
-    updateData.role = data.role;
-    updateData.customRoleId = null; // Clear custom role when setting legacy role
-  } else if (data.customRoleId) {
-    updateData.customRoleId = data.customRoleId;
-    // Keep existing role for backward compatibility, but customRole takes precedence
-  }
+  // Prepare update data — keep legacy role column in sync for back-compat
+  const updateData: any = {
+    customRoleId: targetRoleId,
+    role: targetLevel === 'OWNER' || targetLevel === 'ADMIN' ? 'ADMIN' : 'MEMBER',
+  };
 
   const member = await prisma.workspaceMember.update({
     where: { id: memberId },
@@ -712,17 +728,23 @@ export const grantGroupAccess = async (
 };
 
 export const removeMember = async (memberId: string, userId?: string) => {
-  // Verify member exists and get their role
+  // Verify member exists and get their role + level
   const member = await prisma.workspaceMember.findUnique({
     where: { id: memberId },
-    select: { 
+    select: {
       workspaceId: true,
       role: true,
+      customRole: { select: { level: true } },
     },
   });
 
   if (!member) {
     throw new AppError(404, 'Member not found');
+  }
+
+  // Owner is non-removable
+  if ((member.customRole as any)?.level === 'OWNER') {
+    throw new AppError(403, 'The Owner cannot be removed from the workspace');
   }
 
   // Verify workspace exists
@@ -819,11 +841,21 @@ export const deleteMemberAccount = async (
   // Ensure target member exists in this workspace
   const targetMember = await prisma.workspaceMember.findFirst({
     where: { id: memberId, workspaceId },
-    select: { id: true, userId: true, user: { select: { email: true } } },
+    select: {
+      id: true,
+      userId: true,
+      user: { select: { email: true } },
+      customRole: { select: { level: true } },
+    },
   });
 
   if (!targetMember) {
     throw new AppError(404, 'Member not found');
+  }
+
+  // Owner account cannot be deleted via admin action
+  if ((targetMember.customRole as any)?.level === 'OWNER') {
+    throw new AppError(403, 'The Owner account cannot be deleted');
   }
 
   // Prevent deleting own account from this admin action
@@ -977,18 +1009,29 @@ export const createMemberWithAccount = async (
     throw new AppError(409, 'User with this email already exists');
   }
 
-  // Validate custom role if provided
-  if (data.customRoleId) {
+  // Resolve the role to assign (unified model — always assign a customRoleId).
+  let resolvedCustomRoleId: string | null = data.customRoleId ?? null;
+
+  if (resolvedCustomRoleId) {
     const customRole = await prisma.customRole.findFirst({
-      where: {
-        id: data.customRoleId,
-        workspaceId,
-      },
+      where: { id: resolvedCustomRoleId, workspaceId },
+      select: { id: true, level: true },
     });
 
     if (!customRole) {
       throw new AppError(404, 'Custom role not found or does not belong to this workspace');
     }
+
+    if ((customRole as any).level === 'OWNER') {
+      throw new AppError(403, 'Cannot create a member as Owner');
+    }
+  } else {
+    // No explicit role → fall back to the workspace's Member system role
+    const memberRole = await prisma.customRole.findFirst({
+      where: { workspaceId, isSystem: true, name: 'Member' },
+      select: { id: true },
+    });
+    resolvedCustomRoleId = memberRole?.id ?? null;
   }
 
   // Validate groups if provided
@@ -1043,7 +1086,7 @@ export const createMemberWithAccount = async (
       userId: user.id,
       workspaceId,
       role: data.role || 'MEMBER',
-      customRoleId: data.customRoleId,
+      customRoleId: resolvedCustomRoleId,
       setupCompleted: false, // Member needs to complete setup
       agreementAccepted: false, // Agreement not yet accepted
       groupAccess: data.groupIds
@@ -1218,8 +1261,10 @@ export const getCurrentMember = async (workspaceId: string, userId: string) => {
           id: member.customRole.id,
           name: member.customRole.name,
           description: member.customRole.description,
+          level: (member.customRole as any).level ?? 'CUSTOM',
         }
       : null,
+    roleLevel: (member.customRole as any)?.level ?? (member.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'MEMBER'),
     permissions,
     groupAccess: member.groupAccess.map((ga) => ({
       id: ga.id,

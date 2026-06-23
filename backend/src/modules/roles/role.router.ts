@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as roleController from './role.controller';
 import { zodValidator } from '../../middleware/validate';
-import { authGuard, requireRole } from '../../middleware/auth-guard';
+import { authGuard } from '../../middleware/auth-guard';
 import { tenantGuard } from '../../middleware/tenant-guard';
 import { requirePermission } from '../../middleware/permission-guard';
 import {
@@ -35,7 +35,7 @@ const router = Router();
 // Permissions listing is restricted to workspace admins
 // Using /available-permissions to avoid route conflicts with /:workspaceId/* routes
 // tenantGuard gets workspace ID from X-Workspace-Id header
-router.get('/available-permissions', authGuard, tenantGuard, requireRole('ADMIN'), roleController.listPermissions);
+router.get('/available-permissions', authGuard, tenantGuard, requirePermission('roles', 'read'), roleController.listPermissions);
 
 /**
  * @openapi
@@ -57,7 +57,7 @@ router.get('/available-permissions', authGuard, tenantGuard, requireRole('ADMIN'
  *       403:
  *         description: Admin access required
  */
-router.post('/initialize-permissions', authGuard, tenantGuard, requireRole('ADMIN'), roleController.initializePermissions);
+router.post('/initialize-permissions', authGuard, tenantGuard, requirePermission('roles', 'manage'), roleController.initializePermissions);
 
 /**
  * @openapi

@@ -9,7 +9,8 @@ export interface WorkspaceMember {
   id: string; // WorkspaceMember ID
   userId: string; // User ID
   workspaceId: string;
-  role: MemberRole;
+  role: MemberRole; // legacy: kept in sync, derived from level
+  roleLevel?: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM"
   customRoleId: string | null;
   setupCompleted: boolean;
   agreementAccepted: boolean;
@@ -28,8 +29,9 @@ export interface WorkspaceMember {
     id: string;
     name: string;
     description: string | null;
+    level?: string; // "OWNER" | "ADMIN" | "MEMBER" | "CUSTOM"
   } | null;
-  
+
   groupAccess?: Array<{
     id: string;
     groupId: string;

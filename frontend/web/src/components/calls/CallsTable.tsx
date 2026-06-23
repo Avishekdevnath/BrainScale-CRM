@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useCallLogs } from "@/hooks/useCallLogs";
 import { PhoneHistoryDrawer } from "@/components/calls/PhoneHistoryDrawer";
-import { Loader2, ChevronLeft, ChevronRight, Calendar, Clock } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Calendar, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CallLog, GetCallLogsParams } from "@/types/call-lists.types";
 
@@ -25,16 +25,14 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   other:     { bg: "bg-gray-500/10",    text: "text-gray-600 dark:text-gray-400",       label: "Other" },
 };
 
-function formatDuration(seconds: number | null): string {
-  if (!seconds) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+function callSummary(log: CallLog): string | null {
+  return log.summaryNote?.trim() || log.callerNote?.trim() || log.notes?.trim() || null;
 }
 
 export function CallsTable({ callListId, searchQuery = "", status, assignedTo, onRefresh }: CallsTableProps) {
   const router = useRouter();
   const [historyPhone, setHistoryPhone] = React.useState<{ phone: string; name?: string | null } | null>(null);
+  const [openSummaryId, setOpenSummaryId] = React.useState<string | null>(null);
   const [pageSize] = React.useState<number>(20);
   const [page, setPage] = React.useState<number>(1);
 
@@ -86,7 +84,7 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                     <th className={thClass}>Group</th>
                     <th className={thClass}>Caller</th>
                     <th className={thClass}>Status</th>
-                    <th className={thClass}>Duration</th>
+                    <th className={thClass}>Summary</th>
                     <th className={thClass}>Follow-up</th>
                     <th className={thClass}>Date</th>
                   </tr>
@@ -143,11 +141,47 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                             {statusMeta.label}
                           </span>
                         </td>
-                        <td className={cn(tdClass, "text-[var(--groups1-text-secondary)]")}>
-                          <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatDuration(log.callDuration)}
-                          </span>
+                        <td className={cn(tdClass, "max-w-[260px]")}>
+                          {(() => {
+                            const summary = callSummary(log);
+                            if (!summary) {
+                              return <span className="text-[var(--groups1-text-secondary)]">—</span>;
+                            }
+                            const isOpen = openSummaryId === log.id;
+                            return (
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenSummaryId(isOpen ? null : log.id)}
+                                  className="block w-full truncate text-left text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                                >
+                                  {summary}
+                                </button>
+                                {isOpen && (
+                                  <>
+                                    <div className="fixed inset-0 z-40" onClick={() => setOpenSummaryId(null)} />
+                                    <div className="absolute top-full left-0 mt-1.5 z-50 w-80 max-w-[80vw] bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg p-3">
+                                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+                                          Summary
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setOpenSummaryId(null)}
+                                          className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                      <p className="text-xs text-[var(--groups1-text)] whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                        {summary}
+                                      </p>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className={tdClass}>
                           {log.followUpRequired && log.followUpDate ? (

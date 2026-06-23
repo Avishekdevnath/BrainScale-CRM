@@ -48,13 +48,15 @@ export const assignPermissions = asyncHandler(async (req: AuthRequest, res: Resp
 });
 
 export const listPermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const permissions = await roleService.listPermissions();
-  logger.debug({ count: permissions.length }, '[listPermissions] Returning permissions');
+  const workspaceId = req.user!.workspaceId!;
+  const permissions = await roleService.listPermissions(workspaceId);
+  logger.debug({ workspaceId, count: permissions.length }, '[listPermissions] Returning permissions');
   res.json(permissions);
 });
 
-export const initializePermissions = asyncHandler(async (_req: AuthRequest, res: Response) => {
-  const result = await roleService.initializeDefaultPermissions();
+export const initializePermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const workspaceId = req.user!.workspaceId!;
+  const result = await roleService.initializeDefaultPermissions(workspaceId);
   res.status(201).json(result);
 });
 

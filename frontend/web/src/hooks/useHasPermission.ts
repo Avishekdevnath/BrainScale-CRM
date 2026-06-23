@@ -18,8 +18,9 @@ export function useHasPermission(resource: string, action: string): boolean {
   return useMemo(() => {
     if (!member) return false;
 
-    // ADMIN role has full access
-    if (member.role === "ADMIN") return true;
+    // OWNER and ADMIN have full access (check roleLevel, fall back to legacy role)
+    const level = member.roleLevel || member.role?.toUpperCase();
+    if (level === "OWNER" || level === "ADMIN") return true;
 
     const permissions = member.permissions || [];
     return permissions.some(

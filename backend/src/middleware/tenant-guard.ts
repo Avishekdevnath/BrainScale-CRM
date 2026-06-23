@@ -145,51 +145,26 @@ export const tenantGuard = async (
     
     // Update JWT payload with verified workspace
     req.user.workspaceId = workspaceId;
-    // Normalize role to uppercase for consistent comparison (handles "Admin"/"ADMIN" variations)
     req.user.role = membership.role?.toUpperCase() || membership.role;
-    
-    // Load permissions from custom role (if exists)
+
+    // Derive roleLevel from customRole.level, fall back to legacy role string
+    const roleLevel: string =
+      (membership.customRole as any)?.level ||
+      (membership.role?.toUpperCase() === 'ADMIN' ? 'ADMIN' : 'MEMBER');
+    req.user.roleLevel = roleLevel;
+
+    // Load permissions from custom role in DB
     const permissions: Array<{ resource: string; action: string }> = [];
-
-    // Default permissions for built-in roles when no custom role is assigned.
-    // Without this, MEMBER users would have an empty permission set and receive 403s across the app.
-    // NOTE: ADMIN bypasses permission checks in requirePermission().
-    const defaultRolePermissions: Record<string, Array<{ resource: string; action: string }>> = {
-      MEMBER: [
-        { resource: 'workspace', action: 'read' },
-        { resource: 'groups', action: 'read' },
-        { resource: 'students', action: 'read' },
-        { resource: 'batches', action: 'read' },
-        { resource: 'courses', action: 'read' },
-        { resource: 'modules', action: 'read' },
-        { resource: 'enrollments', action: 'read' },
-        { resource: 'followups', action: 'read' },
-        { resource: 'calls', action: 'create' },
-        { resource: 'calls', action: 'read' },
-        { resource: 'call_lists', action: 'create' },
-        { resource: 'call_lists', action: 'update' },
-        { resource: 'call_lists', action: 'read' },
-      ],
-    };
-
-    if (membership.customRole && membership.customRole.permissions) {
+    if (membership.customRole?.permissions) {
       try {
         membership.customRole.permissions.forEach((rp) => {
-          if (rp && rp.permission) {
-            permissions.push({
-              resource: rp.permission.resource,
-              action: rp.permission.action,
-            });
+          if (rp?.permission) {
+            permissions.push({ resource: rp.permission.resource, action: rp.permission.action });
           }
         });
       } catch (permError) {
         logger.error({ permError }, '[tenantGuard] Error loading permissions');
-        // Continue with empty permissions array - user will rely on role-based access
       }
-    } else {
-      const roleKey = (membership.role || '').toUpperCase();
-      const defaults = defaultRolePermissions[roleKey] || [];
-      defaults.forEach((p) => permissions.push(p));
     }
     req.user.permissions = permissions;
     
@@ -218,8 +193,9 @@ export const groupGuard = async (
       throw new AppError(400, 'Group ID required');
     }
     
-    // Admins have access to all groups (case-insensitive)
-    if (req.user.role?.toUpperCase() === 'ADMIN') {
+    // OWNER and ADMIN have access to all groups
+    const level = req.user.roleLevel || req.user.role?.toUpperCase();
+    if (level === 'OWNER' || level === 'ADMIN') {
       return next();
     }
     

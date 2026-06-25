@@ -641,6 +641,12 @@ export const login = async (data: LoginInput) => {
     throw new AppError(401, 'Incorrect password');
   }
 
+  // Block platform-deactivated accounts.
+  if ((user as typeof user & { disabledAt?: Date | null }).disabledAt) {
+    logger.warn({ email: data.email, userId: user.id }, 'Login attempt: account deactivated');
+    throw new AppError(403, 'This account has been deactivated. Contact your administrator.');
+  }
+
   // Type assertion needed until Prisma Client regenerates with new fields
   const userWithFields = user as typeof user & {
     mustChangePassword: boolean;

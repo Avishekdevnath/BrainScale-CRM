@@ -96,6 +96,13 @@ export default function LoginPage() {
       try {
         const workspaces = await apiClient.getWorkspaces();
         if (!workspaces || workspaces.length === 0) {
+          // Platform super-admins have no workspace of their own — send them to
+          // the platform console instead of forcing workspace creation.
+          const me = await apiClient.getMe().catch(() => null);
+          if (me?.isSuperAdmin) {
+            router.push("/platform");
+            return;
+          }
           toast.info("Let's set up your workspace");
           router.push("/create-workspace");
         } else {

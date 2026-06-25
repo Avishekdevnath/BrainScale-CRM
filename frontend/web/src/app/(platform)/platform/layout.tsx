@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, LayoutDashboard, Building2 } from "lucide-react";
+import { Loader2, LayoutDashboard, Building2, Users } from "lucide-react";
 import { useCurrentUser } from "@/hooks/usePlatform";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const nav = [
     { href: "/platform", label: "Overview", icon: LayoutDashboard },
     { href: "/platform/workspaces", label: "Workspaces", icon: Building2 },
+    { href: "/platform/users", label: "Users", icon: Users },
   ];
 
   return (

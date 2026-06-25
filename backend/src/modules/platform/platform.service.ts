@@ -10,11 +10,17 @@ import {
   CreateWorkspaceBodyInput,
   UpdateWorkspaceBodyInput,
   AddMemberBodyInput,
+  ListUsersQueryInput,
 } from './platform.schemas';
+
+// "Not soft-deleted" — must match both an explicit null AND an unset field,
+// because documents created before `deletedAt` existed (or created without it)
+// have no such key, and Mongo's `{ deletedAt: null }` does not match unset fields.
+const NOT_DELETED = { OR: [{ deletedAt: null }, { deletedAt: { isSet: false } }] };
 
 export const getOverview = async () => {
   const [workspaces, members, students, callLists, callLogs] = await Promise.all([
-    prisma.workspace.count({ where: { deletedAt: null } }),
+    prisma.workspace.count({ where: NOT_DELETED }),
     prisma.workspaceMember.count(),
     prisma.student.count(),
     prisma.callList.count(),
@@ -24,7 +30,7 @@ export const getOverview = async () => {
 };
 
 export const listWorkspaces = async (q: ListWorkspacesQueryInput) => {
-  const where: any = { deletedAt: null };
+  const where: any = { ...NOT_DELETED };
   if (q.q) where.name = { contains: q.q, mode: 'insensitive' };
 
   const orderBy =
@@ -249,4 +255,158 @@ export const changeMemberRole = async (actorUserId: string, memberId: string, ro
     metadata: { from: member.role, to: role },
   });
   return { id: memberId };
+};
+
+// ---- Platform user management ----
+
+/** Active super-admins = isSuperAdmin AND not deactivated (null or unset disabledAt). */
+const countActiveSuperAdmins = () =>
+  prisma.user.count({
+    where: {
+      isSuperAdmin: true,
+      OR: [{ disabledAt: null }, { disabledAt: { isSet: false } }],
+    },
+  });
+
+export const listUsers = async (q: ListUsersQueryInput) => {
+  const where: any = {};
+  if (q.q) {
+    where.OR = [
+      { email: { contains: q.q, mode: 'insensitive' } },
+      { name: { contains: q.q, mode: 'insensitive' } },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { [q.sort]: q.order },
+      skip: (q.page - 1) * q.size,
+      take: q.size,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isSuperAdmin: true,
+        disabledAt: true,
+        createdAt: true,
+        _count: { select: { memberships: true } },
+      },
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return {
+    items: rows.map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      isSuperAdmin: u.isSuperAdmin,
+      disabledAt: u.disabledAt ?? null,
+      createdAt: u.createdAt,
+      workspaceCount: u._count.memberships,
+    })),
+    page: q.page,
+    size: q.size,
+    total,
+  };
+};
+
+export const setSuperAdmin = async (
+  actorUserId: string,
+  targetUserId: string,
+  isSuperAdmin: boolean,
+) => {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, isSuperAdmin: true },
+  });
+  if (!target) throw new AppError(404, 'User not found');
+
+  // Never leave the platform without an active super-admin.
+  if (!isSuperAdmin && target.isSuperAdmin) {
+    const active = await countActiveSuperAdmins();
+    if (active <= 1) {
+      throw new AppError(409, 'Cannot revoke the last active super-admin');
+    }
+  }
+
+  await prisma.user.update({ where: { id: targetUserId }, data: { isSuperAdmin } });
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'user.setSuperAdmin',
+    targetType: 'user',
+    targetId: targetUserId,
+    metadata: { isSuperAdmin },
+  });
+  return { id: targetUserId };
+};
+
+export const setUserStatus = async (
+  actorUserId: string,
+  targetUserId: string,
+  active: boolean,
+) => {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, isSuperAdmin: true, disabledAt: true },
+  });
+  if (!target) throw new AppError(404, 'User not found');
+
+  // Deactivating an active super-admin must not orphan the platform.
+  if (!active && target.isSuperAdmin && !target.disabledAt) {
+    const activeCount = await countActiveSuperAdmins();
+    if (activeCount <= 1) {
+      throw new AppError(409, 'Cannot deactivate the last active super-admin');
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: { disabledAt: active ? null : new Date() },
+  });
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: active ? 'user.activate' : 'user.deactivate',
+    targetType: 'user',
+    targetId: targetUserId,
+  });
+  return { id: targetUserId };
+};
+
+export const resetUserPassword = async (
+  actorUserId: string,
+  targetUserId: string,
+): Promise<{ id: string; tempPassword: string }> => {
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true, email: true, name: true },
+  });
+  if (!target) throw new AppError(404, 'User not found');
+
+  const tempPassword = crypto.randomBytes(12).toString('base64url');
+  await prisma.user.update({
+    where: { id: targetUserId },
+    data: {
+      passwordHash: await hashPassword(tempPassword),
+      temporaryPassword: true,
+      mustChangePassword: true,
+    } as any,
+  });
+
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'user.resetPassword',
+    targetType: 'user',
+    targetId: targetUserId,
+  });
+
+  await sendTemporaryPasswordEmail(
+    target.email,
+    target.name || 'there',
+    'BrainScale CRM',
+    tempPassword,
+  ).catch(() => {});
+
+  return { id: targetUserId, tempPassword };
 };

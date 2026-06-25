@@ -10,6 +10,9 @@ import {
   UpdateWorkspaceBody,
   AddMemberBody,
   ChangeMemberRoleBody,
+  ListUsersQuery,
+  SetSuperAdminBody,
+  SetUserStatusBody,
 } from './platform.schemas';
 
 const router = Router();
@@ -26,5 +29,10 @@ router.delete('/workspaces/:id', ctrl.deleteWorkspace);
 router.get('/workspaces/:id/members', ctrl.listMembers);
 router.post('/workspaces/:id/members', zodValidator(AddMemberBody), ctrl.addMember);
 router.patch('/members/:memberId', zodValidator(ChangeMemberRoleBody), ctrl.changeMemberRole);
+
+router.get('/users', zodValidator(ListUsersQuery, 'query'), ctrl.listUsers);
+router.patch('/users/:id/super-admin', zodValidator(SetSuperAdminBody), ctrl.setSuperAdmin);
+router.patch('/users/:id/status', zodValidator(SetUserStatusBody), ctrl.setUserStatus);
+router.post('/users/:id/reset-password', ctrl.resetUserPassword);
 
 export default router;

@@ -21,3 +21,8 @@ export function usePlatformWorkspace(id: string | null) {
     revalidateOnFocus: false,
   });
 }
+
+export function usePlatformUsers(query: Record<string, string | number | undefined>) {
+  const key = `platform:users:${JSON.stringify(query)}`;
+  return useSWR(key, () => apiClient.platformListUsers(query), { revalidateOnFocus: false });
+}

@@ -526,6 +526,33 @@ export class ApiClient {
       method: "PATCH", body: JSON.stringify({ role }),
     });
   }
+  platformListUsers(query: Record<string, string | number | undefined> = {}) {
+    const qs = new URLSearchParams(
+      Object.entries(query).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]),
+    ).toString();
+    return this.request<{
+      items: Array<{
+        id: string; email: string; name: string | null; isSuperAdmin: boolean;
+        disabledAt: string | null; createdAt: string; workspaceCount: number;
+      }>;
+      page: number; size: number; total: number;
+    }>(`/platform/users${qs ? `?${qs}` : ""}`, { method: "GET" });
+  }
+  platformSetSuperAdmin(id: string, isSuperAdmin: boolean) {
+    return this.request<{ id: string }>(`/platform/users/${id}/super-admin`, {
+      method: "PATCH", body: JSON.stringify({ isSuperAdmin }),
+    });
+  }
+  platformSetUserStatus(id: string, active: boolean) {
+    return this.request<{ id: string }>(`/platform/users/${id}/status`, {
+      method: "PATCH", body: JSON.stringify({ active }),
+    });
+  }
+  platformResetUserPassword(id: string) {
+    return this.request<{ id: string; tempPassword: string }>(`/platform/users/${id}/reset-password`, {
+      method: "POST",
+    });
+  }
 
   resendVerificationEmail(email: string) {
     return this.request<{ message: string; canRetryAfter: number }>("/auth/resend-verification", {

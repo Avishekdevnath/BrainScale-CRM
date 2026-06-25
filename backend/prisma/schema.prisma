@@ -23,6 +23,7 @@ model User {
   phone                      String?
   emailVerified              Boolean   @default(false)
   isSuperAdmin               Boolean   @default(false)
+  disabledAt                 DateTime? // Platform-level deactivation; null/unset = active
   verificationToken          String?   @unique
   verificationTokenExpiresAt DateTime?
   mustChangePassword         Boolean   @default(false)

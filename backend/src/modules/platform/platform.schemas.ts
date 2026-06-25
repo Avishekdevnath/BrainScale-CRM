@@ -31,8 +31,23 @@ export const AddMemberBody = z.object({
 
 export const ChangeMemberRoleBody = z.object({ role: z.string().min(1) });
 
+export const ListUsersQuery = z.object({
+  q: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(['createdAt', 'email']).default('createdAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const SetSuperAdminBody = z.object({ isSuperAdmin: z.boolean() });
+
+export const SetUserStatusBody = z.object({ active: z.boolean() });
+
 export type ListWorkspacesQueryInput = z.infer<typeof ListWorkspacesQuery>;
 export type CreateWorkspaceBodyInput = z.infer<typeof CreateWorkspaceBody>;
 export type UpdateWorkspaceBodyInput = z.infer<typeof UpdateWorkspaceBody>;
 export type AddMemberBodyInput = z.infer<typeof AddMemberBody>;
 export type ChangeMemberRoleBodyInput = z.infer<typeof ChangeMemberRoleBody>;
+export type ListUsersQueryInput = z.infer<typeof ListUsersQuery>;
+export type SetSuperAdminBodyInput = z.infer<typeof SetSuperAdminBody>;
+export type SetUserStatusBodyInput = z.infer<typeof SetUserStatusBody>;

@@ -29,3 +29,15 @@ export const addMember = async (req: AuthRequest, res: Response, next: NextFunct
 export const changeMemberRole = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try { res.json(await svc.changeMemberRole(req.user!.sub, req.params.memberId, req.validatedData.role)); } catch (e) { next(e); }
 };
+export const listUsers = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.listUsers(req.validatedData)); } catch (e) { next(e); }
+};
+export const setSuperAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.setSuperAdmin(req.user!.sub, req.params.id, req.validatedData.isSuperAdmin)); } catch (e) { next(e); }
+};
+export const setUserStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.setUserStatus(req.user!.sub, req.params.id, req.validatedData.active)); } catch (e) { next(e); }
+};
+export const resetUserPassword = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.resetUserPassword(req.user!.sub, req.params.id)); } catch (e) { next(e); }
+};

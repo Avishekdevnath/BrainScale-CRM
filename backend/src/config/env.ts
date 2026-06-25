@@ -110,6 +110,10 @@ export const env = {
   // Billing / plan enforcement
   // Disabled by default. Set BILLING_ENABLED=true to enforce plan limits & enable billing flows.
   BILLING_ENABLED: process.env.BILLING_ENABLED === 'true',
+
+  // Platform super-admin
+  // Email of the account promoted to platform super-admin by the seed script.
+  PLATFORM_OWNER_EMAIL: (process.env.PLATFORM_OWNER_EMAIL || '').trim(),
   
   // AI Configuration
   AI_ENABLED: process.env.AI_ENABLED === 'true',

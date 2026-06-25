@@ -8,6 +8,7 @@ import {
   passwordChangeOtpTemplate,
   resetPasswordOtpTemplate,
   teamChatMentionTemplate,
+  teamChatDirectMessageTemplate,
 } from './email-templates';
 
 if (!env.RESEND_API_KEY) {
@@ -255,6 +256,41 @@ export const sendResetPasswordOtpEmail = async (
     subject: withBrand('Password reset code'),
     html,
   });
+};
+
+export const sendTeamChatDirectMessageEmail = async (
+  email: string,
+  senderName: string,
+  messagePreview: string,
+  options?: {
+    workspaceId?: string;
+    userId?: string;
+  }
+): Promise<void> => {
+  // Link points to the DM thread with the sender (keyed by the recipient-facing userId).
+  const dmUrl = `${env.FRONTEND_URL}/app/team-chat/dm/${options?.userId ?? ''}`;
+  const html = teamChatDirectMessageTemplate({
+    senderName,
+    messagePreview,
+    dmUrl,
+  });
+
+  await queueOrSendTransactionalEmail(
+    {
+      to: email,
+      subject: withBrand(`${senderName} sent you a direct message`),
+      html,
+    },
+    {
+      workspaceId: options?.workspaceId,
+      userId: options?.userId,
+      metadata: {
+        type: 'TEAM_CHAT_DIRECT_MESSAGE',
+        senderName,
+      },
+    },
+    withBrand(`${senderName} sent you a direct message`)
+  );
 };
 
 export const sendTeamChatMentionEmail = async (

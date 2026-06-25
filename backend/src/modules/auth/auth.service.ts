@@ -869,6 +869,7 @@ export const getCurrentUser = async (userId: string) => {
       id: true,
       email: true,
       name: true,
+      isSuperAdmin: true,
       createdAt: true,
       memberships: {
         include: {

@@ -6,6 +6,7 @@ type Workspace = {
   plan?: "FREE" | "PRO" | "BUSINESS";
   logo?: string | null;
   timezone?: string;
+  callSystemV2?: boolean;
 };
 
 type WorkspaceState = {
@@ -17,6 +18,7 @@ type WorkspaceState = {
     plan?: "FREE" | "PRO" | "BUSINESS";
     logo?: string | null;
     timezone?: string;
+    callSystemV2?: boolean;
   }) => void;
   clear: () => void;
   getCurrentName: () => string;
@@ -52,6 +54,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         plan: ws.plan,
         logo: ws.logo,
         timezone: ws.timezone,
+        callSystemV2: ws.callSystemV2,
       };
       try {
         localStorage.setItem("currentWorkspace", JSON.stringify(workspace));

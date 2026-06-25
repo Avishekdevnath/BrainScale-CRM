@@ -34,6 +34,36 @@ export const teamChatMentionTemplate = (params: {
   return baseTemplate(content, subject);
 };
 
+export const teamChatDirectMessageTemplate = (params: {
+  senderName: string;
+  messagePreview: string;
+  dmUrl: string;
+}): string => {
+  const subject = `${params.senderName} sent you a direct message`;
+
+  const content = `
+    <h2 style="color: #4F46E5;">💬 ${subject}</h2>
+    <p>Hi there,</p>
+    <p>You've received a new direct message:</p>
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4F46E5;">
+      <p style="margin: 0; color: #666; font-size: 14px;">
+        <strong>${params.senderName}</strong>
+      </p>
+      <p style="margin: 10px 0 0 0; color: #333;">
+        ${params.messagePreview}
+      </p>
+    </div>
+    <p style="margin-top: 30px;">
+      <a href="${params.dmUrl}"
+         style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        Reply in Team Chat
+      </a>
+    </p>
+  `;
+
+  return baseTemplate(content, subject);
+};
+
 /**
  * Base email template wrapper
  */

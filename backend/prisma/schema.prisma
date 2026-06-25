@@ -22,6 +22,7 @@ model User {
   name                       String?
   phone                      String?
   emailVerified              Boolean   @default(false)
+  isSuperAdmin               Boolean   @default(false)
   verificationToken          String?   @unique
   verificationTokenExpiresAt DateTime?
   mustChangePassword         Boolean   @default(false)
@@ -52,6 +53,7 @@ model User {
   typingStatuses          TypingStatus[]      @relation("TypingUser")
   dmTypingStatuses        TypingStatus[]      @relation("DMTypingWith")
   questionPresets         QuestionPreset[]
+  platformAuditLogs       PlatformAuditLog[]  @relation("PlatformAuditActor")
 }
 
 model Workspace {
@@ -70,6 +72,8 @@ model Workspace {
   aiFeaturesEnabled        Boolean  @default(false) // Master switch for AI features
   aiFeatures               Json? // Array of enabled AI features: ["summary", "sentiment"]
   scheduleTaskSyncEnabled  Boolean  @default(false)  // Enable/disable auto task creation from schedule
+  callSystemV2             Boolean  @default(false)  // Call-management version flag (per-workspace)
+  deletedAt                DateTime?                  // Soft delete; null = active
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -570,6 +574,20 @@ model AuditLog {
   // Relations
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id])
+}
+
+// Platform-level audit (cross-tenant super-admin actions).
+// Global, actor-scoped, never cascades — forensic record for super-admin activity.
+model PlatformAuditLog {
+  id          String   @id @default(cuid()) @map("_id")
+  actorUserId String
+  action      String
+  targetType  String
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  actor User @relation("PlatformAuditActor", fields: [actorUserId], references: [id])
 }
 
 // ============================================

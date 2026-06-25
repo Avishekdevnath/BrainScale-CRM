@@ -68,7 +68,16 @@ export const tenantGuard = async (
     if (!workspaceId) {
       throw new AppError(400, 'Workspace ID required');
     }
-    
+
+    // Block access to soft-deleted workspaces (platform soft-delete chokepoint).
+    const workspaceRow = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { deletedAt: true },
+    });
+    if (workspaceRow?.deletedAt) {
+      throw new AppError(404, 'Workspace not found');
+    }
+
     // Verify user is a member of the workspace and load permissions
     let membership;
     try {

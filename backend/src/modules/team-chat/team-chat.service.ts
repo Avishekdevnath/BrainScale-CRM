@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { logger } from '../../config/logger';
-import { sendTeamChatMentionEmail } from '../../utils/email';
+import { sendTeamChatMentionEmail, sendTeamChatDirectMessageEmail } from '../../utils/email';
+import { createNotification } from '../notifications/notification.service';
 import type { CreateChannelInput, SendMessageInput, EditMessageInput, GetMessagesInput, SendDirectMessageInput, GetDirectMessagesInput } from './team-chat.schemas';
 
 /**
@@ -320,23 +321,20 @@ export async function getChannelMessages(userId: string, input: GetMessagesInput
 /**
  * Send a direct message to another user
  */
-export async function sendDirectMessage(senderId: string, input: SendDirectMessageInput, workspaceId?: string) {
+export async function sendDirectMessage(senderId: string, workspaceId: string, input: SendDirectMessageInput) {
   try {
     console.log(`[SERVICE-SEND-DM] Creating DM from user: ${senderId} to user: ${input.recipientId}`);
-    console.log(`[SERVICE-SEND-DM] Message content:`, JSON.stringify(input.content));
-    console.log(`[SERVICE-SEND-DM] Content plain text:`, extractPlainText(input.content));
 
-    // Verify recipient exists
-    const recipient = await prisma.user.findUnique({
-      where: { id: input.recipientId },
+    // Verify recipient is a member of this workspace (DMs are workspace-scoped).
+    const recipientMember = await prisma.workspaceMember.findFirst({
+      where: { workspaceId, userId: input.recipientId },
+      include: { user: { select: { id: true, name: true, email: true } } },
     });
 
-    if (!recipient) {
-      console.log(`[SERVICE-SEND-DM] ERROR: Recipient not found: ${input.recipientId}`);
+    if (!recipientMember) {
+      console.log(`[SERVICE-SEND-DM] ERROR: Recipient not in workspace: ${input.recipientId}`);
       throw new Error('Recipient not found');
     }
-
-    console.log(`[SERVICE-SEND-DM] Recipient verified: ${recipient.id} (${recipient.name})`);
 
     // Create the DM
     const dm = await prisma.directMessage.create({
@@ -348,44 +346,33 @@ export async function sendDirectMessage(senderId: string, input: SendDirectMessa
         mentionedUsers: input.mentionedUsers || [],
       },
       include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        recipient: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        sender: { select: { id: true, name: true, email: true } },
+        recipient: { select: { id: true, name: true, email: true } },
       },
     });
 
     console.log(`[SERVICE-SEND-DM] DB-SAVED: messageId=${dm.id}`);
-    console.log(`[SERVICE-SEND-DM] Saved content:`, JSON.stringify(dm.content));
 
-    // Create notification for recipient
-    const sender = await prisma.user.findUnique({
-      where: { id: senderId },
-      select: { name: true },
+    const senderName = dm.sender?.name || 'Someone';
+    const body = dm.contentPlain ?? '';
+
+    // Workspace-scoped in-app notification (respects user preferences).
+    await createNotification({
+      workspaceId,
+      userId: input.recipientId,
+      type: 'TEAM_CHAT_DIRECT_MESSAGE',
+      title: `New direct message from ${senderName}`,
+      body,
+      meta: { messageId: dm.id, senderId },
     });
 
-    await prisma.notification.create({
-      data: {
-        workspaceId: workspaceId || '',
-        userId: input.recipientId,
-        type: 'direct_message',
-        title: 'New direct message',
-        body: `${sender?.name || 'Someone'} sent you a direct message`,
-        meta: { messageId: dm.id, senderId },
-      },
-    });
-
-    // TODO: Send Web Push notification to recipient
+    // Email notification to the recipient.
+    await sendTeamChatDirectMessageEmail(
+      dm.recipient.email,
+      senderName,
+      body,
+      { userId: input.recipientId }
+    );
 
     return dm;
   } catch (error) {

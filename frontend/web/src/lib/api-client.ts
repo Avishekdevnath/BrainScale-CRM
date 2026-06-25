@@ -461,12 +461,70 @@ export class ApiClient {
       id: string;
       email: string;
       name: string | null;
+      isSuperAdmin?: boolean;
       createdAt: string;
       memberships?: Array<{
         workspace: { id: string; name: string; logo: string | null };
         role: string;
       }>;
     }>("/auth/me", { method: "GET" });
+  }
+
+  // ---- Platform super-admin ----
+  platformOverview() {
+    return this.request<{
+      workspaces: number; members: number; students: number; callLists: number; callLogs: number;
+    }>("/platform/overview", { method: "GET" });
+  }
+  platformListWorkspaces(query: Record<string, string | number | undefined> = {}) {
+    const qs = new URLSearchParams(
+      Object.entries(query).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]),
+    ).toString();
+    return this.request<{
+      items: Array<{ id: string; name: string; plan: string; callSystemV2: boolean; memberCount: number; studentCount: number }>;
+      page: number; size: number; total: number;
+    }>(`/platform/workspaces${qs ? `?${qs}` : ""}`, { method: "GET" });
+  }
+  platformCreateWorkspace(body: {
+    name: string; plan?: string; callSystemV2?: boolean;
+    owner: { mode: "existing"; email: string } | { mode: "new"; email: string; name: string };
+  }) {
+    return this.request<{ id: string; name: string; tempPassword?: string }>("/platform/workspaces", {
+      method: "POST", body: JSON.stringify(body),
+    });
+  }
+  platformGetWorkspace(id: string) {
+    return this.request<{
+      id: string; name: string; plan: string; callSystemV2: boolean; timezone?: string;
+      memberCount: number; studentCount: number;
+      members: Array<{ id: string; role: string; user: { id: string; email: string; name: string | null } }>;
+    }>(`/platform/workspaces/${id}`, { method: "GET" });
+  }
+  platformUpdateWorkspace(id: string, body: { name?: string; plan?: string; callSystemV2?: boolean }) {
+    return this.request<{ id: string }>(`/platform/workspaces/${id}`, {
+      method: "PATCH", body: JSON.stringify(body),
+    });
+  }
+  platformDeleteWorkspace(id: string) {
+    return this.request<{ id: string }>(`/platform/workspaces/${id}`, { method: "DELETE" });
+  }
+  platformListMembers(id: string) {
+    return this.request<Array<{ id: string; role: string; user: { id: string; email: string; name: string | null } }>>(
+      `/platform/workspaces/${id}/members`, { method: "GET" },
+    );
+  }
+  platformAddMember(id: string, body: {
+    role: string;
+    user: { mode: "existing"; email: string } | { mode: "new"; email: string; name: string };
+  }) {
+    return this.request<{ id: string; tempPassword?: string }>(`/platform/workspaces/${id}/members`, {
+      method: "POST", body: JSON.stringify(body),
+    });
+  }
+  platformChangeMemberRole(memberId: string, role: string) {
+    return this.request<{ id: string }>(`/platform/members/${memberId}`, {
+      method: "PATCH", body: JSON.stringify({ role }),
+    });
   }
 
   resendVerificationEmail(email: string) {

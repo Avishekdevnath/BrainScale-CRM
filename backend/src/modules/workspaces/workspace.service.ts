@@ -17,6 +17,38 @@ import {
 import * as auditLogService from '../audit-logs/audit-log.service';
 import { seedWorkspaceSystemRoles } from '../roles/role.service';
 
+/**
+ * Core workspace creation: creates the workspace + owner membership + seeds
+ * system roles and binds the owner to the Owner role. Unlike `createWorkspace`,
+ * this does NOT enforce the one-workspace-per-admin rule and does NOT mint
+ * caller tokens — it assigns an arbitrary `ownerUserId`. Used by both the signup
+ * wrapper (`createWorkspace`) and the platform console.
+ */
+export const createWorkspaceWithOwner = async (params: {
+  ownerUserId: string;
+  data: { name: string; plan?: string; timezone?: string; logo?: string | null };
+  callSystemV2?: boolean;
+}): Promise<{ id: string; name: string }> => {
+  const { ownerUserId, data, callSystemV2 } = params;
+
+  const workspace = await prisma.workspace.create({
+    data: {
+      ...data,
+      ...(callSystemV2 !== undefined ? { callSystemV2 } : {}),
+      members: { create: { userId: ownerUserId, role: 'ADMIN' } },
+    },
+    include: { members: true },
+  });
+
+  const { ownerRole } = await seedWorkspaceSystemRoles(workspace.id);
+  await prisma.workspaceMember.update({
+    where: { id: workspace.members[0].id },
+    data: { customRoleId: ownerRole.id },
+  });
+
+  return { id: workspace.id, name: workspace.name };
+};
+
 export const createWorkspace = async (userId: string, data: CreateWorkspaceInput) => {
   // Current constraint: one admin can have only one workspace.
   // Block creating another workspace if the user is already an ADMIN in any workspace.
@@ -55,17 +87,12 @@ export const createWorkspace = async (userId: string, data: CreateWorkspaceInput
     }
   }
 
-  // Create workspace and add user as admin
-  const workspace = await prisma.workspace.create({
-    data: {
-      ...data,
-      members: {
-        create: {
-          userId,
-          role: 'ADMIN',
-        },
-      },
-    },
+  // Create workspace + owner membership + system roles via the shared core.
+  const created = await createWorkspaceWithOwner({ ownerUserId: userId, data });
+
+  // Re-read with the member/user shape this signup endpoint returns.
+  const workspace = await prisma.workspace.findUniqueOrThrow({
+    where: { id: created.id },
     include: {
       members: {
         include: {
@@ -79,13 +106,6 @@ export const createWorkspace = async (userId: string, data: CreateWorkspaceInput
         },
       },
     },
-  });
-
-  // Seed system roles (Owner/Admin/Member) and assign creator to Owner
-  const { ownerRole } = await seedWorkspaceSystemRoles(workspace.id);
-  await prisma.workspaceMember.update({
-    where: { id: workspace.members[0].id },
-    data: { customRoleId: ownerRole.id } as any,
   });
 
   // Generate new access token with the new workspace ID

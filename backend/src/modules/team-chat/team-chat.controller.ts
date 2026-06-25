@@ -235,7 +235,7 @@ export async function handleSendDirectMessage(req: Request, res: Response, next:
 
     const workspaceId = (req as any).user?.workspaceId;
     const validatedInput = sendDirectMessageSchema.parse(req.body);
-    const dm = await sendDirectMessage(userId, validatedInput, workspaceId);
+    const dm = await sendDirectMessage(userId, workspaceId, validatedInput);
 
     return res.status(201).json(dm);
   } catch (error) {

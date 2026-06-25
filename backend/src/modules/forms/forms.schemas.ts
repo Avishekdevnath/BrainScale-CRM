@@ -32,7 +32,7 @@ const tiptapNodeSchema: z.ZodType<any> = z.lazy(() =>
 const tiptapContentSchema = z.object({
   type: z.literal('doc').optional(),
   content: z.array(tiptapNodeSchema).optional(),
-});
+}).strict();
 
 const FormStatusEnum = z.enum(['draft', 'published', 'archived']);
 const FormTypeEnum = z.enum(['general', 'survey', 'quiz', 'attendance']);

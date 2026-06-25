@@ -301,6 +301,7 @@ app.get('/api/v1', healthCheckLimiter, async (req, res) => {
 
 // Module routers
 import authRouter from './modules/auth/auth.router';
+import platformRouter from './modules/platform/platform.router';
 import workspaceRouter from './modules/workspaces/workspace.router';
 import invitationRouter, { publicInvitationRouter } from './modules/invitations/invitation.router';
 import formsRouter, { publicFormsRouter } from './modules/forms/forms.router';
@@ -377,6 +378,7 @@ app.use('/api/v1/tasks', taskRouter); // Tasks routes
 app.use('/api/v1/schedule', scheduleRouter); // Weekly schedule + exceptions routes
 app.use('/api/v1/audit-logs', auditLogRouter); // Audit logs routes
 app.use('/api/v1/team-chat', teamChatRouter); // Team Chat routes
+app.use('/api/v1/platform', platformRouter); // Platform super-admin routes
 
 // 404 handler
 app.use((req, res) => {

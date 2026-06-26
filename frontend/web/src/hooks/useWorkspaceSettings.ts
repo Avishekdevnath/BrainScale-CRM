@@ -14,6 +14,8 @@ export interface WorkspaceSettings {
   timezone: string;
   aiFeaturesEnabled: boolean;
   aiFeatures: string[] | null;
+  tasksEnabled: boolean;
+  revenueEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

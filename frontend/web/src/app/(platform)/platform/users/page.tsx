@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Loader2, Search, Copy, KeyRound, ShieldCheck, Shield } from "lucide-react";
 import { usePlatformUsers } from "@/hooks/usePlatform";
 import { apiClient } from "@/lib/api-client";
@@ -11,12 +12,21 @@ export default function PlatformUsersPage() {
   const { data, isLoading, error, mutate } = usePlatformUsers({ q: q || undefined, size: 100 });
   const [busy, setBusy] = useState<string | null>(null);
   const [tempPw, setTempPw] = useState<{ email: string; pw: string } | null>(null);
+  // Confirmation gate for the high-privilege super-admin toggle.
+  const [saConfirm, setSaConfirm] = useState<{ id: string; email: string; next: boolean } | null>(null);
+  const [saConfirmText, setSaConfirmText] = useState("");
 
-  const toggleSuperAdmin = async (id: string, next: boolean) => {
+  const confirmSuperAdmin = async () => {
+    if (!saConfirm) return;
+    // Granting requires typing the exact email to prevent accidental clicks.
+    if (saConfirm.next && saConfirmText.trim() !== saConfirm.email) return;
+    const { id, next } = saConfirm;
     setBusy(id);
     try {
       await apiClient.platformSetSuperAdmin(id, next);
       toast.success(next ? "Granted super-admin" : "Revoked super-admin");
+      setSaConfirm(null);
+      setSaConfirmText("");
       mutate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -112,7 +122,7 @@ export default function PlatformUsersPage() {
                       <button
                         type="button"
                         disabled={busy === u.id}
-                        onClick={() => toggleSuperAdmin(u.id, !u.isSuperAdmin)}
+                        onClick={() => { setSaConfirmText(""); setSaConfirm({ id: u.id, email: u.email, next: !u.isSuperAdmin }); }}
                         className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs border ${
                           u.isSuperAdmin
                             ? "border-[var(--groups1-primary)] text-[var(--groups1-primary)] bg-[var(--groups1-primary)]/10"
@@ -129,6 +139,12 @@ export default function PlatformUsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                      <Link
+                        href={`/platform/users/${u.id}`}
+                        className="text-xs text-[var(--groups1-primary)] hover:underline border border-[var(--groups1-border)] rounded-lg px-2 py-1"
+                      >
+                        Manage
+                      </Link>
                       <button
                         type="button"
                         disabled={busy === u.id}
@@ -151,6 +167,61 @@ export default function PlatformUsersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Super-admin confirmation gate */}
+      {saConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaConfirm(null)}>
+          <div
+            className="w-full max-w-md rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[var(--groups1-primary)]" />
+              <h2 className="text-sm font-bold text-[var(--groups1-text)]">
+                {saConfirm.next ? "Grant super-admin?" : "Revoke super-admin?"}
+              </h2>
+            </div>
+            {saConfirm.next ? (
+              <>
+                <p className="text-sm text-[var(--groups1-text-secondary)]">
+                  This gives <strong className="text-[var(--groups1-text)]">{saConfirm.email}</strong> full control over
+                  <strong className="text-[var(--groups1-text)]"> every workspace</strong> on the platform — all data,
+                  all users. Type the email to confirm.
+                </p>
+                <input
+                  value={saConfirmText}
+                  onChange={(e) => setSaConfirmText(e.target.value)}
+                  placeholder={saConfirm.email}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-sm text-[var(--groups1-text)] outline-none"
+                />
+              </>
+            ) : (
+              <p className="text-sm text-[var(--groups1-text-secondary)]">
+                Remove platform super-admin access from <strong className="text-[var(--groups1-text)]">{saConfirm.email}</strong>?
+              </p>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setSaConfirm(null)}
+                className="text-sm text-[var(--groups1-text-secondary)] px-3 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy === saConfirm.id || (saConfirm.next && saConfirmText.trim() !== saConfirm.email)}
+                onClick={confirmSuperAdmin}
+                className={`text-sm font-semibold px-3 py-2 rounded-lg text-white disabled:opacity-50 ${
+                  saConfirm.next ? "bg-[var(--groups1-primary)]" : "bg-red-500"
+                }`}
+              >
+                {busy === saConfirm.id ? "Working…" : saConfirm.next ? "Grant access" : "Revoke"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

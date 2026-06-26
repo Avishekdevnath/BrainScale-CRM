@@ -23,6 +23,7 @@ export function PublicNavbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const accessToken = useAuthStore((state) => state.accessToken);
+  const isSuperAdmin = useAuthStore((state) => state.user?.isSuperAdmin ?? false);
   const currentWorkspaceId = useWorkspaceStore((state) => state.getCurrentId());
 
   useEffect(() => {
@@ -34,6 +35,10 @@ export function PublicNavbar() {
 
   const isLoggedIn = mounted && !!accessToken;
   const hasWorkspace = mounted && !!currentWorkspaceId;
+  // Where a logged-in user should land. Super-admins go to the platform console;
+  // others to their workspace dashboard, or workspace creation if they have none.
+  const primaryHref = isSuperAdmin ? "/platform" : hasWorkspace ? "/app" : "/create-workspace";
+  const primaryLabel = isSuperAdmin ? "Platform" : hasWorkspace ? "Dashboard" : "Create workspace";
 
   return (
     <header
@@ -76,13 +81,13 @@ export function PublicNavbar() {
           <ThemeToggle />
           {isLoggedIn ? (
             <>
-              <Link href={hasWorkspace ? "/app" : "/create-workspace"}>
+              <Link href={primaryHref}>
                 <Button
                   size="sm"
                   variant="outline"
                   className="border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
                 >
-                  {hasWorkspace ? "Dashboard" : "Create workspace"}
+                  {primaryLabel}
                 </Button>
               </Link>
               <UserMenu />
@@ -135,13 +140,13 @@ export function PublicNavbar() {
           ))}
           <div className="pt-3 border-t border-[var(--groups1-border)] flex flex-col gap-2">
             {isLoggedIn ? (
-              <Link href={hasWorkspace ? "/app" : "/create-workspace"} onClick={() => setIsMobileMenuOpen(false)}>
+              <Link href={primaryHref} onClick={() => setIsMobileMenuOpen(false)}>
                 <Button
                   size="sm"
                   variant="outline"
                   className="w-full border-[var(--groups1-border)] text-[var(--groups1-text)]"
                 >
-                  {hasWorkspace ? "Dashboard" : "Create workspace"}
+                  {primaryLabel}
                 </Button>
               </Link>
             ) : (

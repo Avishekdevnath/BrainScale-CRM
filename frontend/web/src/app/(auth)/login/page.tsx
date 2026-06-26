@@ -49,12 +49,13 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const res = await apiClient.login(values);
-      let user: { id: string; name: string | null; email: string } | undefined;
+      let user: { id: string; name: string | null; email: string; isSuperAdmin?: boolean } | undefined;
       if (res.user) {
         user = {
           id: res.user.id || "",
           name: res.user.name || null,
           email: res.user.email || values.email,
+          isSuperAdmin: (res.user as { isSuperAdmin?: boolean }).isSuperAdmin ?? false,
         };
       } else {
         user = { id: "", name: null, email: values.email };

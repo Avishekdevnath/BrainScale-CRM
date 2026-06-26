@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLogout } from "@/hooks/useLogout";
 import { useAuthStore, getUserInitials } from "@/store/auth";
@@ -14,6 +14,7 @@ export function UserMenu() {
   const logout = useLogout();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const isSuperAdmin = user?.isSuperAdmin ?? false;
 
   React.useEffect(() => {
     setMounted(true);
@@ -62,6 +63,21 @@ export function UserMenu() {
             )}
           </div>
           <DropdownMenu.Separator className="h-px bg-[var(--groups1-border)] my-1" />
+          {isSuperAdmin && (
+            <DropdownMenu.Item
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 text-sm text-[var(--groups1-primary)] font-medium rounded-md cursor-pointer",
+                "hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)] outline-none"
+              )}
+              onSelect={(event) => {
+                event.preventDefault();
+                router.push("/platform");
+              }}
+            >
+              <Shield className="w-4 h-4" />
+              Platform Console
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Item
             className={cn(
               "flex items-center gap-2 px-3 py-2 text-sm text-[var(--groups1-text)] rounded-md cursor-pointer",

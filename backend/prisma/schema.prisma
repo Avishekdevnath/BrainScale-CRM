@@ -55,6 +55,8 @@ model User {
   dmTypingStatuses        TypingStatus[]      @relation("DMTypingWith")
   questionPresets         QuestionPreset[]
   platformAuditLogs       PlatformAuditLog[]  @relation("PlatformAuditActor")
+  feedback                Feedback[]          @relation("UserFeedback")
+  feedbackReplies         Feedback[]          @relation("FeedbackReplies")
 }
 
 model Workspace {
@@ -74,6 +76,8 @@ model Workspace {
   aiFeatures               Json? // Array of enabled AI features: ["summary", "sentiment"]
   scheduleTaskSyncEnabled  Boolean  @default(false)  // Enable/disable auto task creation from schedule
   callSystemV2             Boolean  @default(false)  // Call-management version flag (per-workspace)
+  tasksEnabled             Boolean  @default(true)   // Per-workspace Tasks feature flag
+  revenueEnabled           Boolean  @default(true)   // Per-workspace Revenue feature flag
   deletedAt                DateTime?                  // Soft delete; null = active
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -589,6 +593,13 @@ model PlatformAuditLog {
   createdAt   DateTime @default(now())
 
   actor User @relation("PlatformAuditActor", fields: [actorUserId], references: [id])
+}
+
+// Singleton document (id = "global") holding platform-wide feature flags.
+model PlatformSettings {
+  id        String   @id @default("global") @map("_id")
+  features  Json?    // { ai: true, tasks: false, ... } — missing key/null => enabled (opt-out)
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================
@@ -1165,4 +1176,24 @@ model CallStatusOption {
 
   @@unique([workspaceId, value])
   @@index([workspaceId, order])
+}
+
+model Feedback {
+  id              String    @id @default(cuid()) @map("_id")
+  userId          String
+  workspaceId     String?   // nullable — used only for notification scoping
+  message         String
+  type            String    @default("OTHER") // BUG | ISSUE | SUGGESTION | OTHER
+  status          String    @default("OPEN")  // OPEN | RESOLVED
+  reply           String?
+  repliedByUserId String?
+  repliedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User  @relation("UserFeedback", fields: [userId], references: [id], onDelete: Cascade)
+  repliedBy User? @relation("FeedbackReplies", fields: [repliedByUserId], references: [id])
+
+  @@index([userId])
+  @@index([status, createdAt])
 }

@@ -11,7 +11,11 @@ import {
   UpdateWorkspaceBodyInput,
   AddMemberBodyInput,
   ListUsersQueryInput,
+  ListAuditQueryInput,
+  UpdateUserBodyInput,
+  ListFeedbackQueryInput,
 } from './platform.schemas';
+import { createNotification } from '../notifications/notification.service';
 
 // "Not soft-deleted" — must match both an explicit null AND an unset field,
 // because documents created before `deletedAt` existed (or created without it)
@@ -126,9 +130,13 @@ export const getWorkspace = async (id: string) => {
       name: true,
       plan: true,
       callSystemV2: true,
+      aiFeaturesEnabled: true,
+      tasksEnabled: true,
+      revenueEnabled: true,
       timezone: true,
       deletedAt: true,
-      _count: { select: { members: true, students: true } },
+      createdAt: true,
+      _count: { select: { members: true, students: true, callLists: true, callLogs: true, calls: true } },
       members: {
         select: {
           id: true,
@@ -140,7 +148,14 @@ export const getWorkspace = async (id: string) => {
   });
   if (!ws || ws.deletedAt) throw new AppError(404, 'Workspace not found');
   const { deletedAt, _count, ...rest } = ws as any;
-  return { ...rest, memberCount: _count.members, studentCount: _count.students };
+  return {
+    ...rest,
+    memberCount: _count.members,
+    studentCount: _count.students,
+    callListCount: _count.callLists,
+    callLogCount: _count.callLogs,
+    callCount: _count.calls,
+  };
 };
 
 export const updateWorkspace = async (
@@ -158,6 +173,9 @@ export const updateWorkspace = async (
   if (body.name !== undefined) data.name = body.name;
   if (body.plan !== undefined) data.plan = body.plan;
   if (body.callSystemV2 !== undefined) data.callSystemV2 = body.callSystemV2;
+  if (body.aiFeaturesEnabled !== undefined) data.aiFeaturesEnabled = body.aiFeaturesEnabled;
+  if (body.tasksEnabled !== undefined) data.tasksEnabled = body.tasksEnabled;
+  if (body.revenueEnabled !== undefined) data.revenueEnabled = body.revenueEnabled;
 
   await prisma.workspace.update({ where: { id }, data });
   await writePlatformAudit(prisma, {
@@ -409,4 +427,215 @@ export const resetUserPassword = async (
   ).catch(() => {});
 
   return { id: targetUserId, tempPassword };
+};
+
+// ---- Audit log + soft-delete restore ----
+
+export const listAudit = async (q: ListAuditQueryInput) => {
+  const where: any = {};
+  if (q.action) where.action = q.action;
+  if (q.targetType) where.targetType = q.targetType;
+
+  const [rows, total] = await Promise.all([
+    prisma.platformAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (q.page - 1) * q.size,
+      take: q.size,
+      include: { actor: { select: { id: true, email: true, name: true } } },
+    }),
+    prisma.platformAuditLog.count({ where }),
+  ]);
+
+  return {
+    items: rows.map((r: any) => ({
+      id: r.id,
+      action: r.action,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      metadata: r.metadata,
+      createdAt: r.createdAt,
+      actor: r.actor ? { id: r.actor.id, email: r.actor.email, name: r.actor.name } : null,
+    })),
+    page: q.page,
+    size: q.size,
+    total,
+  };
+};
+
+export const listDeletedWorkspaces = async () => {
+  const rows = await prisma.workspace.findMany({
+    where: { deletedAt: { isSet: true, not: null } },
+    orderBy: { deletedAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      plan: true,
+      deletedAt: true,
+      _count: { select: { members: true, students: true } },
+    },
+  });
+  return rows.map((w: any) => ({
+    id: w.id,
+    name: w.name,
+    plan: w.plan,
+    deletedAt: w.deletedAt,
+    memberCount: w._count.members,
+    studentCount: w._count.students,
+  }));
+};
+
+export const restoreWorkspace = async (actorUserId: string, id: string) => {
+  const ws = await prisma.workspace.findUnique({ where: { id }, select: { id: true, deletedAt: true } });
+  if (!ws) throw new AppError(404, 'Workspace not found');
+  if (!ws.deletedAt) throw new AppError(409, 'Workspace is not deleted');
+  await prisma.workspace.update({ where: { id }, data: { deletedAt: null } });
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'workspace.restore',
+    targetType: 'workspace',
+    targetId: id,
+  });
+  return { id };
+};
+
+// ---- User details + feedback admin ----
+
+export const getUser = async (id: string) => {
+  const u = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true, email: true, name: true, isSuperAdmin: true,
+      disabledAt: true, mustChangePassword: true, createdAt: true,
+      memberships: {
+        select: { role: true, workspace: { select: { id: true, name: true, plan: true } } },
+      },
+      feedback: {
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, type: true, status: true, message: true, reply: true, repliedAt: true, createdAt: true },
+      },
+    },
+  });
+  if (!u) throw new AppError(404, 'User not found');
+
+  const workspaces = (u as any).memberships.map((m: any) => ({
+    id: m.workspace.id, name: m.workspace.name, role: m.role, plan: m.workspace.plan,
+  }));
+  const feedback = (u as any).feedback;
+
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    isSuperAdmin: u.isSuperAdmin,
+    disabledAt: u.disabledAt ?? null,
+    createdAt: u.createdAt,
+    workspaces,
+    feedback,
+    health: {
+      isDeactivated: !!u.disabledAt,
+      isPendingSetup: !!(u as any).mustChangePassword,
+      noWorkspace: workspaces.length === 0,
+      hasOpenFeedback: feedback.some((f: any) => f.status === 'OPEN'),
+    },
+  };
+};
+
+export const updateUser = async (actorUserId: string, id: string, body: UpdateUserBodyInput) => {
+  const before = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
+  if (!before) throw new AppError(404, 'User not found');
+  await prisma.user.update({ where: { id }, data: { name: body.name } });
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'user.update',
+    targetType: 'user',
+    targetId: id,
+    metadata: { before: { name: before.name }, after: { name: body.name } },
+  });
+  return { id };
+};
+
+export const listFeedback = async (q: ListFeedbackQueryInput) => {
+  const where: any = {};
+  if (q.status) where.status = q.status;
+
+  const [rows, total] = await Promise.all([
+    prisma.feedback.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (q.page - 1) * q.size,
+      take: q.size,
+      select: {
+        id: true, type: true, status: true, message: true, reply: true, repliedAt: true, createdAt: true,
+        user: { select: { id: true, email: true, name: true } },
+      },
+    }),
+    prisma.feedback.count({ where }),
+  ]);
+
+  return { items: rows, page: q.page, size: q.size, total };
+};
+
+export const replyFeedback = async (actorUserId: string, id: string, reply: string) => {
+  const fb = await prisma.feedback.findUnique({
+    where: { id },
+    select: { id: true, userId: true, workspaceId: true, status: true },
+  });
+  if (!fb) throw new AppError(404, 'Feedback not found');
+
+  await prisma.feedback.update({
+    where: { id },
+    data: { reply, status: 'RESOLVED', repliedByUserId: actorUserId, repliedAt: new Date() },
+  });
+
+  // Notifications are workspace-scoped. Prefer the workspace the feedback was
+  // submitted from; otherwise fall back to any workspace the user belongs to so
+  // the reply still surfaces in their notification list. If the user has no
+  // workspace at all, there is nowhere to deliver it — they read it in Settings.
+  let notifyWorkspaceId = fb.workspaceId;
+  if (!notifyWorkspaceId) {
+    const membership = await prisma.workspaceMember.findFirst({
+      where: { userId: fb.userId },
+      select: { workspaceId: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    notifyWorkspaceId = membership?.workspaceId ?? null;
+  }
+
+  if (notifyWorkspaceId) {
+    await createNotification({
+      workspaceId: notifyWorkspaceId,
+      userId: fb.userId,
+      type: 'FEEDBACK_REPLY',
+      title: 'Super Admin replied to your feedback',
+      body: reply.slice(0, 120),
+      meta: { entityId: fb.id, entityType: 'feedback' },
+    });
+  }
+
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'feedback.reply',
+    targetType: 'feedback',
+    targetId: id,
+  });
+  return { id };
+};
+
+export const setFeedbackStatus = async (
+  actorUserId: string,
+  id: string,
+  status: 'OPEN' | 'RESOLVED',
+) => {
+  const fb = await prisma.feedback.findUnique({ where: { id }, select: { id: true } });
+  if (!fb) throw new AppError(404, 'Feedback not found');
+  await prisma.feedback.update({ where: { id }, data: { status } });
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'feedback.status',
+    targetType: 'feedback',
+    targetId: id,
+    metadata: { status },
+  });
+  return { id };
 };

@@ -41,6 +41,8 @@ export const NOTIFICATION_REGISTRY: NotificationRegistryEntry[] = [
   { type: 'TASK_CANCELLED',          prefKey: 'taskUpdated',           defaultEnabled: true  },
   // ─── Forms ───────────────────────────────────────────────────────────────
   { type: 'FORM_RESPONSE_RECEIVED',  prefKey: 'formResponseReceived',  defaultEnabled: true  },
+  // ─── Feedback ─────────────────────────────────────────────────────────────
+  { type: 'FEEDBACK_REPLY',          prefKey: null,                    defaultEnabled: true  },
 ];
 
 /** Fast O(1) lookup by type string. */

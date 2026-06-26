@@ -41,3 +41,27 @@ export const setUserStatus = async (req: AuthRequest, res: Response, next: NextF
 export const resetUserPassword = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try { res.json(await svc.resetUserPassword(req.user!.sub, req.params.id)); } catch (e) { next(e); }
 };
+export const listAudit = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.listAudit(req.validatedData)); } catch (e) { next(e); }
+};
+export const listDeletedWorkspaces = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.listDeletedWorkspaces()); } catch (e) { next(e); }
+};
+export const restoreWorkspace = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.restoreWorkspace(req.user!.sub, req.params.id)); } catch (e) { next(e); }
+};
+export const getUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.getUser(req.params.id)); } catch (e) { next(e); }
+};
+export const updateUser = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.updateUser(req.user!.sub, req.params.id, req.validatedData)); } catch (e) { next(e); }
+};
+export const listFeedback = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.listFeedback(req.validatedData)); } catch (e) { next(e); }
+};
+export const replyFeedback = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.replyFeedback(req.user!.sub, req.params.id, req.validatedData.reply)); } catch (e) { next(e); }
+};
+export const setFeedbackStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.setFeedbackStatus(req.user!.sub, req.params.id, req.validatedData.status)); } catch (e) { next(e); }
+};

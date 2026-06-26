@@ -3,6 +3,7 @@ import { env } from '../../config/env';
 import { logger } from '../../config/logger';
 import { generateCallLogSummary } from './features/summary.service';
 import { analyzeCallLogSentiment, SentimentResult } from './features/sentiment.service';
+import { getPlatformFeatures } from '../platform/platform-features.service';
 
 /**
  * Check if a specific AI feature is enabled for a workspace
@@ -13,6 +14,12 @@ export const isFeatureEnabled = async (
 ): Promise<boolean> => {
   // Check global AI enabled flag
   if (!env.AI_ENABLED) {
+    return false;
+  }
+
+  // Platform-global AI kill switch
+  const platform = await getPlatformFeatures();
+  if (platform.ai === false) {
     return false;
   }
 

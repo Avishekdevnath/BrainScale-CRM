@@ -22,6 +22,9 @@ export const UpdateWorkspaceSchema = z.object({
   aiFeatures: z.array(z.string()).optional(), // Array of enabled AI features: ["summary", "sentiment", "chat"]
   // Schedule task sync
   scheduleTaskSyncEnabled: z.boolean().optional(),
+  // Feature flags (per-workspace)
+  tasksEnabled: z.boolean().optional(),
+  revenueEnabled: z.boolean().optional(),
 });
 
 export const InviteMemberSchema = z.object({

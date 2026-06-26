@@ -14,7 +14,9 @@ export type NotificationType =
   | 'TASK_COMPLETED'
   | 'TASK_CANCELLED'
   // Forms
-  | 'FORM_RESPONSE_RECEIVED';
+  | 'FORM_RESPONSE_RECEIVED'
+  // Feedback
+  | 'FEEDBACK_REPLY';
 
 export interface NotificationMeta {
   entityId?: string;

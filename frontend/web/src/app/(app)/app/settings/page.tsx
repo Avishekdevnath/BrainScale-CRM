@@ -12,12 +12,14 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { Lock, User, Mail, Bot, Loader2, Download, Trash2, Pencil, X, Check } from "lucide-react";
+import { Lock, User, Mail, Bot, Loader2, Download, Trash2, Pencil, X, Check, MessageSquare, Send } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
+import { useMyFeedback } from "@/hooks/useFeedback";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 export default function SettingsPage() {
   usePageTitle("Settings");
@@ -39,6 +41,34 @@ export default function SettingsPage() {
   const [editingField, setEditingField] = React.useState<"name" | "email" | null>(null);
   const [editValue, setEditValue] = React.useState("");
   const [isSavingProfile, setIsSavingProfile] = React.useState(false);
+
+  // Platform feature availability (platform OFF beats workspace)
+  const aiFeature = useFeature("ai");
+  const tasksFeature = useFeature("tasks");
+  const revenueFeature = useFeature("revenue");
+
+  // Feedback form state
+  const [fbMessage, setFbMessage] = React.useState("");
+  const [fbType, setFbType] = React.useState<"BUG" | "ISSUE" | "SUGGESTION" | "OTHER">("OTHER");
+  const [fbSubmitting, setFbSubmitting] = React.useState(false);
+  const { data: myFeedback, mutate: mutateFeedback } = useMyFeedback();
+
+  const submitFeedback = async () => {
+    const msg = fbMessage.trim();
+    if (msg.length < 10) { toast.error("Message must be at least 10 characters"); return; }
+    setFbSubmitting(true);
+    try {
+      await apiClient.submitFeedback({ message: msg, type: fbType });
+      toast.success("Feedback submitted — thank you!");
+      setFbMessage("");
+      setFbType("OTHER");
+      mutateFeedback();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to submit feedback");
+    } finally {
+      setFbSubmitting(false);
+    }
+  };
 
   // Fetch fresh user data from server
   const { data: serverUser, mutate: mutateUser } = useSWR(
@@ -237,6 +267,118 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Feedback */}
+      <Card variant="groups1" className="gap-1">
+        <CardHeader className="gap-1 pb-1 pt-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
+            <CardTitle>Feedback</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent variant="groups1" className="space-y-4 pt-1">
+          {/* Submit form */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              {(["BUG", "ISSUE", "SUGGESTION", "OTHER"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setFbType(t)}
+                  className={`text-xs px-2.5 py-1 rounded-lg border ${
+                    fbType === t
+                      ? "border-[var(--groups1-primary)] bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)]"
+                      : "border-[var(--groups1-border)] text-[var(--groups1-text-secondary)]"
+                  }`}
+                >
+                  {t.charAt(0) + t.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={fbMessage}
+              onChange={(e) => setFbMessage(e.target.value)}
+              rows={3}
+              placeholder="Describe a bug, issue, or suggestion (min 10 characters)…"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-sm text-[var(--groups1-text)] outline-none resize-none focus:ring-2 focus:ring-[var(--groups1-primary)]"
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={fbSubmitting || fbMessage.trim().length < 10}
+                onClick={submitFeedback}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {fbSubmitting ? "Sending…" : "Submit"}
+              </button>
+            </div>
+          </div>
+
+          {/* History */}
+          {myFeedback && myFeedback.length > 0 && (
+            <div className="space-y-3 border-t border-[var(--groups1-card-border-inner)] pt-3">
+              <p className="text-xs font-medium text-[var(--groups1-text-secondary)]">Your submissions</p>
+              {myFeedback.map((f) => (
+                <div key={f.id} className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs text-[var(--groups1-text-secondary)]">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg border border-[var(--groups1-border)]">{f.type}</span>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-lg border ${
+                        f.status === "OPEN"
+                          ? "border-blue-500/40 text-blue-500"
+                          : "border-emerald-500/40 text-emerald-600"
+                      }`}
+                    >
+                      {f.status === "OPEN" ? "Open" : "Resolved"}
+                    </span>
+                    <span>{new Date(f.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-sm text-[var(--groups1-text)]">{f.message}</p>
+                  {f.reply && (
+                    <div className="ml-3 pl-3 border-l-2 border-[var(--groups1-primary)]/40 space-y-0.5">
+                      <p className="text-xs text-[var(--groups1-text-secondary)]">
+                        Reply from BrainScale{f.repliedAt ? ` · ${new Date(f.repliedAt).toLocaleDateString()}` : ""}
+                      </p>
+                      <p className="text-sm text-[var(--groups1-text)]">{f.reply}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modules (Admin Only) — Tasks & Revenue feature toggles */}
+      {isAdmin && (
+        <Card variant="groups1" className="gap-1">
+          <CardHeader className="gap-1 pb-1 pt-2">
+            <CardTitle>Modules</CardTitle>
+          </CardHeader>
+          <CardContent variant="groups1" className="space-y-3 pt-1">
+            {([
+              ["tasks", "Tasks", tasksFeature, settings?.tasksEnabled] as const,
+              ["revenue", "Revenue Tracking", revenueFeature, settings?.revenueEnabled] as const,
+            ]).map(([key, label, feat, value]) => (
+              <div key={key} className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-[var(--groups1-text)]">{label}</Label>
+                {feat.disabledBy === "platform" ? (
+                  <span className="text-xs px-2 py-0.5 rounded-lg border border-red-500/40 text-red-500">
+                    Disabled by platform
+                  </span>
+                ) : (
+                  <Switch
+                    checked={value ?? true}
+                    disabled={isUpdating}
+                    onCheckedChange={(checked) => updateSettings({ [key + "Enabled"]: checked } as any)}
+                  />
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* AI Features (Admin Only) */}
       {isAdmin && (
         <Card variant="groups1" className="gap-1">
@@ -263,12 +405,18 @@ export default function SettingsPage() {
                       Master switch to enable or disable all AI features for this workspace
                     </p>
                   </div>
-                  <Switch
-                    id="ai-features-enabled"
-                    checked={settings?.aiFeaturesEnabled ?? false}
-                    onCheckedChange={handleAIFeaturesToggle}
-                    disabled={isUpdating}
-                  />
+                  {aiFeature.disabledBy === "platform" ? (
+                    <span className="text-xs px-2 py-0.5 rounded-lg border border-red-500/40 text-red-500">
+                      Disabled by platform
+                    </span>
+                  ) : (
+                    <Switch
+                      id="ai-features-enabled"
+                      checked={settings?.aiFeaturesEnabled ?? false}
+                      onCheckedChange={handleAIFeaturesToggle}
+                      disabled={isUpdating}
+                    />
+                  )}
                 </div>
 
                 {/* Individual AI Features */}

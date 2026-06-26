@@ -22,6 +22,9 @@ export const UpdateWorkspaceBody = z.object({
   name: z.string().min(2).optional(),
   plan: z.string().optional(),
   callSystemV2: z.boolean().optional(),
+  aiFeaturesEnabled: z.boolean().optional(),
+  tasksEnabled: z.boolean().optional(),
+  revenueEnabled: z.boolean().optional(),
 });
 
 export const AddMemberBody = z.object({
@@ -43,6 +46,25 @@ export const SetSuperAdminBody = z.object({ isSuperAdmin: z.boolean() });
 
 export const SetUserStatusBody = z.object({ active: z.boolean() });
 
+export const ListAuditQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(50),
+  action: z.string().optional(),
+  targetType: z.string().optional(),
+});
+
+export const UpdateUserBody = z.object({ name: z.string().min(1).max(100) });
+
+export const ListFeedbackQuery = z.object({
+  status: z.enum(['OPEN', 'RESOLVED']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const ReplyFeedbackBody = z.object({ reply: z.string().min(1).max(2000) });
+
+export const SetFeedbackStatusBody = z.object({ status: z.enum(['OPEN', 'RESOLVED']) });
+
 export type ListWorkspacesQueryInput = z.infer<typeof ListWorkspacesQuery>;
 export type CreateWorkspaceBodyInput = z.infer<typeof CreateWorkspaceBody>;
 export type UpdateWorkspaceBodyInput = z.infer<typeof UpdateWorkspaceBody>;
@@ -51,3 +73,8 @@ export type ChangeMemberRoleBodyInput = z.infer<typeof ChangeMemberRoleBody>;
 export type ListUsersQueryInput = z.infer<typeof ListUsersQuery>;
 export type SetSuperAdminBodyInput = z.infer<typeof SetSuperAdminBody>;
 export type SetUserStatusBodyInput = z.infer<typeof SetUserStatusBody>;
+export type ListAuditQueryInput = z.infer<typeof ListAuditQuery>;
+export type UpdateUserBodyInput = z.infer<typeof UpdateUserBody>;
+export type ListFeedbackQueryInput = z.infer<typeof ListFeedbackQuery>;
+export type ReplyFeedbackBodyInput = z.infer<typeof ReplyFeedbackBody>;
+export type SetFeedbackStatusBodyInput = z.infer<typeof SetFeedbackStatusBody>;

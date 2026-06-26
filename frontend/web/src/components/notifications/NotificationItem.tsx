@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,12 @@ interface NotificationItemProps {
   compact?: boolean;
 }
 
+/** Deep-link target for a notification, or null if it isn't navigable. */
+function notificationHref(type: string): string | null {
+  if (type === "FEEDBACK_REPLY") return "/app/settings";
+  return null;
+}
+
 export function NotificationItem({
   notification,
   onRead,
@@ -22,6 +29,7 @@ export function NotificationItem({
 }: NotificationItemProps) {
   const config = getNotificationDisplay(notification.type);
   const Icon = config.icon;
+  const href = notificationHref(notification.type);
 
   return (
     <div
@@ -41,22 +49,37 @@ export function NotificationItem({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p
-          className={cn(
-            "text-sm leading-snug text-[var(--groups1-text)]",
-            !notification.isRead && "font-medium"
-          )}
-        >
-          {notification.title}
-        </p>
-        <p className="text-xs text-[var(--groups1-text-secondary)] mt-0.5 leading-snug line-clamp-2">
-          {notification.body}
-        </p>
-        <p className="text-xs text-[var(--groups1-text-secondary)] mt-1 opacity-70">
-          {formatRelativeTime(notification.createdAt)}
-        </p>
-      </div>
+      {(() => {
+        const inner = (
+          <>
+            <p
+              className={cn(
+                "text-sm leading-snug text-[var(--groups1-text)]",
+                !notification.isRead && "font-medium"
+              )}
+            >
+              {notification.title}
+            </p>
+            <p className="text-xs text-[var(--groups1-text-secondary)] mt-0.5 leading-snug line-clamp-2">
+              {notification.body}
+            </p>
+            <p className="text-xs text-[var(--groups1-text-secondary)] mt-1 opacity-70">
+              {formatRelativeTime(notification.createdAt)}
+            </p>
+          </>
+        );
+        return href ? (
+          <Link
+            href={href}
+            onClick={() => { if (!notification.isRead) onRead(notification.id); }}
+            className="flex-1 min-w-0"
+          >
+            {inner}
+          </Link>
+        ) : (
+          <div className="flex-1 min-w-0">{inner}</div>
+        );
+      })()}
 
       {/* Actions (show on hover) */}
       <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

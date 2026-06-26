@@ -6,6 +6,7 @@ import {
   CheckSquare,
   ClipboardList,
   FileText,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import type { NotificationType } from "@/types/notifications.types";
@@ -78,6 +79,12 @@ export const NOTIFICATION_DISPLAY: Record<NotificationType, NotificationDisplayC
   // Forms
   FORM_RESPONSE_RECEIVED: {
     icon: FileText,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+  },
+  // Feedback
+  FEEDBACK_REPLY: {
+    icon: MessageSquare,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
   },

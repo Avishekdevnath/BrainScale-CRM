@@ -89,6 +89,12 @@ function CreateWorkspacePageContent() {
         return;
       }
 
+      // Super-admins don't own workspaces — never force them into creation.
+      if (user?.isSuperAdmin) {
+        router.replace("/platform");
+        return;
+      }
+
       try {
         const workspaces = await apiClient.getWorkspaces();
         if (workspaces && workspaces.length > 0) {
@@ -103,7 +109,7 @@ function CreateWorkspacePageContent() {
     };
 
     checkAuth();
-  }, [accessToken, router]);
+  }, [accessToken, router, user]);
 
   const onSubmit = async (values: CreateWorkspaceFormValues) => {
     const parsedValues = CreateWorkspaceSchema.parse(values);

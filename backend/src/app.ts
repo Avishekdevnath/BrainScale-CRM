@@ -302,6 +302,9 @@ app.get('/api/v1', healthCheckLimiter, async (req, res) => {
 // Module routers
 import authRouter from './modules/auth/auth.router';
 import platformRouter from './modules/platform/platform.router';
+import feedbackRouter from './modules/feedback/feedback.router';
+import { requireFeature } from './middleware/feature-guard';
+import workspacePlatformFeaturesRouter from './modules/workspaces/workspace-platform-features.router';
 import workspaceRouter from './modules/workspaces/workspace.router';
 import invitationRouter, { publicInvitationRouter } from './modules/invitations/invitation.router';
 import formsRouter, { publicFormsRouter } from './modules/forms/forms.router';
@@ -371,14 +374,16 @@ app.use('/api/v1/exports', exportRouter); // Exports routes
 app.use('/api/v1/dashboard', dashboardRouter); // Dashboard routes
 app.use('/api/v1/emails', emailRouter); // Email routes
 app.use('/api/v1/admin/email-queue', emailQueueRouter); // Email queue admin routes
-app.use('/api/v1/revenue', revenueRouter); // Revenue routes
-app.use('/api/v1/ai-chat', aiChatRouter); // AI Chat routes
+app.use('/api/v1/revenue', requireFeature('revenue'), revenueRouter); // Revenue routes
+app.use('/api/v1/ai-chat', requireFeature('ai'), aiChatRouter); // AI Chat routes
 app.use('/api/v1/users', userRouter); // User account routes
-app.use('/api/v1/tasks', taskRouter); // Tasks routes
+app.use('/api/v1/workspace', workspacePlatformFeaturesRouter); // read-only platform flags for app users
+app.use('/api/v1/tasks', requireFeature('tasks'), taskRouter); // Tasks routes
 app.use('/api/v1/schedule', scheduleRouter); // Weekly schedule + exceptions routes
 app.use('/api/v1/audit-logs', auditLogRouter); // Audit logs routes
 app.use('/api/v1/team-chat', teamChatRouter); // Team Chat routes
 app.use('/api/v1/platform', platformRouter); // Platform super-admin routes
+app.use('/api/v1/feedback', feedbackRouter); // User-facing feedback routes
 
 // 404 handler
 app.use((req, res) => {

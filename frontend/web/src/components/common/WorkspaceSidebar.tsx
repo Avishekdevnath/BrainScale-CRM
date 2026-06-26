@@ -42,6 +42,8 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { useMyCallsStats } from "@/hooks/useMyCalls";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useHasPermission } from "@/hooks/useHasPermission";
+import { useFeature } from "@/hooks/usePlatformFeatures";
+import { PlatformFeature } from "@/lib/platform-features";
 
 interface NavItem {
   href: string;
@@ -60,6 +62,8 @@ interface NavSection {
   collapsible?: boolean;
   // Hide entire section unless the current member has this permission (OWNER/ADMIN bypass)
   permission?: string;
+  // Hide entire section when this platform/workspace feature is disabled
+  feature?: PlatformFeature;
 }
 
 export interface WorkspaceSidebarProps {
@@ -112,6 +116,7 @@ const navSections: NavSection[] = [
     icon: CheckSquare,
     collapsible: true,
     permission: "tasks:read",
+    feature: "tasks",
     items: [
       { href: "/app/tasks", label: "Dashboard", icon: LayoutDashboard },
       { href: "/app/schedule", label: "Duty Schedule", icon: CalendarDays },
@@ -227,9 +232,18 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   };
   const hasNavPermission = (perm?: string) => !perm || navPermFlags[perm] === true;
 
-  // Filter sections and items based on admin status + permissions
+  // Feature-gated nav sections (platform OFF or workspace OFF hides them)
+  const tasksFeature = useFeature("tasks");
+  const navFeatureFlags: Record<PlatformFeature, boolean> = {
+    ai: true, // no AI nav section
+    tasks: tasksFeature.enabled,
+    revenue: true, // no revenue nav section
+  };
+  const hasNavFeature = (feature?: PlatformFeature) => !feature || navFeatureFlags[feature] === true;
+
+  // Filter sections and items based on admin status + permissions + feature flags
   const visibleSections = navSections
-    .filter((section) => (!section.adminOnly || isAdmin) && hasNavPermission(section.permission))
+    .filter((section) => (!section.adminOnly || isAdmin) && hasNavPermission(section.permission) && hasNavFeature(section.feature))
     .map((section) => ({
       ...section,
       items: section.items.filter(

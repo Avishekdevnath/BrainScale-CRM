@@ -26,3 +26,26 @@ export function usePlatformUsers(query: Record<string, string | number | undefin
   const key = `platform:users:${JSON.stringify(query)}`;
   return useSWR(key, () => apiClient.platformListUsers(query), { revalidateOnFocus: false });
 }
+
+export function usePlatformAudit(query: Record<string, string | number | undefined>) {
+  const key = `platform:audit:${JSON.stringify(query)}`;
+  return useSWR(key, () => apiClient.platformListAudit(query), { revalidateOnFocus: false });
+}
+
+export function usePlatformDeletedWorkspaces() {
+  return useSWR("platform:deleted-workspaces", () => apiClient.platformListDeletedWorkspaces(), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function usePlatformUser(id: string | null) {
+  return useSWR(id ? `platform:user:${id}` : null, () => apiClient.platformGetUser(id as string), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function usePlatformFeedback(query: Record<string, string | number | undefined>) {
+  const key = `platform:feedback:${JSON.stringify(query)}`;
+  // Revalidate on focus so new submissions appear when the admin returns to the inbox.
+  return useSWR(key, () => apiClient.platformListFeedback(query), { revalidateOnFocus: true });
+}

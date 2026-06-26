@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, ArrowLeft, Trash2, Copy } from "lucide-react";
 import { usePlatformWorkspace } from "@/hooks/usePlatform";
+import { usePlatformFeatures } from "@/hooks/usePlatformFeatures";
+import { PLATFORM_FEATURES, FEATURE_LABEL, WORKSPACE_FIELD } from "@/lib/platform-features";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 
@@ -25,6 +27,20 @@ export default function WorkspaceDetailPage() {
   const [addingMember, setAddingMember] = useState(false);
   const [memberTempPw, setMemberTempPw] = useState<string | null>(null);
 
+  const { data: globalFeatures } = usePlatformFeatures();
+  const globalOn = (f: string) => (globalFeatures ? globalFeatures.features[f] !== false : true);
+
+  const toggleFeature = async (field: string, next: boolean) => {
+    mutate((cur) => (cur ? ({ ...cur, [field]: next } as typeof cur) : cur), { revalidate: false });
+    try {
+      await apiClient.platformUpdateWorkspace(id, { [field]: next });
+      toast.success("Updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+      mutate();
+    }
+  };
+
   const toggleV2 = async (next: boolean) => {
     setSavingV2(true);
     mutate((cur) => (cur ? { ...cur, callSystemV2: next } : cur), { revalidate: false });
@@ -36,6 +52,17 @@ export default function WorkspaceDetailPage() {
       mutate();
     } finally {
       setSavingV2(false);
+    }
+  };
+
+  const savePlan = async (plan: string) => {
+    mutate((cur) => (cur ? { ...cur, plan } : cur), { revalidate: false });
+    try {
+      await apiClient.platformUpdateWorkspace(id, { plan });
+      toast.success("Plan updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+      mutate();
     }
   };
 
@@ -97,12 +124,36 @@ export default function WorkspaceDetailPage() {
       </Link>
       <h1 className="text-xl font-bold text-[var(--groups1-text)]">{data.name}</h1>
 
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { label: "Members", value: data.memberCount },
+          { label: "Students", value: data.studentCount },
+          { label: "Call Lists", value: data.callListCount },
+          { label: "Call Logs", value: data.callLogCount },
+          { label: "Calls", value: data.callCount },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3">
+            <div className="text-xs text-[var(--groups1-text-secondary)]">{s.label}</div>
+            <div className="mt-1 text-xl font-bold text-[var(--groups1-text)]">{s.value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Settings */}
       <div className="rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-4 space-y-3">
         <p className="text-sm font-semibold text-[var(--groups1-text)]">Settings</p>
         <div className="flex items-center justify-between text-sm">
           <span className="text-[var(--groups1-text-secondary)]">Plan</span>
-          <span className="text-[var(--groups1-text)]">{data.plan}</span>
+          <select
+            value={data.plan}
+            onChange={(e) => savePlan(e.target.value)}
+            className="px-2 py-1 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-sm text-[var(--groups1-text)]"
+          >
+            <option value="FREE">FREE</option>
+            <option value="PRO">PRO</option>
+            <option value="BUSINESS">BUSINESS</option>
+          </select>
         </div>
         <label className="flex items-center justify-between text-sm">
           <span className="text-[var(--groups1-text-secondary)]">Call System v2</span>
@@ -121,6 +172,39 @@ export default function WorkspaceDetailPage() {
             />
           </button>
         </label>
+      </div>
+
+      {/* Features */}
+      <div className="rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-4 space-y-3">
+        <p className="text-sm font-semibold text-[var(--groups1-text)]">Features</p>
+        {PLATFORM_FEATURES.map((f) => {
+          const field = WORKSPACE_FIELD[f];
+          const on = (data as any)[field] !== false;
+          return (
+            <div key={f} className="flex items-center justify-between text-sm">
+              <span className="text-[var(--groups1-text-secondary)]">{FEATURE_LABEL[f]}</span>
+              {!globalOn(f) ? (
+                <span className="text-xs px-2 py-0.5 rounded-lg border border-red-500/40 text-red-500">
+                  DISABLED BY PLATFORM
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleFeature(field, !on)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                    on ? "bg-[var(--groups1-primary)]" : "bg-[var(--groups1-border)]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                      on ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Members */}

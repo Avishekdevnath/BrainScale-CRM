@@ -37,6 +37,7 @@ import {
   CalendarDays,
   MessageSquare,
   MessageCircle,
+  BarChart2,
 } from "lucide-react";
 import { useNotificationStore } from "@/store/notifications";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,7 @@ const navSections: NavSection[] = [
       { href: "/app/forms", label: "Forms", icon: ClipboardList, permission: "forms:read", feature: "forms" },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
       { href: "/app/followups", label: "Follow-ups", icon: Clock, feature: "followups" },
+      { href: "/app/engagement-report", label: "Report", icon: BarChart2 },
     ],
   },
 

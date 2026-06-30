@@ -196,6 +196,7 @@ export interface CreateCallListPayload {
   studentsData?: StudentData[];
   groupIds?: string[];
   questions?: Question[];
+  messages?: string[];
   matchBy?: 'email' | 'phone' | 'email_or_phone' | 'name';
   skipDuplicates?: boolean;
   meta?: Record<string, any>;
@@ -205,6 +206,7 @@ export interface UpdateCallListPayload {
   name?: string;
   description?: string;
   questions?: Question[];
+  messages?: string[];
   meta?: Record<string, any>;
   status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 }

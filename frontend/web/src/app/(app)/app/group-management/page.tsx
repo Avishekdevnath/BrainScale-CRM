@@ -25,6 +25,7 @@ import { BatchFilter } from "@/components/batches/BatchFilter";
 import { BatchSelector } from "@/components/batches/BatchSelector";
 import { GroupBatchBadge } from "@/components/groups/GroupBatchBadge";
 import { GroupBatchDragDrop } from "@/components/groups/GroupBatchDragDrop";
+import { FeatureGuard } from "@/components/common/FeatureGuard";
 
 type GroupStatus = "active" | "inactive";
 
@@ -58,7 +59,7 @@ function mapGroupToUI(group: Group): {
   };
 }
 
-export default function GroupsManagementPage() {
+function GroupsManagementPageContent() {
   const router = useRouter();
   const { current: currentGroup, setCurrent } = useGroupStore();
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
@@ -828,5 +829,13 @@ export default function GroupsManagementPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function GroupsManagementPage() {
+  return (
+    <FeatureGuard feature="groups">
+      <GroupsManagementPageContent />
+    </FeatureGuard>
   );
 }

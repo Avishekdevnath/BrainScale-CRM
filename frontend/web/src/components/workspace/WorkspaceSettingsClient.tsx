@@ -11,7 +11,10 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { useGroupStore } from "@/store/group";
 import { useCurrentMember } from "@/hooks/useCurrentMember";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
+import { FEATURE_LABEL } from "@/lib/platform-features";
 import { Loader2, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function getErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
@@ -22,6 +25,36 @@ function getErrorMessage(err: unknown): string {
   return "Failed to delete workspace";
 }
 
+type FeatureField =
+  | "callsEnabled"
+  | "followupsEnabled"
+  | "groupsEnabled"
+  | "learningEnabled"
+  | "teamChatEnabled"
+  | "formsEnabled"
+  | "tasksEnabled"
+  | "revenueEnabled"
+  | "aiFeaturesEnabled";
+
+interface FeatureToggleRow {
+  key: string;
+  field: FeatureField;
+  label: string;
+  description: string;
+}
+
+const FEATURE_ROWS: FeatureToggleRow[] = [
+  { key: "calls", field: "callsEnabled", label: FEATURE_LABEL.calls, description: "My Calls, All Calls, Call Lists, Call Logs" },
+  { key: "followups", field: "followupsEnabled", label: FEATURE_LABEL.followups, description: "Follow-up tracking, columns, and reminders" },
+  { key: "groups", field: "groupsEnabled", label: FEATURE_LABEL.groups, description: "Group management and group-based filtering" },
+  { key: "learning", field: "learningEnabled", label: FEATURE_LABEL.learning, description: "Courses, Modules, Enrollments, and Batches" },
+  { key: "forms", field: "formsEnabled", label: FEATURE_LABEL.forms, description: "Form builder and form analytics" },
+  { key: "tasks", field: "tasksEnabled", label: FEATURE_LABEL.tasks, description: "Task management, kanban board, and scheduling" },
+  { key: "teamChat", field: "teamChatEnabled", label: FEATURE_LABEL.teamChat, description: "Team messaging channels and direct messages" },
+  { key: "ai", field: "aiFeaturesEnabled", label: FEATURE_LABEL.ai, description: "AI chat, summaries, and suggestions" },
+  { key: "revenue", field: "revenueEnabled", label: FEATURE_LABEL.revenue, description: "Revenue and conversion tracking" },
+];
+
 export function WorkspaceSettingsClient() {
   const router = useRouter();
   const workspace = useWorkspaceStore((state) => state.current);
@@ -31,6 +64,7 @@ export function WorkspaceSettingsClient() {
 
   const { isLoading: isLoadingMember } = useCurrentMember(workspaceId || "");
   const isAdmin = useIsAdmin();
+  const { settings, isLoading: isLoadingSettings, updateSettings, isUpdating } = useWorkspaceSettings();
 
   const [confirmText, setConfirmText] = React.useState("");
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
@@ -38,6 +72,11 @@ export function WorkspaceSettingsClient() {
 
   const expected = workspace?.name || "";
   const canDelete = !!workspaceId && !!expected && confirmText.trim() === expected;
+
+  const handleToggle = async (field: FeatureField, currentValue: boolean) => {
+    if (!isAdmin) return;
+    await updateSettings({ [field]: !currentValue });
+  };
 
   if (!workspaceId || !workspace) {
     return (
@@ -51,6 +90,61 @@ export function WorkspaceSettingsClient() {
 
   return (
     <>
+      {/* Feature Toggles */}
+      <Card variant="groups1">
+        <CardHeader variant="groups1">
+          <CardTitle>Feature Toggles</CardTitle>
+        </CardHeader>
+        <CardContent variant="groups1" className="space-y-0 divide-y divide-[var(--groups1-card-border-inner)]">
+          {isLoadingSettings ? (
+            <div className="py-6 flex justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-[var(--groups1-text-secondary)]" />
+            </div>
+          ) : (
+            <>
+              {FEATURE_ROWS.map((row) => {
+                const enabled = !!((settings as unknown) as Record<string, unknown>)?.[row.field];
+                return (
+                  <div key={row.key} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-[var(--groups1-text)]">{row.label}</div>
+                      <div className="text-xs text-[var(--groups1-text-secondary)] mt-0.5">{row.description}</div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      disabled={!isAdmin || isUpdating}
+                      onClick={() => handleToggle(row.field, enabled)}
+                      className={cn(
+                        "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] focus:ring-offset-1",
+                        enabled
+                          ? "bg-[var(--groups1-primary)]"
+                          : "bg-[var(--groups1-secondary)]",
+                        (!isAdmin || isUpdating) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                          enabled ? "translate-x-5" : "translate-x-0"
+                        )}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+              {!isAdmin && (
+                <p className="text-xs text-[var(--groups1-text-secondary)] pt-3">
+                  Only workspace admins can change feature settings.
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone */}
       <Card variant="groups1">
         <CardHeader variant="groups1">
           <CardTitle>Danger Zone</CardTitle>

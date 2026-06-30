@@ -8,22 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, X, Plus, UserPlus } from "lucide-react";
+import { Loader2, X, Plus, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 import { useGroups } from "@/hooks/useGroups";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { StudentSelector } from "./StudentSelector";
 import { BatchSelector } from "./BatchSelector";
 
-const MessagesBuilder = dynamic(() => import("./MessagesBuilder").then((m) => ({ default: m.MessagesBuilder })), {
-  ssr: false,
-  loading: () => <div className="text-xs text-[var(--groups1-text-secondary)]">Loading…</div>,
-});
 const QuestionsBuilder = dynamic(() => import("./QuestionsBuilder").then((m) => ({ default: m.QuestionsBuilder })), {
   ssr: false,
   loading: () => <div className="text-xs text-[var(--groups1-text-secondary)]">Loading…</div>,
 });
 import { extractQuestions } from "@/lib/call-list-utils";
-import type { CallList, CreateCallListPayload, UpdateCallListPayload, CallListSource, Question, StudentData } from "@/types/call-lists.types";
+import type { CallList, CreateCallListPayload, UpdateCallListPayload, CallListSource, Question, StudentData, CustomColumnDef } from "@/types/call-lists.types";
 
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === "object") {
@@ -52,6 +48,7 @@ export function CallListFormDialog({
 }: CallListFormDialogProps) {
   const [saving, setSaving] = useState(false);
   const [showStudentSelector, setShowStudentSelector] = useState(false);
+  const [showQuestions, setShowQuestions] = useState(false);
   const [studentInputMode, setStudentInputMode] = useState<'select' | 'single' | 'bulk'>('select');
   const [singleStudentData, setSingleStudentData] = useState({ name: "", email: "", phone: "" });
   const [bulkStudentText, setBulkStudentText] = useState("");
@@ -66,9 +63,10 @@ export function CallListFormDialog({
     studentIds: [] as string[],
     studentsData: [] as StudentData[],
     groupIds: [] as string[],
-    messages: [] as string[],
     questions: [] as Question[],
     includeCallerNotes: false,
+    includeNotes: true,
+    includeFollowup: true,
     status: undefined as 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' | undefined,
   });
   const { data: groups, isLoading: groupsLoading } = useGroups();
@@ -80,6 +78,8 @@ export function CallListFormDialog({
     if (open) {
       if (callList) {
         const questions = extractQuestions(callList);
+        const existingColumns = (callList.columns ?? (callList.meta?.columns as CustomColumnDef[] | undefined)) ?? [];
+        const hasNotesColumn = existingColumns.some((c) => c.key === 'notes');
         setForm({
           name: callList.name || "",
           description: callList.description || "",
@@ -89,12 +89,14 @@ export function CallListFormDialog({
           studentIds: [],
           studentsData: [],
           groupIds: [],
-          messages: callList.messages || [],
           questions: questions,
           includeCallerNotes: Boolean(callList.meta?.includeCallerNotes),
+          includeNotes: hasNotesColumn,
+          includeFollowup: callList.meta?.includeFollowup !== false,
           status: callList.status || 'ACTIVE',
         });
         setShowStudentSelector(false);
+        setShowQuestions(questions.length > 0);
         setStudentInputMode('select');
       } else {
         setForm({
@@ -106,12 +108,14 @@ export function CallListFormDialog({
           studentIds: [],
           studentsData: [],
           groupIds: [],
-          messages: [],
           questions: [],
           includeCallerNotes: false,
+          includeNotes: true,
+          includeFollowup: true,
           status: undefined,
         });
         setShowStudentSelector(false);
+        setShowQuestions(false);
         setStudentInputMode('select');
         setSingleStudentData({ name: "", email: "", phone: "" });
         setBulkStudentText("");
@@ -122,12 +126,6 @@ export function CallListFormDialog({
   const validateForm = (): boolean => {
     if (form.name.trim().length < 2) {
       toast.error("Call list name must be at least 2 characters");
-      return false;
-    }
-
-    // Group is required (only for create mode)
-    if (!isEditMode && !form.groupId) {
-      toast.error("Please select a group");
       return false;
     }
 
@@ -324,13 +322,21 @@ export function CallListFormDialog({
 
     setSaving(true);
     try {
+      const notesColumn: CustomColumnDef = { key: 'notes', label: 'Notes', type: 'text' };
+
       if (isEditMode && callList) {
+        const existingColumns = (callList.columns ?? (callList.meta?.columns as CustomColumnDef[] | undefined)) ?? [];
+        const columnsWithoutNotes = existingColumns.filter((c) => c.key !== 'notes');
+        const updatedColumns = form.includeNotes ? [notesColumn, ...columnsWithoutNotes] : columnsWithoutNotes;
         const payload: UpdateCallListPayload = {
           name: form.name.trim(),
           description: form.description.trim() || undefined,
-          messages: form.messages.filter(msg => msg.trim()),
           questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
-          meta: { includeCallerNotes: form.includeCallerNotes },
+          meta: {
+            includeCallerNotes: form.includeCallerNotes,
+            includeFollowup: form.includeFollowup,
+            columns: updatedColumns,
+          },
           status: form.status || undefined,
         };
         await apiClient.updateCallList(callList.id, payload);
@@ -340,16 +346,19 @@ export function CallListFormDialog({
           name: form.name.trim(),
           source: form.source,
           description: form.description.trim() || undefined,
-          groupId: form.groupId,
+          groupId: form.groupId || undefined,
           batchId: form.batchId || undefined,
           studentIds: form.studentIds.length > 0 && form.studentsData.length === 0 ? form.studentIds : undefined,
           studentsData: form.studentsData.length > 0 ? form.studentsData : undefined,
           groupIds: form.groupIds.length > 0 ? form.groupIds : undefined,
-          messages: form.messages.filter(msg => msg.trim()),
           questions: normalizedQuestions.length > 0 ? normalizedQuestions : undefined,
           matchBy: form.studentsData.length > 0 ? 'email_or_phone' : undefined,
           skipDuplicates: form.studentsData.length > 0 ? true : undefined,
-          meta: { includeCallerNotes: form.includeCallerNotes },
+          meta: {
+            includeCallerNotes: form.includeCallerNotes,
+            includeFollowup: form.includeFollowup,
+            ...(form.includeNotes ? { columns: [notesColumn] } : {}),
+          },
         };
         await apiClient.createCallList(payload);
         toast.success("Call list created successfully");
@@ -418,7 +427,7 @@ export function CallListFormDialog({
             />
           </div>
 
-          <div>
+          <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -431,19 +440,52 @@ export function CallListFormDialog({
                 Include caller notes for calls in this list
               </span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.includeNotes}
+                onChange={(e) => setForm({ ...form, includeNotes: e.target.checked })}
+                disabled={saving}
+                className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <span className="text-sm text-[var(--groups1-text)]">
+                Include Notes column <span className="text-xs text-[var(--groups1-text-secondary)]">(callers can fill per-student notes)</span>
+              </span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.includeFollowup}
+                onChange={(e) => setForm({ ...form, includeFollowup: e.target.checked })}
+                disabled={saving}
+                className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-focus-ring)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <span className="text-sm text-[var(--groups1-text)]">
+                Include Follow-up Date <span className="text-xs text-[var(--groups1-text-secondary)]">(callers can schedule follow-up calls)</span>
+              </span>
+            </label>
           </div>
 
-          <MessagesBuilder
-            messages={form.messages}
-            onChange={(messages) => setForm({ ...form, messages })}
-            disabled={saving}
-          />
-
-          <QuestionsBuilder
-            questions={form.questions}
-            onChange={(questions) => setForm({ ...form, questions })}
-            disabled={saving}
-          />
+          <div className="border border-[var(--groups1-border)] rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowQuestions((v) => !v)}
+              disabled={saving}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--groups1-text)] bg-[var(--groups1-surface)] hover:bg-[var(--groups1-secondary)] transition-colors"
+            >
+              <span>{showQuestions ? 'Questions / Call Script' : '+ Add Questions / Call Script'}</span>
+              {showQuestions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            {showQuestions && (
+              <div className="p-4 border-t border-[var(--groups1-border)]">
+                <QuestionsBuilder
+                  questions={form.questions}
+                  onChange={(questions) => setForm({ ...form, questions })}
+                  disabled={saving}
+                />
+              </div>
+            )}
+          </div>
 
           {isEditMode && isAdmin && (
             <div>
@@ -484,7 +526,7 @@ export function CallListFormDialog({
               htmlFor="call-list-group"
               className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
             >
-              Group <span className="text-red-500">*</span>
+              Group <span className="text-gray-400 text-xs font-normal">(Optional)</span>
             </Label>
             <select
               id="call-list-group"
@@ -504,9 +546,8 @@ export function CallListFormDialog({
               className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
               disabled={saving || groupsLoading || isEditMode}
               aria-label="Select group"
-              required
             >
-              <option value="">Select a group</option>
+              <option value="">No group (workspace-wide)</option>
               {groups?.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name}

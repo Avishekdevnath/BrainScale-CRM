@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Call Status Management (Gap 1b)</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; color: #222; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 13px; }
+  .note { font-size: 12px; color: #777; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid #999; vertical-align: middle; }
+  .new { background: #eef9ee; }
+  button { font-size: 12px; }
+  .pos { color: #15803d; } .neg { color: #b91c1c; } .neu { color: #6b7280; }
+</style>
+</head>
+<body>
+
+<h2>Call List Settings &rarr; Statuses <span style="font-size:12px;background:#ddd;padding:1px 5px;">workspace-level</span></h2>
+<p class="note">Existing status CRUD + two new columns: <b>Connected</b> and <b>Polarity</b>.</p>
+
+<table>
+  <tr>
+    <th>Order</th><th>Label</th><th>Color</th>
+    <th class="new">Connected? &#9733;</th>
+    <th class="new">Outcome &#9733;</th>
+    <th>Actions</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td>Connected</td>
+    <td><span class="swatch" style="background:#22c55e;"></span> green</td>
+    <td class="new"><input type="checkbox" checked></td>
+    <td class="new"><select><option>positive</option><option>neutral</option><option>negative</option></select></td>
+    <td><button>edit</button> <button>delete</button></td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>Not Received</td>
+    <td><span class="swatch" style="background:#6b7280;"></span> gray</td>
+    <td class="new"><input type="checkbox"></td>
+    <td class="new"><select><option>neutral</option><option>positive</option><option>negative</option></select></td>
+    <td><button>edit</button> <button>delete</button></td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>Switched Off</td>
+    <td><span class="swatch" style="background:#ef4444;"></span> red</td>
+    <td class="new"><input type="checkbox"></td>
+    <td class="new"><select><option>negative</option><option>neutral</option><option>positive</option></select></td>
+    <td><button>edit</button> <button>delete</button></td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>Call Back Later</td>
+    <td><span class="swatch" style="background:#3b82f6;"></span> blue</td>
+    <td class="new"><input type="checkbox" checked></td>
+    <td class="new"><select><option>neutral</option><option>positive</option><option>negative</option></select></td>
+    <td><button>edit</button> <button>delete</button></td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>Others</td>
+    <td><span class="swatch" style="background:#a855f7;"></span> purple</td>
+    <td class="new"><input type="checkbox"></td>
+    <td class="new"><select><option>neutral</option><option>positive</option><option>negative</option></select></td>
+    <td><button>edit</button> <button>delete</button></td>
+  </tr>
+</table>
+<p><button>+ Add Status</button></p>
+
+<h3>Two independent dimensions</h3>
+<p class="note">"Outcome" = manual status classification (drives metrics). Separate from AI "Sentiment" (auto conversation tone).</p>
+<table>
+  <tr><th>Status</th><th>Connected (reached?)</th><th>Outcome (good/bad?)</th></tr>
+  <tr><td>Connected &amp; enrolled</td><td>YES</td><td class="pos">positive</td></tr>
+  <tr><td>Connected, not interested</td><td>YES</td><td class="neg">negative</td></tr>
+  <tr><td>Call Back Later</td><td>YES</td><td class="neu">neutral</td></tr>
+  <tr><td>Switched Off</td><td>no</td><td class="neg">negative</td></tr>
+  <tr><td>Not Received</td><td>no</td><td class="neu">neutral</td></tr>
+</table>
+<p class="note">One flag can't say "connected but negative." Two can. Connected% from column 1, Positive/Negative% from column 2.</p>
+
+</body>
+</html>

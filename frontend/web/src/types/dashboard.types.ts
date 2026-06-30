@@ -5,6 +5,7 @@ import type { CallListSource } from "./call-lists.types";
 export interface DashboardFilters {
   groupId?: string;
   batchId?: string;
+  callerId?: string; // WorkspaceMember ID — filter by assigned caller
   dateFrom?: string; // ISO date string
   dateTo?: string; // ISO date string
   period?: 'day' | 'week' | 'month' | 'year';
@@ -34,6 +35,9 @@ export interface DashboardKPIsResponse {
   metrics: {
     conversionRate: number;
     averageCallsPerDay: number;
+    connectedCalls?: number;
+    connectedPercent?: number;
+    pendingCalls?: number;
   };
 }
 
@@ -80,6 +84,14 @@ export interface ActivityItemAPI {
   description: string;
 }
 
+export interface AssigneePerformanceItem {
+  rank: number;
+  assigneeId: string;
+  assignee: string;
+  totalCalls: number;
+  connectedCalls: number;
+}
+
 export interface DashboardSummaryResponse {
   kpis: DashboardKPIsResponse;
   distributions: {
@@ -92,6 +104,7 @@ export interface DashboardSummaryResponse {
     followupsTrend: FollowupsTrendItem[];
   };
   recentActivity: ActivityItemAPI[];
+  assigneePerformance?: AssigneePerformanceItem[];
   callLists?: Array<{
     id: string;
     name: string;

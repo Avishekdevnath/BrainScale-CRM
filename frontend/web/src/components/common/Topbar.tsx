@@ -16,6 +16,7 @@ import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useDebounce } from "@/hooks/useDebounce";
 import { GlobalSearchDropdown } from "@/components/common/GlobalSearchDropdown";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 interface TopbarProps {
   showWorkspaceName?: boolean;
@@ -66,11 +67,15 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
     setTimeout(() => mobileInputRef.current?.focus(), 50);
   };
 
+  const groupsFeature = useFeature("groups");
+  const aiFeature = useFeature("ai");
+  const teamChatFeature = useFeature("teamChat");
+
   // Extract groupId from URL if on group detail page
   const urlGroupId = pathname?.match(/^\/app\/groups\/([^/]+)$/)?.[1];
   const hasGroups = groups && groups.length > 0;
   const isGroupsRoute = pathname?.startsWith("/app/groups");
-  const showGroupsButton = mounted && (hasGroups || isGroupsRoute || groupsLoading);
+  const showGroupsButton = mounted && groupsFeature.enabled && (hasGroups || isGroupsRoute || groupsLoading);
   const isChatRoute = pathname?.startsWith("/app/ai-chat");
   const isTeamChatRoute = pathname?.startsWith("/app/team-chat");
   
@@ -174,36 +179,40 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
                 </Button>
               </Link>
             )}
-            <Link href="/app/ai-chat">
-              <Button
-                size="sm"
-                variant={isChatRoute ? "default" : "ghost"}
-                className={cn(
-                  "gap-2",
-                  isChatRoute
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                    : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-                )}
-              >
-                <Brain className="w-4 h-4" />
-                <span className="hidden sm:inline">Brain</span>
-              </Button>
-            </Link>
-            <Link href="/app/team-chat">
-              <Button
-                size="sm"
-                variant={isTeamChatRoute ? "default" : "ghost"}
-                className={cn(
-                  "gap-2",
-                  isTeamChatRoute
-                    ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                    : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
-                )}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span className="hidden sm:inline">Team</span>
-              </Button>
-            </Link>
+            {aiFeature.enabled && (
+              <Link href="/app/ai-chat">
+                <Button
+                  size="sm"
+                  variant={isChatRoute ? "default" : "ghost"}
+                  className={cn(
+                    "gap-2",
+                    isChatRoute
+                      ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                      : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+                  )}
+                >
+                  <Brain className="w-4 h-4" />
+                  <span className="hidden sm:inline">Brain</span>
+                </Button>
+              </Link>
+            )}
+            {teamChatFeature.enabled && (
+              <Link href="/app/team-chat">
+                <Button
+                  size="sm"
+                  variant={isTeamChatRoute ? "default" : "ghost"}
+                  className={cn(
+                    "gap-2",
+                    isTeamChatRoute
+                      ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+                      : "text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] hover:text-[var(--groups1-text)]"
+                  )}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="hidden sm:inline">Team</span>
+                </Button>
+              </Link>
+            )}
           </>
         ) : (
           <Link href="/create-workspace">
@@ -386,7 +395,7 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
                       </DropdownMenu.Portal>
                     </DropdownMenu.Sub>
 
-                    <DropdownMenu.Sub>
+                    {groupsFeature.enabled && <DropdownMenu.Sub>
                       <DropdownMenu.SubTrigger
                         className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
                         suppressHydrationWarning
@@ -434,31 +443,35 @@ export function Topbar({ showWorkspaceName = false, showGroupSelector = false, o
                           )}
                         </DropdownMenu.SubContent>
                       </DropdownMenu.Portal>
-                    </DropdownMenu.Sub>
+                    </DropdownMenu.Sub>}
 
-                    <DropdownMenu.Item
-                      className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        setContextMenuOpen(false);
-                        router.push("/app/ai-chat");
-                      }}
-                    >
-                      <Brain className="w-4 h-4" />
-                      Brain
-                    </DropdownMenu.Item>
+                    {aiFeature.enabled && (
+                      <DropdownMenu.Item
+                        className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          setContextMenuOpen(false);
+                          router.push("/app/ai-chat");
+                        }}
+                      >
+                        <Brain className="w-4 h-4" />
+                        Brain
+                      </DropdownMenu.Item>
+                    )}
 
-                    <DropdownMenu.Item
-                      className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        setContextMenuOpen(false);
-                        router.push("/app/team-chat");
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      Team
-                    </DropdownMenu.Item>
+                    {teamChatFeature.enabled && (
+                      <DropdownMenu.Item
+                        className="flex cursor-pointer select-none items-center gap-3 rounded px-3 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)] focus:bg-[var(--groups1-secondary)]"
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          setContextMenuOpen(false);
+                          router.push("/app/team-chat");
+                        }}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        Team
+                      </DropdownMenu.Item>
+                    )}
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu.Root>

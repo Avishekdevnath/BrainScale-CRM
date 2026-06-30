@@ -742,7 +742,7 @@ export const createCallListForAI = async (
     description?: string;
   }
 ): Promise<any> => {
-  const callListService = await import('../call-lists/call-list.service');
+  const callListService = await import('../call-lists/call-list.service.js');
   const result = await callListService.createCallList(workspaceId, userId, {
     name: data.name,
     groupId: data.groupId,

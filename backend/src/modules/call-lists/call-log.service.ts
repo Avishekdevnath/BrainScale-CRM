@@ -109,6 +109,14 @@ export const createCallLog = async (
     }
   }
 
+  // Assign workspace-scoped sequential call number
+  const maxLog = await prisma.callLog.findFirst({
+    where: { workspaceId },
+    orderBy: { callNumber: 'desc' },
+    select: { callNumber: true },
+  });
+  const callNumber = (maxLog?.callNumber ?? 0) + 1;
+
   // Create call log
   const callLog = await prisma.callLog.create({
     data: {
@@ -124,7 +132,8 @@ export const createCallLog = async (
       notes: data.notes,
       callerNote: data.callerNote,
       followUpDate,
-      followUpRequired: data.followUpRequired === true, // Explicitly set to false if not true
+      followUpRequired: data.followUpRequired === true,
+      callNumber,
     },
     include: {
       callListItem: true,
@@ -507,16 +516,17 @@ export const listCallLogs = async (
     }
   }
 
-  if ((options as any).q) {
-    const q = (options as any).q.trim();
+  if (options.q) {
+    const q = options.q.trim();
     if (q) {
-      where.student = {
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { email: { contains: q, mode: 'insensitive' } },
-          { phones: { some: { phone: { contains: q } } } },
-        ],
-      };
+      where.OR = [
+        { student: { name: { contains: q, mode: 'insensitive' } } },
+        { student: { email: { contains: q, mode: 'insensitive' } } },
+        { student: { phones: { some: { phone: { contains: q } } } } },
+        { assignee: { user: { name: { contains: q, mode: 'insensitive' } } } },
+        { assignee: { user: { email: { contains: q, mode: 'insensitive' } } } },
+        { callList: { name: { contains: q, mode: 'insensitive' } } },
+      ];
     }
   }
 
@@ -566,6 +576,12 @@ export const listCallLogs = async (
             id: true,
             name: true,
             email: true,
+            phones: {
+              select: {
+                phone: true,
+                isPrimary: true,
+              },
+            },
           },
         },
         assignee: {

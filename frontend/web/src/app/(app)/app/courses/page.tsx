@@ -20,6 +20,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { Plus, Pencil, Trash2, Loader2, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FeatureGuard } from "@/components/common/FeatureGuard";
 
 type CourseStatus = "active" | "inactive";
 
@@ -57,7 +58,7 @@ function mapCourseToUI(course: Course): {
   };
 }
 
-export default function CoursesPage() {
+function CoursesPageContent() {
   const router = useRouter();
   const { data: courses, error: coursesError, isLoading: coursesLoading, mutate: mutateCourses } = useCourses();
   usePageTitle("Courses");
@@ -544,5 +545,13 @@ export default function CoursesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CoursesPage() {
+  return (
+    <FeatureGuard feature="learning">
+      <CoursesPageContent />
+    </FeatureGuard>
   );
 }

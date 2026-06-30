@@ -128,7 +128,7 @@ export default function CallsPage() {
           {filterPopoverOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setFilterPopoverOpen(false)} />
-              <div className="absolute top-full left-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-2">
+              <div className="absolute top-full right-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-2">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] px-3 py-1.5">Filter by</div>
                 <div className="px-2 pb-1">
                   <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Call List</div>

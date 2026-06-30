@@ -696,6 +696,7 @@ export class ApiClient {
   getDashboardSummary(filters?: {
     groupId?: string;
     batchId?: string;
+    callerId?: string;
     dateFrom?: string;
     dateTo?: string;
     period?: "day" | "week" | "month" | "year";
@@ -703,6 +704,7 @@ export class ApiClient {
     const queryString = buildQueryString({
       groupId: filters?.groupId,
       batchId: filters?.batchId,
+      callerId: filters?.callerId,
       dateFrom: filters?.dateFrom,
       dateTo: filters?.dateTo,
       period: filters?.period,
@@ -889,6 +891,12 @@ export class ApiClient {
       aiFeatures: string[] | null;
       tasksEnabled: boolean;
       revenueEnabled: boolean;
+      callsEnabled: boolean;
+      followupsEnabled: boolean;
+      groupsEnabled: boolean;
+      learningEnabled: boolean;
+      teamChatEnabled: boolean;
+      formsEnabled: boolean;
       createdAt: string;
       updatedAt: string;
     }>(`/workspaces/${workspaceId}`, {
@@ -910,6 +918,12 @@ export class ApiClient {
     aiFeatures?: string[];
     tasksEnabled?: boolean;
     revenueEnabled?: boolean;
+    callsEnabled?: boolean;
+    followupsEnabled?: boolean;
+    groupsEnabled?: boolean;
+    learningEnabled?: boolean;
+    teamChatEnabled?: boolean;
+    formsEnabled?: boolean;
   }) {
     return this.request<{
       id: string;
@@ -921,6 +935,12 @@ export class ApiClient {
       aiFeatures: string[] | null;
       tasksEnabled: boolean;
       revenueEnabled: boolean;
+      callsEnabled: boolean;
+      followupsEnabled: boolean;
+      groupsEnabled: boolean;
+      learningEnabled: boolean;
+      teamChatEnabled: boolean;
+      formsEnabled: boolean;
       createdAt: string;
       updatedAt: string;
     }>(`/workspaces/${workspaceId}`, {
@@ -2047,7 +2067,7 @@ export class ApiClient {
     });
   }
 
-  updateCallStatusOption(optionId: string, payload: { label?: string; color?: string; order?: number }) {
+  updateCallStatusOption(optionId: string, payload: { label?: string; color?: string; order?: number; isConnected?: boolean; polarity?: 'positive' | 'negative' | 'neutral' }) {
     return this.request<CallStatusOption>(`/call-lists/settings/status-options/${optionId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),

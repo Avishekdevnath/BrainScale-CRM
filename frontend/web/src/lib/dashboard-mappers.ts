@@ -35,7 +35,10 @@ export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
   const totalCalls = apiKPIs?.overview?.totalCalls ?? 0;
   const pendingFollowups = apiKPIs?.followups?.pending ?? 0;
   const conversionRate = apiKPIs?.metrics?.conversionRate ?? 0;
-  
+  const connectedCalls = apiKPIs?.metrics?.connectedCalls ?? 0;
+  const connectedPercent = apiKPIs?.metrics?.connectedPercent ?? 0;
+  const pendingCalls = apiKPIs?.metrics?.pendingCalls ?? 0;
+
   // Calculate trends (mock for now, can be enhanced with previous period comparison)
   const totalStudentsTrend = totalStudents > 0 ? "+12.5%" : "0%";
   const callsTrend = (apiKPIs?.activity?.callsThisMonth ?? 0) > 0 ? "+8.2%" : "0%";
@@ -57,6 +60,30 @@ export function mapKPIsToCards(apiKPIs: DashboardKPIsResponse): KPICardData[] {
       trend: {
         value: callsTrend,
         type: "positive" as const,
+      },
+    },
+    {
+      label: "Connected Calls",
+      value: connectedCalls.toLocaleString(),
+      trend: {
+        value: connectedCalls > 0 ? "+connected" : "0",
+        type: "positive" as const,
+      },
+    },
+    {
+      label: "Connected %",
+      value: `${connectedPercent.toFixed(1)}%`,
+      trend: {
+        value: connectedPercent > 0 ? "+rate" : "0%",
+        type: connectedPercent >= 50 ? ("positive" as const) : ("neutral" as const),
+      },
+    },
+    {
+      label: "Pending Calls",
+      value: pendingCalls.toLocaleString(),
+      trend: {
+        value: pendingCalls > 0 ? "in queue" : "0",
+        type: pendingCalls > 0 ? ("negative" as const) : ("neutral" as const),
       },
     },
     {

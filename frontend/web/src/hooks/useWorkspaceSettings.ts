@@ -16,6 +16,12 @@ export interface WorkspaceSettings {
   aiFeatures: string[] | null;
   tasksEnabled: boolean;
   revenueEnabled: boolean;
+  callsEnabled: boolean;
+  followupsEnabled: boolean;
+  groupsEnabled: boolean;
+  learningEnabled: boolean;
+  teamChatEnabled: boolean;
+  formsEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

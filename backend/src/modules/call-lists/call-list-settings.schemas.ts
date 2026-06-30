@@ -12,23 +12,29 @@ export const CALL_STATUS_COLORS = [
 ] as const;
 
 export const DEFAULT_CALL_STATUSES = [
-  { value: 'completed', label: 'Completed', color: '#22c55e', order: 0 },
-  { value: 'missed', label: 'Missed', color: '#ef4444', order: 1 },
-  { value: 'busy', label: 'Busy', color: '#f59e0b', order: 2 },
-  { value: 'no_answer', label: 'No Answer', color: '#6b7280', order: 3 },
-  { value: 'voicemail', label: 'Voicemail', color: '#3b82f6', order: 4 },
-  { value: 'other', label: 'Other', color: '#a855f7', order: 5 },
+  { value: 'connected', label: 'Connected', color: '#22c55e', order: 0, isConnected: true, polarity: 'positive' },
+  { value: 'not_received', label: 'Not Received', color: '#6b7280', order: 1, isConnected: false, polarity: 'neutral' },
+  { value: 'switched_off', label: 'Switched Off', color: '#ef4444', order: 2, isConnected: false, polarity: 'negative' },
+  { value: 'call_back_later', label: 'Call Back Later', color: '#3b82f6', order: 3, isConnected: true, polarity: 'neutral' },
+  { value: 'other', label: 'Others', color: '#a855f7', order: 4, isConnected: false, polarity: 'neutral' },
 ] as const;
+
+export const POLARITY_VALUES = ['positive', 'negative', 'neutral'] as const;
+export type Polarity = typeof POLARITY_VALUES[number];
 
 export const CreateCallStatusOptionSchema = z.object({
   label: z.string().min(1, 'Label is required').max(50),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color').optional(),
+  isConnected: z.boolean().optional(),
+  polarity: z.enum(POLARITY_VALUES).optional(),
 });
 
 export const UpdateCallStatusOptionSchema = z.object({
   label: z.string().min(1).max(50).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid color').optional(),
   order: z.number().int().min(0).optional(),
+  isConnected: z.boolean().optional(),
+  polarity: z.enum(POLARITY_VALUES).optional(),
 });
 
 export type CreateCallStatusOptionInput = z.infer<typeof CreateCallStatusOptionSchema>;

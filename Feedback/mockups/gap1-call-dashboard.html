@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Call Dashboard — Enhanced (Gap 1)</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; color: #222; }
+  h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .filters { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+  .filters label { margin-right: 14px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+  .card { border: 1px solid #ccc; padding: 10px 14px; min-width: 130px; }
+  .card .num { font-size: 22px; font-weight: bold; }
+  .card .lbl { font-size: 12px; color: #555; }
+  .new { background: #eef9ee; }       /* new metric */
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 13px; }
+  .note { font-size: 12px; color: #777; }
+  .tag { font-size: 11px; background: #ddd; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<h2>Call Dashboard <span class="tag">v1, enhanced — no fork</span></h2>
+
+<!-- FILTERS -->
+<div class="filters">
+  <strong>Filters:</strong>
+  <label>Date: <input type="date"></label>
+  <label>Batch:
+    <select><option>Running Batch (default)</option><option>Batch A</option><option>Batch B</option></select>
+  </label>
+  <label>Caller:
+    <select><option>All callers</option><option>Rahim</option><option>Karim</option></select>
+  </label>
+  <span class="note">(group filter removed · caller filter NEW · loads running batch by default)</span>
+</div>
+
+<!-- METRIC CARDS -->
+<div class="cards">
+  <div class="card"><div class="num">320</div><div class="lbl">Total Students</div></div>
+  <div class="card"><div class="num">540</div><div class="lbl">Total Calls</div></div>
+  <div class="card new"><div class="num">300</div><div class="lbl">Connected Calls &#9733; new</div></div>
+  <div class="card new"><div class="num">55%</div><div class="lbl">Connected % &#9733; new</div></div>
+  <div class="card new"><div class="num">220</div><div class="lbl">Pending Calls &#9733; new</div></div>
+  <div class="card new"><div class="num">48</div><div class="lbl">Follow-up Pending &#9733; new</div></div>
+  <div class="card"><div class="num">12%</div><div class="lbl">Conversion Rate</div></div>
+</div>
+<p class="note">&#9733; = new metric. Connected = calls whose status is tagged "connected" (default: old "Completed").</p>
+
+<!-- STATUS BREAKDOWN -->
+<h3>Calls by Status (group-by-status)</h3>
+<table>
+  <tr><th>Status</th><th>Count</th><th>Counts as Connected?</th></tr>
+  <tr><td>Connected (was "Completed")</td><td>300</td><td>YES &#10003;</td></tr>
+  <tr><td>Not Received</td><td>120</td><td>no</td></tr>
+  <tr><td>Switched Off</td><td>80</td><td>no</td></tr>
+  <tr><td>Others</td><td>40</td><td>no</td></tr>
+</table>
+<p class="note">Connected tag (isConnected) set per status in Call List Settings. Multiple statuses can be tagged.</p>
+
+<!-- CALL LIST DISPLAY -->
+<h3>Call Lists</h3>
+<table>
+  <tr><th>Name</th><th>Students</th><th>Called</th><th>Connected</th><th>Pending</th></tr>
+  <tr><td>Batch A — Week 1</td><td>150</td><td>140</td><td>90</td><td>10</td></tr>
+  <tr><td>Batch A — Week 2</td><td>170</td><td>180</td><td>110</td><td>0</td></tr>
+</table>
+
+<p class="note" style="margin-top:18px">
+  Everything here = v1 in place. No v2 screen. New metrics come from existing status data + one new "isConnected" tag.
+</p>
+
+</body>
+</html>

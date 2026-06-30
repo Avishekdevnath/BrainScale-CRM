@@ -16,6 +16,8 @@ export interface CallStatusOption {
   color: string;
   isDefault: boolean;
   order: number;
+  isConnected: boolean;
+  polarity: 'positive' | 'negative' | 'neutral';
   createdAt: string;
   updatedAt: string;
 }
@@ -185,28 +187,26 @@ export interface StudentData {
 }
 
 export interface CreateCallListPayload {
-  name: string; // Required, min 2 chars
-  source: CallListSource; // Required
-  description?: string; // Optional
-  groupId: string; // Required - for group-specific lists
-  batchId?: string; // Optional - Batch ID for filtering students by batch
-  studentIds?: string[]; // Optional - for workspace-level lists
-  studentsData?: StudentData[]; // Optional - student data for auto-creation
-  groupIds?: string[]; // Optional - filter students by groups
-  messages?: string[]; // Optional - array of messages to convey
-  questions?: Question[]; // Optional - array of questions
-  matchBy?: 'email' | 'phone' | 'email_or_phone' | 'name'; // Optional - matching strategy
-  skipDuplicates?: boolean; // Optional - skip duplicate students
-  meta?: Record<string, any>; // Optional - custom fields configuration
+  name: string;
+  source: CallListSource;
+  description?: string;
+  groupId?: string; // Optional — omit for workspace-wide lists
+  batchId?: string;
+  studentIds?: string[];
+  studentsData?: StudentData[];
+  groupIds?: string[];
+  questions?: Question[];
+  matchBy?: 'email' | 'phone' | 'email_or_phone' | 'name';
+  skipDuplicates?: boolean;
+  meta?: Record<string, any>;
 }
 
 export interface UpdateCallListPayload {
-  name?: string; // Optional, min 2 chars
-  description?: string; // Optional
-  messages?: string[]; // Optional
-  questions?: Question[]; // Optional
-  meta?: Record<string, any>; // Optional
-  status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED'; // Optional - admin only
+  name?: string;
+  description?: string;
+  questions?: Question[];
+  meta?: Record<string, any>;
+  status?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 }
 
 export interface CallListsListParams {
@@ -280,6 +280,7 @@ export interface BulkUpdateCallListItemsPayload {
 // Call Log Types
 export interface CallLog {
   id: string;
+  callNumber?: number | null; // Workspace-scoped sequential display ID
   callListItemId: string; // Unique reference to CallListItem
   callListId: string; // Quick access to call list
   studentId: string; // Quick access to student

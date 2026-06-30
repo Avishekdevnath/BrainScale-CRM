@@ -35,6 +35,8 @@ import {
   LayoutGrid,
   Tag,
   CalendarDays,
+  MessageSquare,
+  MessageCircle,
 } from "lucide-react";
 import { useNotificationStore } from "@/store/notifications";
 import { cn } from "@/lib/utils";
@@ -50,8 +52,8 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
-  // Hide unless the current member has this permission (OWNER/ADMIN bypass). "resource:action"
   permission?: string;
+  feature?: PlatformFeature;
 }
 
 interface NavSection {
@@ -60,9 +62,7 @@ interface NavSection {
   items: NavItem[];
   adminOnly?: boolean;
   collapsible?: boolean;
-  // Hide entire section unless the current member has this permission (OWNER/ADMIN bypass)
   permission?: string;
-  // Hide entire section when this platform/workspace feature is disabled
   feature?: PlatformFeature;
 }
 
@@ -80,36 +80,36 @@ const navSections: NavSection[] = [
       { href: "/app/notifications", label: "Notifications", icon: Bell },
     ],
   },
-  
+
   // Student Management
   {
     label: "Students & Learning",
     icon: Users,
     items: [
       { href: "/app/students", label: "Students", icon: Users },
-      { href: "/app/group-management", label: "Groups", icon: FolderOpen },
-      { href: "/app/batches", label: "Batches", icon: Layers, adminOnly: true },
-      { href: "/app/enrollments", label: "Enrollments", icon: GraduationCap },
-      { href: "/app/courses", label: "Courses", icon: BookOpen },
-      { href: "/app/modules", label: "Modules", icon: FileText },
+      { href: "/app/group-management", label: "Groups", icon: FolderOpen, feature: "groups" },
+      { href: "/app/batches", label: "Batches", icon: Layers, adminOnly: true, feature: "learning" },
+      { href: "/app/enrollments", label: "Enrollments", icon: GraduationCap, feature: "learning" },
+      { href: "/app/courses", label: "Courses", icon: BookOpen, feature: "learning" },
+      { href: "/app/modules", label: "Modules", icon: FileText, feature: "learning" },
     ],
   },
-  
+
   // Engagement & Communication
   {
     label: "Engagement",
     icon: Phone,
+    feature: "calls",
     items: [
-      // { href: "/app/my-calls", label: "My Calls", icon: PhoneCall },
       { href: "/app/calls-manager", label: "My Calls", icon: Phone },
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
-      { href: "/app/forms", label: "Forms", icon: ClipboardList, permission: "forms:read" },
+      { href: "/app/forms", label: "Forms", icon: ClipboardList, permission: "forms:read", feature: "forms" },
       { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
-      { href: "/app/followups", label: "Follow-ups", icon: Clock },
+      { href: "/app/followups", label: "Follow-ups", icon: Clock, feature: "followups" },
     ],
   },
-  
+
   // Tasks
   {
     label: "Tasks",
@@ -129,6 +129,17 @@ const navSections: NavSection[] = [
     ],
   },
 
+  // Team Chat
+  {
+    label: "Team Chat",
+    icon: MessageSquare,
+    feature: "teamChat",
+    items: [
+      { href: "/app/team-chat", label: "Channels", icon: MessageSquare },
+      { href: "/app/team-chat/dm", label: "Direct Messages", icon: MessageCircle },
+    ],
+  },
+
   // Data Management
   {
     label: "Data",
@@ -138,7 +149,7 @@ const navSections: NavSection[] = [
       { href: "/app/exports", label: "Exports", icon: Download },
     ],
   },
-  
+
   // Administration (Admin Only)
   {
     label: "Administration",
@@ -151,7 +162,7 @@ const navSections: NavSection[] = [
       { href: "/app/workspace-settings", label: "Workspace Settings", icon: Settings },
     ],
   },
-  
+
   // System Settings (Admin Only)
   {
     label: "System",
@@ -177,7 +188,6 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   const isAdmin = useIsAdmin();
   const unreadCount = useNotificationStore((s) => s.unreadCount);
 
-  // Handle workspace name client-side only to avoid hydration mismatch
   useEffect(() => {
     setWorkspaceName(currentWorkspace?.name || "");
   }, [currentWorkspace]);
@@ -188,11 +198,9 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
     if (href === "/app") {
       return pathname === "/app" || pathname === "/app/";
     }
-    // Exact match for Tasks dashboard — prevent sub-pages from highlighting it
     if (href === "/app/tasks") {
       return pathname === "/app/tasks" || pathname === "/app/tasks/";
     }
-    // Handle special case: /app/calls-manager vs /app/calls vs /app/my-calls vs /app/call-lists
     if (href === "/app/calls-manager") {
       return pathname === "/app/calls-manager" || pathname?.startsWith("/app/calls-manager/");
     }
@@ -223,7 +231,7 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
     });
   };
 
-  // Permission-gated nav items (OWNER/ADMIN bypass built into useHasPermission)
+  // Permission-gated nav items
   const canForms = useHasPermission("forms", "read");
   const canTasks = useHasPermission("tasks", "read");
   const navPermFlags: Record<string, boolean> = {
@@ -232,25 +240,44 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
   };
   const hasNavPermission = (perm?: string) => !perm || navPermFlags[perm] === true;
 
-  // Feature-gated nav sections (platform OFF or workspace OFF hides them)
+  // Feature-gated nav sections/items
+  const callsFeature = useFeature("calls");
+  const followupsFeature = useFeature("followups");
+  const groupsFeature = useFeature("groups");
+  const learningFeature = useFeature("learning");
+  const formsFeature = useFeature("forms");
+  const teamChatFeature = useFeature("teamChat");
   const tasksFeature = useFeature("tasks");
+
   const navFeatureFlags: Record<PlatformFeature, boolean> = {
-    ai: true, // no AI nav section
+    ai: true,
+    revenue: true,
     tasks: tasksFeature.enabled,
-    revenue: true, // no revenue nav section
+    calls: callsFeature.enabled,
+    followups: followupsFeature.enabled,
+    groups: groupsFeature.enabled,
+    learning: learningFeature.enabled,
+    forms: formsFeature.enabled,
+    teamChat: teamChatFeature.enabled,
   };
   const hasNavFeature = (feature?: PlatformFeature) => !feature || navFeatureFlags[feature] === true;
 
-  // Filter sections and items based on admin status + permissions + feature flags
   const visibleSections = navSections
-    .filter((section) => (!section.adminOnly || isAdmin) && hasNavPermission(section.permission) && hasNavFeature(section.feature))
+    .filter((section) =>
+      (!section.adminOnly || isAdmin) &&
+      hasNavPermission(section.permission) &&
+      hasNavFeature(section.feature)
+    )
     .map((section) => ({
       ...section,
       items: section.items.filter(
-        (item) => (!item.adminOnly || isAdmin) && hasNavPermission(item.permission)
+        (item) =>
+          (!item.adminOnly || isAdmin) &&
+          hasNavPermission(item.permission) &&
+          hasNavFeature(item.feature)
       ),
     }))
-    .filter((section) => section.items.length > 0); // Only show sections with visible items
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside
@@ -294,10 +321,9 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
         {visibleSections.map((section, sectionIndex) => {
           const isExpanded = !section.label || expandedSections.has(section.label);
           const SectionIcon = section.icon;
-          
+
           return (
             <div key={section.label || `section-${sectionIndex}`} className="mb-4">
-              {/* Section Header */}
               {section.label && !collapsed && (
                 <button
                   onClick={() => section.collapsible !== false && toggleSection(section.label)}
@@ -319,7 +345,6 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
                 </button>
               )}
 
-              {/* Section Items */}
               {isExpanded && (
                 <div className="space-y-1">
                   {section.items.map((item) => {
@@ -396,4 +421,3 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
     </aside>
   );
 }
-

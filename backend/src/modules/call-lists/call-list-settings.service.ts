@@ -70,7 +70,7 @@ export const seedDefaultStatusOptions = async (workspaceId: string) => {
   for (const status of DEFAULT_CALL_STATUSES) {
     await prisma.callStatusOption.upsert({
       where: { workspaceId_value: { workspaceId, value: status.value } },
-      update: {},
+      update: { isConnected: status.isConnected, polarity: status.polarity },
       create: { workspaceId, ...status, isDefault: true },
     });
   }
@@ -121,6 +121,8 @@ export const createCallStatusOption = async (workspaceId: string, data: CreateCa
       color: data.color ?? '#6b7280',
       isDefault: false,
       order: nextOrder,
+      isConnected: data.isConnected ?? false,
+      polarity: data.polarity ?? 'neutral',
     },
   });
 };
@@ -141,6 +143,8 @@ export const updateCallStatusOption = async (
       ...(data.label !== undefined && { label: data.label }),
       ...(data.color !== undefined && { color: data.color }),
       ...(data.order !== undefined && { order: data.order }),
+      ...(data.isConnected !== undefined && { isConnected: data.isConnected }),
+      ...(data.polarity !== undefined && { polarity: data.polarity }),
     },
   });
 };

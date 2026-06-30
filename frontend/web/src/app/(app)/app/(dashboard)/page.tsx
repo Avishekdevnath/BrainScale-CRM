@@ -19,16 +19,20 @@ import { CallsTrendChart } from "@/components/dashboard/CallsTrendChart";
 import { StatusDistributionChart } from "@/components/dashboard/StatusDistributionChart";
 import { FollowupsTrendChart } from "@/components/dashboard/FollowupsTrendChart";
 import { CallDensityHeatmap } from "@/components/dashboard/CallDensityHeatmap";
-import { TestEmailCard } from "@/components/dashboard/TestEmailCard";
 import { useCallList } from "@/hooks/useCallLists";
 import { apiClient } from "@/lib/api-client";
 import { useBatches } from "@/hooks/useBatches";
+import { useWorkspaceMembers } from "@/hooks/useMembers";
+import { useWorkspaceStore } from "@/store/workspace";
 import { mapKPIsToCards, mapRecentActivity } from "@/lib/dashboard-mappers";
 import type { DashboardFilters } from "@/types/dashboard.types";
+import type { FollowUpItem } from "@/components/dashboard/FollowUpList";
+import useSWR from "swr";
 import { useGroupStore } from "@/store/group";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import Link from "next/link";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 // Skeleton loader for KPI cards
 function KPISkeleton() {
@@ -58,18 +62,11 @@ function ActivitySkeleton() {
   );
 }
 
-// Placeholder leaderboard data (backend doesn't provide this)
-const placeholderLeaderboard = [
-  { rank: 1, assignee: "A. Khan", conversions: 32 },
-  { rank: 2, assignee: "S. Rahman", conversions: 28 },
-  { rank: 3, assignee: "I. Bari", conversions: 25 },
-  { rank: 4, assignee: "P. Chowdhury", conversions: 21 },
-  { rank: 5, assignee: "J. Alam", conversions: 19 },
-];
 
 export default function WorkspaceDashboardPage() {
   const router = useRouter();
   const { current: currentGroup } = useGroupStore();
+  const currentWorkspaceId = useWorkspaceStore((state) => state.current?.id ?? null);
   const [filters, setFilters] = useState<DashboardFilters>({
     period: "month",
     groupId: currentGroup?.id,
@@ -103,6 +100,13 @@ export default function WorkspaceDashboardPage() {
   // Fetch batches for filter dropdown
   const { data: batchesData } = useBatches({ isActive: true });
 
+  // Fetch members for caller filter dropdown
+  const { members: membersData } = useWorkspaceMembers(currentWorkspaceId);
+
+  // Feature flags
+  const groupsFeature = useFeature("groups");
+  const followupsFeature = useFeature("followups");
+
   // Transform groups data for FilterStrip
   const groups = useMemo(() => {
     if (!groupsData) return [];
@@ -121,6 +125,27 @@ export default function WorkspaceDashboardPage() {
     }));
   }, [batchesData]);
 
+  // Transform members data for caller filter
+  const callers = useMemo(() => {
+    if (!membersData?.length) return [];
+    return membersData.map((m) => ({
+      id: m.id,
+      name: m.user.name || m.user.email,
+    }));
+  }, [membersData]);
+
+  // Fetch upcoming PENDING follow-ups for the section
+  const { data: followupsData, isLoading: isFollowupsLoading } = useSWR(
+    "dashboard-upcoming-followups",
+    () => apiClient.listFollowups({ status: "PENDING", size: 5 })
+  );
+
+  // Fetch recent call logs for heatmap
+  const { data: heatmapLogsData, isLoading: isHeatmapLoading } = useSWR(
+    "dashboard-heatmap-logs",
+    () => apiClient.getCallLogs({ size: 100 })
+  );
+
   // Transform KPI data
   const kpiCards = useMemo(() => {
     if (!dashboardData?.kpis) return [];
@@ -132,6 +157,30 @@ export default function WorkspaceDashboardPage() {
     if (!dashboardData?.recentActivity) return [];
     return mapRecentActivity(dashboardData.recentActivity);
   }, [dashboardData]);
+
+  // Leaderboard from real data
+  const leaderboardEntries = useMemo(() => {
+    if (!dashboardData?.assigneePerformance?.length) return [];
+    return dashboardData.assigneePerformance.map((a) => ({
+      rank: a.rank,
+      assignee: a.assignee,
+      conversions: a.connectedCalls,
+    }));
+  }, [dashboardData]);
+
+  // Upcoming follow-ups mapped to FollowUpList format
+  const upcomingFollowUps = useMemo((): FollowUpItem[] => {
+    if (!followupsData?.followups) return [];
+    return followupsData.followups
+      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
+      .map((f) => ({
+        id: f.id,
+        name: f.student?.name || "Unknown",
+        status: "FOLLOW_UP" as const,
+        due: new Date(f.dueAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+        actionType: "call" as const,
+      }));
+  }, [followupsData]);
 
   // Handle filter changes
   const handleFiltersChange = useCallback((newFilters: DashboardFilters) => {
@@ -294,16 +343,21 @@ export default function WorkspaceDashboardPage() {
           onFiltersChange={handleFiltersChange}
           groups={groups}
           batches={batches}
+          callers={callers}
           selectedStatuses={selectedStatuses}
           onStatusToggle={handleStatusToggle}
           onExport={handleExport}
+          showGroups={groupsFeature.enabled}
         />
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {isDashboardLoading ? (
           <>
+            <KPISkeleton />
+            <KPISkeleton />
+            <KPISkeleton />
             <KPISkeleton />
             <KPISkeleton />
             <KPISkeleton />
@@ -442,7 +496,13 @@ export default function WorkspaceDashboardPage() {
             <CardTitle>Assignee Performance</CardTitle>
           </CardHeader>
           <CardContent variant="groups1">
-            <LeaderboardTable entries={placeholderLeaderboard} />
+            {isDashboardLoading ? (
+              <ActivitySkeleton />
+            ) : leaderboardEntries.length === 0 ? (
+              <div className="text-sm text-[var(--groups1-text-secondary)] text-center py-8">No calls logged yet</div>
+            ) : (
+              <LeaderboardTable entries={leaderboardEntries} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -450,25 +510,25 @@ export default function WorkspaceDashboardPage() {
       {/* Widgets & CTA Row */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
-          {/* Upcoming Follow-ups */}
-          <Card variant="groups1">
-            <CardHeader variant="groups1">
-              <CardTitle>Upcoming Follow-ups</CardTitle>
-            </CardHeader>
-            <CardContent variant="groups1">
-              {isDashboardLoading ? (
-                <ActivitySkeleton />
-              ) : activities.filter((a) => a.type === "status_update").length > 0 ? (
-                <div className="text-sm text-[var(--groups1-text-secondary)] text-center py-8">
-                  Follow-ups will be displayed here when available
-                </div>
-              ) : (
-                <div className="text-sm text-[var(--groups1-text-secondary)] text-center py-8">
-                  No follow-ups scheduled
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Upcoming Follow-ups — only when followups feature enabled */}
+          {followupsFeature.enabled && (
+            <Card variant="groups1">
+              <CardHeader variant="groups1">
+                <CardTitle>Upcoming Follow-ups</CardTitle>
+              </CardHeader>
+              <CardContent variant="groups1">
+                {isFollowupsLoading ? (
+                  <ActivitySkeleton />
+                ) : upcomingFollowUps.length > 0 ? (
+                  <FollowUpList followUps={upcomingFollowUps} />
+                ) : (
+                  <div className="text-sm text-[var(--groups1-text-secondary)] text-center py-8">
+                    No pending follow-ups
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Recent Activity */}
           <Card variant="groups1">
@@ -490,14 +550,11 @@ export default function WorkspaceDashboardPage() {
 
           {/* Call Density Heatmap */}
           <CallDensityHeatmap
-            callLogs={undefined}
-            isLoading={isDashboardLoading}
-            error={dashboardError}
-            onRetry={refetchDashboard}
+            callLogs={heatmapLogsData?.logs}
+            isLoading={isHeatmapLoading}
+            error={null}
+            onRetry={() => {}}
           />
-
-          {/* Test Email Card */}
-          <TestEmailCard />
         </div>
 
         {/* Footer CTA */}
@@ -512,8 +569,11 @@ export default function WorkspaceDashboardPage() {
             <p className="text-sm text-[var(--groups1-text-secondary)] mb-4 leading-relaxed">
               Collaborate with your team to track students and manage follow-ups more effectively.
             </p>
-            <Button className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]">
-              Send invite
+            <Button
+              onClick={() => router.push("/app/members")}
+              className="w-full bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
+            >
+              Manage members
             </Button>
           </CardContent>
         </Card>

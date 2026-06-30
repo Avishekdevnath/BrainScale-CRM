@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { apiClient } from "@/lib/api-client";
-import { Loader2, Calendar, MessageSquare, AlertCircle } from "lucide-react";
+import { Loader2, Calendar, MessageSquare, AlertCircle, User } from "lucide-react";
 import type { CallListItem, CallLog } from "@/types/call-lists.types";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +79,7 @@ export function CallHistoryModal({ open, onOpenChange, callListItem }: CallHisto
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2">
           {isLoading && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-[var(--groups1-text-secondary)]" />
@@ -103,7 +103,7 @@ export function CallHistoryModal({ open, onOpenChange, callListItem }: CallHisto
             <div
               key={log.id}
               className={cn(
-                "rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-4 space-y-3",
+                "rounded-xl border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-3 space-y-1.5",
                 idx === 0 && "border-[var(--groups1-primary)] border-2"
               )}
             >
@@ -129,19 +129,26 @@ export function CallHistoryModal({ open, onOpenChange, callListItem }: CallHisto
                   )}
                 </div>
               </div>
+              {/* Caller */}
+              {log.assignee?.user?.name && (
+                <div className="flex items-center gap-1.5 text-xs text-[var(--groups1-text-secondary)]">
+                  <User className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Called by <span className="font-medium text-[var(--groups1-text)]">{log.assignee.user.name}</span></span>
+                </div>
+              )}
 
               {/* Q&A */}
               {log.answers && log.answers.length > 0 && (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wide">
                     <MessageSquare className="w-3.5 h-3.5" />
                     Q&amp;A
                   </div>
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-1">
                     {log.answers.map((ans, i) => (
                       <div
                         key={i}
-                        className="flex items-start gap-2 rounded-lg bg-[var(--groups1-background)] px-3 py-2 text-sm"
+                        className="flex items-start gap-2 rounded-lg bg-[var(--groups1-background)] px-3 py-1.5 text-sm"
                       >
                         <span className="text-[var(--groups1-text-secondary)] flex-shrink-0 min-w-0 truncate max-w-[50%]">
                           {ans.question}

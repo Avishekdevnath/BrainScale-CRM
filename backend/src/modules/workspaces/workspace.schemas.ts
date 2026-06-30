@@ -25,6 +25,12 @@ export const UpdateWorkspaceSchema = z.object({
   // Feature flags (per-workspace)
   tasksEnabled: z.boolean().optional(),
   revenueEnabled: z.boolean().optional(),
+  callsEnabled: z.boolean().optional(),
+  followupsEnabled: z.boolean().optional(),
+  groupsEnabled: z.boolean().optional(),
+  learningEnabled: z.boolean().optional(),
+  teamChatEnabled: z.boolean().optional(),
+  formsEnabled: z.boolean().optional(),
 });
 
 export const InviteMemberSchema = z.object({

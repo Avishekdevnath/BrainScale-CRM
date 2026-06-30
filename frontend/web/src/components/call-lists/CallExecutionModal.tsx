@@ -12,6 +12,7 @@ import { validateCallLog, formatCallDuration } from "@/lib/call-list-utils";
 import { cn } from "@/lib/utils";
 import { useCallStatusOptions } from "@/hooks/useCallLists";
 import type { CallListItem, Question, Answer, CallLogStatus, CreateCallLogRequest, CustomColumnDef } from "@/types/call-lists.types";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 const FALLBACK_STATUSES = [
   { value: "completed", label: "Completed" },
@@ -37,6 +38,7 @@ export function CallExecutionModal({
   previousCallLog,
   onSuccess,
 }: CallExecutionModalProps) {
+  const followupsFeature = useFeature("followups");
   const [submitting, setSubmitting] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState("");
@@ -62,6 +64,7 @@ export function CallExecutionModal({
   const questions = callList?.questions || [];
   const columns = (callList?.columns ?? []) as CustomColumnDef[];
   const messages = callList?.messages || [];
+  const includeFollowup = (callList as any)?.meta?.includeFollowup !== false;
 
   // Load draft on modal open: prefer newer of localStorage vs server
   useEffect(() => {
@@ -732,7 +735,7 @@ export function CallExecutionModal({
               </div>
 
               {/* Follow-up */}
-              <div className="space-y-3">
+              {includeFollowup && followupsFeature.enabled && <div className="space-y-3">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -790,7 +793,7 @@ export function CallExecutionModal({
                     </div>
                   </div>
                 )}
-              </div>
+              </div>}
             </>
           )}
         </div>

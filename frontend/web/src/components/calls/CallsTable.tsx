@@ -7,6 +7,7 @@ import { PhoneHistoryDrawer } from "@/components/calls/PhoneHistoryDrawer";
 import { Loader2, ChevronLeft, ChevronRight, Calendar, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CallLog, GetCallLogsParams } from "@/types/call-lists.types";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 export interface CallsTableProps {
   callListId?: string | null;
@@ -31,6 +32,7 @@ function callSummary(log: CallLog): string | null {
 
 export function CallsTable({ callListId, searchQuery = "", status, assignedTo, onRefresh }: CallsTableProps) {
   const router = useRouter();
+  const followupsFeature = useFeature("followups");
   const [historyPhone, setHistoryPhone] = React.useState<{ phone: string; name?: string | null } | null>(null);
   const [openSummaryId, setOpenSummaryId] = React.useState<string | null>(null);
   const [pageSize] = React.useState<number>(20);
@@ -78,14 +80,15 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-secondary)]/40">
+                    <th className={thClass}>ID</th>
                     <th className={thClass}>Student</th>
                     <th className={thClass}>Phone</th>
                     <th className={thClass}>Call List</th>
-                    <th className={thClass}>Group</th>
+                    <th className={thClass}>Batch</th>
                     <th className={thClass}>Caller</th>
                     <th className={thClass}>Status</th>
                     <th className={thClass}>Summary</th>
-                    <th className={thClass}>Follow-up</th>
+                    {followupsFeature.enabled && <th className={thClass}>Follow-up</th>}
                     <th className={thClass}>Date</th>
                   </tr>
                 </thead>
@@ -97,6 +100,12 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
 
                     return (
                       <tr key={log.id} className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]/50 transition-colors">
+                        <td className={tdClass}>
+                          {log.callNumber != null
+                            ? <span className="font-mono text-[11px] text-[var(--groups1-text-secondary)]">#{log.callNumber}</span>
+                            : <span className="text-[var(--groups1-text-secondary)]">—</span>
+                          }
+                        </td>
                         <td className={tdClass}>
                           {student?.id ? (
                             <button
@@ -130,7 +139,7 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                           })() : <span className="text-[var(--groups1-text-secondary)]">N/A</span>}
                         </td>
                         <td className={tdClass}>{callList?.name || "—"}</td>
-                        <td className={tdClass}>{callList?.group?.name || "—"}</td>
+                        <td className={tdClass}>{(callList?.group as any)?.batch?.name || "—"}</td>
                         <td className={tdClass}>
                           {log.assignee
                             ? log.assignee.user.name?.trim() || log.assignee.user.email
@@ -183,16 +192,18 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                             );
                           })()}
                         </td>
-                        <td className={tdClass}>
-                          {log.followUpRequired && log.followUpDate ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)] border border-[var(--groups1-primary)]/25">
-                              <Calendar className="w-3 h-3 flex-shrink-0" />
-                              {new Date(log.followUpDate).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            <span className="text-[var(--groups1-text-secondary)]">—</span>
-                          )}
-                        </td>
+                        {followupsFeature.enabled && (
+                          <td className={tdClass}>
+                            {log.followUpRequired && log.followUpDate ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium bg-[var(--groups1-primary)]/10 text-[var(--groups1-primary)] border border-[var(--groups1-primary)]/25">
+                                <Calendar className="w-3 h-3 flex-shrink-0" />
+                                {new Date(log.followUpDate).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span className="text-[var(--groups1-text-secondary)]">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className={cn(tdClass, "text-[var(--groups1-text-secondary)] whitespace-nowrap")}>
                           {new Date(log.callDate).toLocaleDateString()}
                         </td>

@@ -31,6 +31,7 @@ import { StudentsBulkActionsToolbar } from "@/components/students/StudentsBulkAc
 import { Pagination } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import type { StudentsListParams } from "@/types/students.types";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 export default function StudentsPage() {
   return (
@@ -70,6 +71,9 @@ function StudentsPageContent() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [isFixingPhones, setIsFixingPhones] = useState(false);
   const [isFixingDuplicates, setIsFixingDuplicates] = useState(false);
+
+  const groupsFeature = useFeature("groups");
+  const learningFeature = useFeature("learning");
 
   const { data: groups } = useGroups();
   const { data: courses, isLoading: coursesLoading, error: coursesError } = useCourses();
@@ -427,120 +431,128 @@ function StudentsPageContent() {
 
             {/* Filters */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-                  Group
-                </label>
-                <select
-                  value={groupId}
-                  onChange={(e) => {
-                    setGroupId(e.target.value);
-                    setPage(1);
-                  }}
-                  className={cn(
-                    "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
-                    "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                    "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                  )}
-                >
-                  <option value="">All Groups</option>
-                  {groups?.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-                  Batch
-                </label>
-                <BatchFilter
-                  value={batchId}
-                  onChange={(value) => {
-                    setBatchId(value);
-                    setPage(1);
-                  }}
-                  placeholder="All Batches"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-                  Course
-                </label>
-                <select
-                  value={courseId}
-                  onChange={(e) => {
-                    setCourseId(e.target.value);
-                    setModuleId(""); // Reset module when course changes
-                    setPage(1);
-                  }}
-                  className={cn(
-                    "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
-                    "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                    "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                  )}
-                >
-                  <option value="">All Courses</option>
-                  {coursesLoading ? (
-                    <option value="" disabled>Loading courses...</option>
-                  ) : coursesError ? (
-                    <option value="" disabled>Error loading courses</option>
-                  ) : courses && courses.length > 0 ? (
-                    courses.map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.name}
+              {groupsFeature.enabled && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+                    Group
+                  </label>
+                  <select
+                    value={groupId}
+                    onChange={(e) => {
+                      setGroupId(e.target.value);
+                      setPage(1);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
+                      "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                      "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                    )}
+                  >
+                    <option value="">All Groups</option>
+                    {groups?.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
                       </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>No courses available</option>
-                  )}
-                </select>
-              </div>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-                  Module
-                </label>
-                <select
-                  value={moduleId}
-                  onChange={(e) => {
-                    setModuleId(e.target.value);
-                    setPage(1);
-                  }}
-                  disabled={!courseId}
-                  className={cn(
-                    "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
-                    "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                    "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
+              {learningFeature.enabled && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+                    Batch
+                  </label>
+                  <BatchFilter
+                    value={batchId}
+                    onChange={(value) => {
+                      setBatchId(value);
+                      setPage(1);
+                    }}
+                    placeholder="All Batches"
+                  />
+                </div>
+              )}
+
+              {learningFeature.enabled && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+                    Course
+                  </label>
+                  <select
+                    value={courseId}
+                    onChange={(e) => {
+                      setCourseId(e.target.value);
+                      setModuleId("");
+                      setPage(1);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
+                      "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                      "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                    )}
+                  >
+                    <option value="">All Courses</option>
+                    {coursesLoading ? (
+                      <option value="" disabled>Loading courses...</option>
+                    ) : coursesError ? (
+                      <option value="" disabled>Error loading courses</option>
+                    ) : courses && courses.length > 0 ? (
+                      courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No courses available</option>
+                    )}
+                  </select>
+                </div>
+              )}
+
+              {learningFeature.enabled && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+                    Module
+                  </label>
+                  <select
+                    value={moduleId}
+                    onChange={(e) => {
+                      setModuleId(e.target.value);
+                      setPage(1);
+                    }}
+                    disabled={!courseId}
+                    className={cn(
+                      "w-full px-3 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)]",
+                      "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+                      "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+                      "disabled:opacity-50 disabled:cursor-not-allowed"
+                    )}
+                  >
+                    <option value="">All Modules</option>
+                    {!courseId ? (
+                      <option value="" disabled>Select a course first</option>
+                    ) : modulesLoading ? (
+                      <option value="" disabled>Loading modules...</option>
+                    ) : modulesError ? (
+                      <option value="" disabled>Error loading modules</option>
+                    ) : modules && modules.length > 0 ? (
+                      modules.map((module) => (
+                        <option key={module.id} value={module.id}>
+                          {module.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No modules available</option>
+                    )}
+                  </select>
+                  {!courseId && (
+                    <p className="text-xs text-[var(--groups1-text-secondary)] mt-0.5">
+                      Select a course to filter by module
+                    </p>
                   )}
-                >
-                  <option value="">All Modules</option>
-                  {!courseId ? (
-                    <option value="" disabled>Select a course first</option>
-                  ) : modulesLoading ? (
-                    <option value="" disabled>Loading modules...</option>
-                  ) : modulesError ? (
-                    <option value="" disabled>Error loading modules</option>
-                  ) : modules && modules.length > 0 ? (
-                    modules.map((module) => (
-                      <option key={module.id} value={module.id}>
-                        {module.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>No modules available</option>
-                  )}
-                </select>
-                {!courseId && (
-                  <p className="text-xs text-[var(--groups1-text-secondary)] mt-0.5">
-                    Select a course to filter by module
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
 
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">

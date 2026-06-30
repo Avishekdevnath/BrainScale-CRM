@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
@@ -19,7 +20,7 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { extractQuestions, getStateLabel, getStateColor } from "@/lib/call-list-utils";
-import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Trash2, MoreVertical, Download, Search, Users, History } from "lucide-react";
+import { Loader2, Phone, Eye, UserPlus, UserMinus, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Trash2, MoreVertical, Download, Search, Users, History, X } from "lucide-react";
 import { mutate as globalMutate } from "swr";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
@@ -80,6 +81,7 @@ export function CallListItemsTable({
   const [expandedAnswerItems, setExpandedAnswerItems] = React.useState<Set<string>>(new Set());
   const [draftCount, setDraftCount] = React.useState<number>(0);
   const [isSubmittingDrafts, setIsSubmittingDrafts] = React.useState(false);
+  const [textPopover, setTextPopover] = React.useState<{ label: string; value: string; top: number; left: number } | null>(null);
 
   const toggleAnswers = React.useCallback((itemId: string) => {
     setExpandedAnswerItems((prev) => {
@@ -258,6 +260,8 @@ export function CallListItemsTable({
     const fromItem = paginatedItems[0]?.callList?.columns as CustomColumnDef[] | undefined;
     return fromItem ?? [];
   }, [callListDetails, paginatedItems]);
+
+  const includeFollowup = callListDetails?.meta?.includeFollowup !== false;
 
   const selectionMeta = React.useMemo(() => {
     let assignedToMe = 0;
@@ -600,6 +604,14 @@ export function CallListItemsTable({
     return item.callLog || null;
   };
 
+  const getCustomColumnValue = (item: CallListItem, col: CustomColumnDef): string => {
+    if (col.key === "notes") {
+      return item.callLog?.callerNote || item.callLog?.notes || "—";
+    }
+    const val = (item as any).custom?.[col.key];
+    return val != null ? String(val) : "—";
+  };
+
   const normalizeQuestionText = (value: string | undefined | null): string => {
     return (value || "").trim().replace(/\s+/g, " ").toLowerCase();
   };
@@ -675,6 +687,7 @@ export function CallListItemsTable({
       }
 
       const questionHeaders = questions.map((question) => getQuestionExportLabel(question));
+      const customColHeaders = customColumns.map((col) => col.label);
       const headers = [
         "SL",
         "Student Name",
@@ -682,7 +695,8 @@ export function CallListItemsTable({
         "Assigned",
         "Status",
         ...questionHeaders,
-        "Follow-up Date",
+        ...customColHeaders,
+        ...(includeFollowup ? ["Follow-up Date"] : []),
       ];
 
       const rows = allItems.map((item, index) => {
@@ -691,6 +705,7 @@ export function CallListItemsTable({
           const answer = getAnswer(item, question);
           return formatAnswerValue(answer?.answer);
         });
+        const customValues = customColumns.map((col) => getCustomColumnValue(item, col));
 
         return [
           index + 1,
@@ -699,7 +714,8 @@ export function CallListItemsTable({
           assignedTo,
           getStateLabel(item.state),
           ...answerValues,
-          formatDateForExport(item.callLog?.followUpDate),
+          ...customValues,
+          ...(includeFollowup ? [formatDateForExport(item.callLog?.followUpDate)] : []),
         ];
       });
 
@@ -737,86 +753,54 @@ export function CallListItemsTable({
   return (
     <>
       <Card variant="groups1">
-        <CardHeader variant="groups1" className="py-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>
-              Students ({totalItems})
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleExportExcel}
-                disabled={isLoading || isExportingExcel || filteredItems.length === 0}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Card header row — plain div to avoid CardHeader grid gap issues */}
+        <div className="flex items-center justify-between px-4 py-1.5 border-b border-[var(--groups1-border)]">
+          <span className="text-sm font-semibold text-[var(--groups1-text)]">
+            Students <span className="font-normal text-[var(--groups1-text-secondary)]">({totalItems})</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-[var(--groups1-text-secondary)]">Per page:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const newSize = Number(e.target.value);
+                  setPageSize(newSize);
+                  localStorage.setItem("call-list-items:pageSize", String(newSize));
+                  setFilters((prev) => ({ ...prev, size: newSize, page: 1 }));
+                }}
+                className="px-2 py-1 text-xs rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-secondary)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
               >
-                {isExportingExcel ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-1" />
-                    Export Excel
-                  </>
-                )}
-              </Button>
-              {/* Pagination Size Selector */}
-              <div className="flex items-center gap-1.5">
-                <label className="text-sm text-[var(--groups1-text-secondary)]">Per page:</label>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    const newSize = Number(e.target.value);
-                    setPageSize(newSize);
-                    localStorage.setItem("call-list-items:pageSize", String(newSize));
-                    setFilters((prev) => ({ ...prev, size: newSize, page: 1 }));
-                  }}
-                  className="px-2 py-1 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportExcel}
+              disabled={isLoading || isExportingExcel || filteredItems.length === 0}
+              className="text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text-secondary)] hover:bg-[var(--groups1-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExportingExcel ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  Export Excel
+                </>
+              )}
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent variant="groups1" className="pb-3 pt-2">
-          {/* Filters */}
-          <div className="flex items-center justify-between mb-3">
-            <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
-          </div>
-          <CollapsibleFilters open={showFilters}>
-            <CallListFilters
-              activeFilter={activeFilter}
-              assignmentFilter={assignmentFilter}
-              memberFilterId={memberFilterId}
-              onFilterChange={(filter) => {
-                setActiveFilter(filter);
-              }}
-              onAssignmentFilterChange={(filter) => {
-                setAssignmentFilter(filter);
-                // Reset member filter when switching away from "member" filter
-                if (filter !== "member") {
-                  setMemberFilterId(null);
-                }
-              }}
-              onMemberFilterChange={(memberId) => {
-                setMemberFilterId(memberId);
-              }}
-              onClearFilters={() => {
-                setActiveFilter("all");
-                setAssignmentFilter("all");
-                setMemberFilterId(null);
-              }}
-            />
-          </CollapsibleFilters>
-
-          {/* Quick Search + Hide Done toggle */}
-          <div className="flex items-center gap-2 mb-3">
+        </div>
+        <CardContent variant="groups1" className="pb-0 pt-0 px-0">
+          {/* Toolbar row: search + filter toggle + hide done + mark done + drafts */}
+          <div className="flex items-center gap-2 px-4 py-1.5 border-b border-[var(--groups1-border)]">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
               <input
@@ -824,9 +808,14 @@ export function CallListItemsTable({
                 placeholder="Search students..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+                className="w-full pl-9 pr-4 py-1.5 text-sm rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] placeholder:text-[var(--groups1-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
               />
             </div>
+            <FilterToggleButton
+              isOpen={showFilters}
+              onToggle={() => setShowFilters(!showFilters)}
+              activeCount={(activeFilter !== "all" ? 1 : 0) + (assignmentFilter !== "all" ? 1 : 0)}
+            />
             <Button
               type="button"
               variant="outline"
@@ -843,7 +832,7 @@ export function CallListItemsTable({
               aria-pressed={hideDone}
               title="Hide rows already marked as Done. When off, Done rows stay in place so serial numbers don't shift."
               className={cn(
-                "h-9 px-3 text-xs whitespace-nowrap",
+                "h-8 px-3 text-xs whitespace-nowrap",
                 hideDone
                   ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-[var(--groups1-primary)]"
                   : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
@@ -857,7 +846,7 @@ export function CallListItemsTable({
               size="sm"
               onClick={handleMarkAllPendingDone}
               title="Mark all pending (non-Done) items as Done"
-              className="h-9 px-3 text-xs whitespace-nowrap bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+              className="h-8 px-3 text-xs whitespace-nowrap bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
             >
               Mark All Pending Done
             </Button>
@@ -869,7 +858,7 @@ export function CallListItemsTable({
                 onClick={handleSubmitAllDrafts}
                 disabled={isSubmittingDrafts}
                 title="Submit all saved drafts (with their answers/notes) as call logs"
-                className="h-9 px-3 text-xs whitespace-nowrap bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                className="h-8 px-3 text-xs whitespace-nowrap bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-600 dark:text-amber-400"
               >
                 {isSubmittingDrafts ? (
                   <>
@@ -883,6 +872,35 @@ export function CallListItemsTable({
             )}
           </div>
 
+          {/* Collapsible filter panel */}
+          <CollapsibleFilters open={showFilters}>
+            <div className="px-4 pt-1.5 pb-1">
+              <CallListFilters
+                activeFilter={activeFilter}
+                assignmentFilter={assignmentFilter}
+                memberFilterId={memberFilterId}
+                onFilterChange={(filter) => {
+                  setActiveFilter(filter);
+                }}
+                onAssignmentFilterChange={(filter) => {
+                  setAssignmentFilter(filter);
+                  if (filter !== "member") {
+                    setMemberFilterId(null);
+                  }
+                }}
+                onMemberFilterChange={(memberId) => {
+                  setMemberFilterId(memberId);
+                }}
+                onClearFilters={() => {
+                  setActiveFilter("all");
+                  setAssignmentFilter("all");
+                  setMemberFilterId(null);
+                }}
+              />
+            </div>
+          </CollapsibleFilters>
+
+          <div className="px-4 py-1 md:px-0 md:py-0">
           {isLoading ? (
             <div className="py-8 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-[var(--groups1-text-secondary)]" />
@@ -936,7 +954,7 @@ export function CallListItemsTable({
 
                   const isAssigned = !!item.assignedTo;
                   const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
-                  const isAssignedToOther = isAssigned && !isAssignedToMe;
+                  const isAssignedToOther = isAssigned && !isAssignedToMe && !isAdmin;
                   const isSelected = selectedItemIds.has(item.id);
                   const canStartCall =
                     item.state !== "DONE" && !!item.assignedTo && currentMember?.id === item.assignedTo;
@@ -1165,11 +1183,11 @@ export function CallListItemsTable({
               </div>
 
               {/* Desktop table view */}
-              <div className="hidden md:block overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto overflow-y-auto" style={{ maxHeight: "calc(100vh - 370px)", minHeight: "280px" }}>
                 <table className="w-full border-collapse">
-                <thead className="sticky top-0 z-20">
+                <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10 bg-[var(--groups1-surface)]">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10 bg-slate-100 dark:bg-slate-800">
                       <input
                         type="checkbox"
                         checked={isAllSelectedOnCurrentPage}
@@ -1177,41 +1195,43 @@ export function CallListItemsTable({
                         className="w-4 h-4 rounded border-[var(--groups1-border)] text-[var(--groups1-primary)] focus:ring-2 focus:ring-[var(--groups1-primary)] focus:ring-offset-0 cursor-pointer"
                       />
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       SL
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Name
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Phone
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Assigned
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                    <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                       Status
                     </th>
                     {questions.map((q) => (
                       <th
                         key={q.id}
                         title={getQuestionHeaderLabel(q)}
-                        className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] bg-[var(--groups1-secondary)] max-w-[120px]"
+                        className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] max-w-[120px]"
                       >
                         <span className="truncate block max-w-[110px] normal-case">
                           {getQuestionHeaderLabel(q)}
                         </span>
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
-                      Follow-up Date
-                    </th>
                     {customColumns.map((col) => (
-                      <th key={col.key} className="px-3 py-2 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] bg-[var(--groups1-secondary)] whitespace-nowrap">
+                      <th key={col.key} className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)] whitespace-nowrap">
                         {col.label}
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-l border-[var(--groups1-card-border-inner)] sticky right-0 z-10 bg-[var(--groups1-surface)]">
+                    {includeFollowup && (
+                      <th className="px-3 py-1 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                        Follow-up Date
+                      </th>
+                    )}
+                    <th className="px-3 py-2 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-l border-[var(--groups1-card-border-inner)] sticky right-0 z-10 bg-slate-100 dark:bg-slate-800">
                       Actions
                     </th>
                   </tr>
@@ -1222,13 +1242,12 @@ export function CallListItemsTable({
                     const isUpdating = updatingItemId === item.id;
                     const callLog = getCallLogData(item);
                     const followUpDate = callLog?.followUpDate || null;
-                    const serialNumber = item.state === "DONE"
-                      ? (item as any).completeSerialNumber || (filters.page! - 1) * pageSize + index + 1
-                      : (item as any).pendingSerialNumber || (filters.page! - 1) * pageSize + index + 1;
+                    const serialNumber = serialMap.get(item.id) ?? index + 1;
+                    const serialLabel = item.state === "DONE" ? `D${serialNumber}` : String(serialNumber);
 
                     const isAssigned = !!item.assignedTo;
                     const isAssignedToMe = !!item.assignedTo && !!currentMember?.id && item.assignedTo === currentMember.id;
-                    const isAssignedToOther = isAssigned && !isAssignedToMe;
+                    const isAssignedToOther = isAssigned && !isAssignedToMe && !isAdmin;
                     const isSelected = selectedItemIds.has(item.id);
 
                   return (
@@ -1243,7 +1262,7 @@ export function CallListItemsTable({
                         onMouseLeave={() => setHoveredRowId(null)}
                       >
                         <td className={cn(
-                          "px-3 py-2 border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10",
+                          "px-3 py-1 border-b border-r border-[var(--groups1-card-border-inner)] sticky left-0 z-10",
                           isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
                         )}>
                           <input
@@ -1255,10 +1274,10 @@ export function CallListItemsTable({
                             title={isAssignedToOther && !isAdmin ? "This item is assigned to another member" : ""}
                           />
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] text-sm text-[var(--groups1-text-secondary)]">
-                          {serialNumber}
+                        <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)] text-xs font-mono text-[var(--groups1-text-secondary)]">
+                          {serialLabel}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] overflow-hidden">
+                        <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)] overflow-hidden">
                           {item.student ? (
                             <Link
                               href={`/app/students/${item.student.id}`}
@@ -1274,7 +1293,7 @@ export function CallListItemsTable({
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)]">
                           {primaryPhone ? (
                             <a
                               href={`tel:${primaryPhone.phone}`}
@@ -1286,7 +1305,7 @@ export function CallListItemsTable({
                             <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)]">
                           {item.assignedTo ? (
                             <span className="text-sm text-[var(--groups1-text)]">
                               <span
@@ -1302,7 +1321,7 @@ export function CallListItemsTable({
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
+                        <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)]">
                           <StatusBadge
                             variant={getStateVariant(item.state)}
                             size="sm"
@@ -1313,36 +1332,56 @@ export function CallListItemsTable({
                         {questions.map((q) => {
                           const answerObj = getAnswer(item, q);
                           const displayValue = formatAnswerValue(answerObj?.answer);
+                          const isLong = displayValue !== "-" && displayValue.length > 25;
                           return (
-                            <td key={q.id} className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] max-w-[140px]">
-                              <span
-                                className="text-sm text-[var(--groups1-text)] truncate block"
-                                title={displayValue !== "-" ? displayValue : undefined}
-                              >
-                                {displayValue}
-                              </span>
+                            <td key={q.id} className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)] max-w-[140px]">
+                              {isLong ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTextPopover({ label: getQuestionHeaderLabel(q), value: displayValue, top: r.bottom + 6, left: r.left }); }}
+                                  className="block w-full truncate text-left text-sm no-underline text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                                >
+                                  {displayValue}
+                                </button>
+                              ) : (
+                                <span className="text-sm text-[var(--groups1-text)] truncate block">{displayValue}</span>
+                              )}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)]">
-                          {followUpDate ? (
-                            <span className="text-sm text-[var(--groups1-text)]">
-                              {new Date(followUpDate).toLocaleDateString()}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
-                          )}
-                        </td>
-                        {/* Custom column cells */}
-                        {customColumns.map((col) => (
-                          <td key={col.key} className="px-3 py-2 border-b border-[var(--groups1-card-border-inner)] whitespace-nowrap">
-                            <span className="text-sm text-[var(--groups1-text)]">
-                              {(item as any).custom?.[col.key] != null ? String((item as any).custom[col.key]) : "—"}
-                            </span>
+                        {includeFollowup && (
+                          <td className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)]">
+                            {followUpDate ? (
+                              <span className="text-sm text-[var(--groups1-text)]">
+                                {new Date(followUpDate).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-[var(--groups1-text-secondary)]">-</span>
+                            )}
                           </td>
-                        ))}
+                        )}
+                        {/* Custom column cells */}
+                        {customColumns.map((col) => {
+                          const val = getCustomColumnValue(item, col);
+                          const isLong = val !== "—" && val.length > 30;
+                          return (
+                            <td key={col.key} className="px-3 py-1 border-b border-[var(--groups1-card-border-inner)] max-w-[160px]">
+                              {isLong ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTextPopover({ label: col.label, value: val, top: r.bottom + 6, left: r.left }); }}
+                                  className="block w-full truncate text-left text-sm no-underline text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
+                                >
+                                  {val}
+                                </button>
+                              ) : (
+                                <span className="text-sm text-[var(--groups1-text)] truncate block">{val}</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className={cn(
-                          "px-3 py-2 border-b border-l border-[var(--groups1-card-border-inner)] text-right sticky right-0 z-10",
+                          "px-3 py-1 border-b border-l border-[var(--groups1-card-border-inner)] text-right sticky right-0 z-10",
                           isAssignedToOther ? "bg-[var(--groups1-background)]" : hoveredRowId === item.id ? "bg-[var(--groups1-secondary)]" : "bg-[var(--groups1-surface)]"
                         )}>
                           <div className="flex items-center justify-end gap-2">
@@ -1462,41 +1501,41 @@ export function CallListItemsTable({
             </div>
           )}
 
-          {/* Pagination Controls */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between mt-2 pt-2 border-t border-[var(--groups1-border)] gap-2">
-            {/* Record count - always visible */}
-            <div className="text-xs md:text-sm text-[var(--groups1-text-secondary)]">
+          </div>
+
+          {/* Pagination row — bottom of card */}
+          <div className="flex items-center justify-between px-4 py-1.5 border-t border-[var(--groups1-border)] bg-[var(--groups1-background)]/40">
+            <div className="text-xs text-[var(--groups1-text-secondary)]">
               {filteredItems.length === 0
                 ? "No records"
                 : totalItems <= pageSize
                 ? `${totalItems} record${totalItems !== 1 ? "s" : ""}`
                 : `Showing ${(filters.page! - 1) * pageSize + 1}–${Math.min(filters.page! * pageSize, totalItems)} of ${totalItems}`}
             </div>
-            {/* Pagination buttons - only when multiple pages */}
             {totalPages > 1 && (
-            <div className="flex items-center gap-2 justify-between md:justify-start">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setFilters((prev) => ({ ...prev, page: prev.page! - 1 }))}
                   disabled={filters.page === 1 || isLoading}
-                  className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                  className="h-7 px-2.5 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] disabled:opacity-40"
                 >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Previous
+                  <ChevronLeft className="w-3.5 h-3.5 mr-0.5" />
+                  Prev
                 </Button>
-                <div className="text-xs md:text-sm text-[var(--groups1-text-secondary)]">
+                <span className="px-3 text-xs text-[var(--groups1-text)]">
                   Page {filters.page} of {totalPages}
-                </div>
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setFilters((prev) => ({ ...prev, page: prev.page! + 1 }))}
                   disabled={filters.page === totalPages || isLoading}
-                  className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                  className="h-7 px-2.5 text-xs bg-[var(--groups1-primary)] border-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:opacity-90 disabled:opacity-40"
                 >
                   Next
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                  <ChevronRight className="w-3.5 h-3.5 ml-0.5" />
                 </Button>
               </div>
             )}
@@ -1569,6 +1608,30 @@ export function CallListItemsTable({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Cell text popover — portal so it escapes overflow containers */}
+      {textPopover && typeof document !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setTextPopover(null)} />
+          <div
+            className="fixed z-50 w-80 max-w-[80vw] bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg p-3"
+            style={{ top: textPopover.top, left: Math.min(textPopover.left, window.innerWidth - 340) }}
+          >
+            <div className="flex items-start justify-between gap-2 mb-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+                {textPopover.label}
+              </span>
+              <button type="button" onClick={() => setTextPopover(null)} className="text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <p className="text-xs text-[var(--groups1-text)] whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+              {textPopover.value}
+            </p>
+          </div>
+        </>,
+        document.body
+      )}
     </>
   );
 }

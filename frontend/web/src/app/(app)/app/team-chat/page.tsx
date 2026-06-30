@@ -15,8 +15,9 @@ import MessageView from './components/MessageView';
 import ActivityFeedView from './components/ActivityFeedView';
 import { apiClient } from '@/lib/api-client';
 import type { TiptapContent } from '@/types/team-chat.types';
+import { FeatureGuard } from '@/components/common/FeatureGuard';
 
-export default function TeamChatPage() {
+function TeamChatPageContent() {
   const { currentView, activeDmUser } = useTeamChat();
   const workspaceLoaded = !!useWorkspaceStore((state) => state.current?.id);
   const currentUserId = useAuthStore((state) => state.user?.id) ?? '';
@@ -103,5 +104,13 @@ export default function TeamChatPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function TeamChatPage() {
+  return (
+    <FeatureGuard feature="teamChat">
+      <TeamChatPageContent />
+    </FeatureGuard>
   );
 }

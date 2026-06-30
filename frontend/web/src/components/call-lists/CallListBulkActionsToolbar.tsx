@@ -6,8 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { MemberSelector } from "./MemberSelector";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Loader2, UserPlus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2, UserPlus, UserMinus, X, Trash2 } from "lucide-react";
 import type { CallListItemState } from "@/types/call-lists.types";
 
 export interface CallListBulkActionsToolbarProps {
@@ -35,35 +34,22 @@ export function CallListBulkActionsToolbar({
 }: CallListBulkActionsToolbarProps) {
   const [isUpdating, setIsUpdating] = React.useState(false);
   const [selectedMemberId, setSelectedMemberId] = React.useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = React.useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = React.useState(false);
 
   const hasSelection = selectedItemIds.length > 0;
 
-  // Auto-collapse when selection is cleared
-  React.useEffect(() => {
-    if (!hasSelection) {
-      setIsExpanded(false);
-    }
-  }, [hasSelection]);
-
   const handleBulkStateChange = React.useCallback(
     async (state: CallListItemState) => {
       if (!hasSelection || isUpdating || disabled) return;
-
       setIsUpdating(true);
       try {
         await Promise.all(
-          selectedItemIds.map((itemId) =>
-            apiClient.updateCallListItem(itemId, { state })
-          )
+          selectedItemIds.map((itemId) => apiClient.updateCallListItem(itemId, { state }))
         );
-        toast.success(`${selectedItemIds.length} items updated to ${state}`);
+        toast.success(`${selectedItemIds.length} items marked as ${state.toLowerCase()}`);
         onItemsUpdated?.();
       } catch (error: any) {
-        console.error("Failed to update items:", error);
-        const errorMessage = error?.message || "Failed to update items";
-        toast.error(errorMessage);
+        toast.error(error?.message || "Failed to update items");
       } finally {
         setIsUpdating(false);
       }
@@ -74,22 +60,17 @@ export function CallListBulkActionsToolbar({
   const handleBulkAssign = React.useCallback(
     async (memberId: string | null) => {
       if (!hasSelection || isUpdating || disabled) return;
-
       setIsUpdating(true);
       try {
         await apiClient.assignCallListItems(listId, {
           itemIds: selectedItemIds,
           assignedTo: memberId || undefined,
         });
-        toast.success(
-          `${selectedItemIds.length} items ${memberId ? "assigned" : "unassigned"}`
-        );
+        toast.success(`${selectedItemIds.length} items ${memberId ? "assigned" : "assigned to you"}`);
         setSelectedMemberId(null);
         onItemsUpdated?.();
       } catch (error: any) {
-        console.error("Failed to assign items:", error);
-        const errorMessage = error?.message || "Failed to assign items";
-        toast.error(errorMessage);
+        toast.error(error?.message || "Failed to assign items");
       } finally {
         setIsUpdating(false);
       }
@@ -97,9 +78,22 @@ export function CallListBulkActionsToolbar({
     [hasSelection, isUpdating, disabled, listId, selectedItemIds, onItemsUpdated]
   );
 
+  const handleBulkUnassign = React.useCallback(async () => {
+    if (!hasSelection || isUpdating || disabled) return;
+    setIsUpdating(true);
+    try {
+      await apiClient.unassignCallListItems(listId, { itemIds: selectedItemIds });
+      toast.success(`${selectedItemIds.length} items unassigned`);
+      onItemsUpdated?.();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to unassign items");
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [hasSelection, isUpdating, disabled, listId, selectedItemIds, onItemsUpdated]);
+
   const handleBulkRemoveConfirmed = React.useCallback(async () => {
     if (!hasSelection || isUpdating || disabled) return;
-
     setIsUpdating(true);
     try {
       const result = await apiClient.removeCallListItems(listId, { itemIds: selectedItemIds });
@@ -108,9 +102,7 @@ export function CallListBulkActionsToolbar({
       onItemsUpdated?.();
       onClearSelection?.();
     } catch (error: any) {
-      console.error("Failed to remove items:", error);
-      const errorMessage = error?.message || "Failed to remove students";
-      toast.error(errorMessage);
+      toast.error(error?.message || "Failed to remove students");
     } finally {
       setIsUpdating(false);
     }
@@ -118,217 +110,134 @@ export function CallListBulkActionsToolbar({
 
   if (!hasSelection) return null;
 
-  const shouldShowUnassignInCollapsed =
+  const allAssignedToMe =
     !!selectionMeta && selectionMeta.assignedToMe === selectedItemIds.length;
-  const shouldShowMemberUnassignInCollapsed =
-    !isAdmin && !!selectionMeta && selectionMeta.assignedToMe > 0 && selectionMeta.assignedToOthers === 0;
+
+  const btnBase =
+    "h-7 px-2.5 text-xs bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)] disabled:opacity-50";
 
   return (
     <>
-      <div
-        className={cn(
-          "sticky top-0 z-10 bg-[var(--groups1-background)] border-b border-[var(--groups1-border)] transition-all duration-200",
-          isExpanded ? "py-3" : "py-2"
-        )}
-      >
-        <div className="flex items-center justify-between gap-2">
-          {/* Collapsed view */}
-          <div className="flex items-center gap-2 flex-1 flex-wrap">
-            <span className="text-sm font-medium text-[var(--groups1-text)]">
-              {selectedItemIds.length} selected
+      {/* Sticky bar — slides in when rows are selected */}
+      <div className="sticky top-0 z-10 border-b border-[var(--groups1-border)] bg-[var(--groups1-background)] py-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Count + clear */}
+          <div className="flex items-center gap-1.5 pr-3 border-r border-[var(--groups1-border)]">
+            <span className="text-sm font-semibold text-[var(--groups1-text)] tabular-nums">
+              {selectedItemIds.length}
             </span>
-            {isAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (!hasSelection || isUpdating || disabled) return;
-                  setIsUpdating(true);
-                  try {
-                    if (shouldShowUnassignInCollapsed) {
-                      await apiClient.unassignCallListItems(listId, { itemIds: selectedItemIds });
-                      toast.success(`${selectedItemIds.length} items unassigned`);
-                    } else {
-                      await apiClient.assignCallListItems(listId, { itemIds: selectedItemIds });
-                      toast.success(`${selectedItemIds.length} items assigned to you`);
-                    }
-                    onItemsUpdated?.();
-                  } catch (error: any) {
-                    console.error("Failed to update assignment:", error);
-                    const errorMessage =
-                      error?.message || (shouldShowUnassignInCollapsed ? "Failed to unassign items" : "Failed to assign items");
-                    toast.error(errorMessage);
-                  } finally {
-                    setIsUpdating(false);
-                  }
-                }}
-                disabled={isUpdating || disabled}
-                className={cn(
-                  "dark:font-semibold",
-                  shouldShowUnassignInCollapsed
-                    ? "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-                    : "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
-                )}
-              >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : !shouldShowUnassignInCollapsed ? (
-                  <UserPlus className="w-4 h-4 mr-2" />
-                ) : null}
-                {shouldShowUnassignInCollapsed ? "Unassign" : "Assign to Me"}
-              </Button>
-            )}
-            {!isAdmin && shouldShowMemberUnassignInCollapsed && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (!hasSelection || isUpdating || disabled) return;
-                  setIsUpdating(true);
-                  try {
-                    await apiClient.unassignCallListItems(listId, { itemIds: selectedItemIds });
-                    toast.success(
-                      `Unassigned ${selectionMeta?.assignedToMe ?? selectedItemIds.length} item(s) from you`
-                    );
-                    onItemsUpdated?.();
-                  } catch (error: any) {
-                    console.error("Failed to unassign items:", error);
-                    toast.error(error?.message || "Failed to unassign items");
-                  } finally {
-                    setIsUpdating(false);
-                  }
-                }}
-                disabled={isUpdating || disabled}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              >
-                {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Unassign from Me
-              </Button>
-            )}
+            <span className="text-xs text-[var(--groups1-text-secondary)]">selected</span>
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="ml-1 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] transition-colors"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="h-7 px-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] dark:hover:bg-[var(--groups1-secondary)]"
-          >
-            {isExpanded ? (
-              <>
-                <span className="text-xs mr-1">Less</span>
-                <ChevronUp className="w-3.5 h-3.5" />
-              </>
-            ) : (
-              <>
-                <span className="text-xs mr-1">More</span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </>
+          {/* State actions */}
+          <div className="flex items-center gap-1.5 pr-3 border-r border-[var(--groups1-border)]">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+              Mark:
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkStateChange("QUEUED")}
+              disabled={isUpdating || disabled}
+              className={btnBase}
+            >
+              Queued
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkStateChange("DONE")}
+              disabled={isUpdating || disabled}
+              className={btnBase}
+            >
+              Done
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleBulkStateChange("SKIPPED")}
+              disabled={isUpdating || disabled}
+              className={btnBase}
+            >
+              Skip
+            </Button>
+          </div>
+
+          {/* Assignment actions */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
+              Assign:
+            </span>
+            {/* Assign to me (admin always sees; non-admin sees if any unassigned) */}
+            {(isAdmin || (selectionMeta && selectionMeta.unassigned > 0)) && !allAssignedToMe && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkAssign(null)}
+                disabled={isUpdating || disabled}
+                className="h-7 px-2.5 text-xs bg-[var(--groups1-primary)] border-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:opacity-90 disabled:opacity-50"
+              >
+                {isUpdating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <UserPlus className="w-3 h-3 mr-1" />}
+                Assign to Me
+              </Button>
             )}
-          </Button>
-        </div>
-
-        {/* Expanded view */}
-        {isExpanded && (
-          <div className="mt-3 pt-3 border-t border-[var(--groups1-border)] flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Assign to member (admin only — member selector) */}
+            {isAdmin && (
+              <div className="w-44">
+                <MemberSelector
+                  selectedMemberId={selectedMemberId}
+                  onSelectMemberId={(memberId) => {
+                    setSelectedMemberId(memberId);
+                    if (memberId !== null) handleBulkAssign(memberId);
+                  }}
+                  placeholder="Assign to..."
+                  disabled={isUpdating || disabled}
+                />
+              </div>
+            )}
+            {/* Unassign */}
+            {(isAdmin || allAssignedToMe || (selectionMeta && selectionMeta.assignedToMe > 0)) && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleBulkStateChange("QUEUED")}
-                disabled={!hasSelection || isUpdating || disabled}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                onClick={handleBulkUnassign}
+                disabled={isUpdating || disabled}
+                className={btnBase}
               >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Mark as Queued
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleBulkStateChange("DONE")}
-                disabled={!hasSelection || isUpdating || disabled}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Mark as Done
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleBulkStateChange("SKIPPED")}
-                disabled={!hasSelection || isUpdating || disabled}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
-                Skip
-              </Button>
-
-              <MemberSelector
-                selectedMemberId={selectedMemberId}
-                onSelectMemberId={(memberId) => {
-                  setSelectedMemberId(memberId);
-                  if (memberId !== null) {
-                    handleBulkAssign(memberId);
-                  }
-                }}
-                placeholder="Assign To..."
-                disabled={!hasSelection || isUpdating || disabled}
-              />
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  if (!hasSelection || isUpdating || disabled) return;
-                  setIsUpdating(true);
-                  try {
-                    await apiClient.unassignCallListItems(listId, {
-                      itemIds: selectedItemIds,
-                    });
-                    toast.success(`${selectedItemIds.length} items unassigned`);
-                    onItemsUpdated?.();
-                  } catch (error: any) {
-                    console.error("Failed to unassign items:", error);
-                    const errorMessage = error?.message || "Failed to unassign items";
-                    toast.error(errorMessage);
-                  } finally {
-                    setIsUpdating(false);
-                  }
-                }}
-                disabled={!hasSelection || isUpdating || disabled}
-                className="bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-              >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : null}
+                {isUpdating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <UserMinus className="w-3 h-3 mr-1" />}
                 Unassign
               </Button>
-            </div>
-
-            {isAdmin && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setIsRemoveDialogOpen(true)}
-                disabled={!hasSelection || isUpdating || disabled}
-              >
-                {isUpdating ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4 mr-2" />
-                )}
-                Remove from List
-              </Button>
             )}
           </div>
-        )}
+
+          {/* Remove (admin only, right-aligned, destructive) */}
+          {isAdmin && (
+            <div className="ml-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRemoveDialogOpen(true)}
+                disabled={isUpdating || disabled}
+                className="h-7 px-2.5 text-xs border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-50"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Remove
+              </Button>
+            </div>
+          )}
+
+          {isUpdating && (
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--groups1-text-secondary)]" />
+          )}
+        </div>
       </div>
 
       <Dialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
@@ -338,21 +247,13 @@ export function CallListBulkActionsToolbar({
             <DialogClose onClose={() => setIsRemoveDialogOpen(false)} />
           </DialogHeader>
           <p className="text-sm text-[var(--groups1-text-secondary)]">
-            Remove {selectedItemIds.length} student(s) from this call list? This action cannot be undone.
+            Remove {selectedItemIds.length} student(s) from this call list? This cannot be undone.
           </p>
           <div className="flex justify-end gap-2 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsRemoveDialogOpen(false)}
-              disabled={isUpdating}
-            >
+            <Button variant="outline" onClick={() => setIsRemoveDialogOpen(false)} disabled={isUpdating}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkRemoveConfirmed}
-              disabled={isUpdating || !hasSelection}
-            >
+            <Button variant="destructive" onClick={handleBulkRemoveConfirmed} disabled={isUpdating || !hasSelection}>
               {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Remove
             </Button>
@@ -362,4 +263,3 @@ export function CallListBulkActionsToolbar({
     </>
   );
 }
-

@@ -79,9 +79,9 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
   // Build CallLog where clause for filtered queries (today, this week, this month, etc.)
   // These can respect filters if needed
   let callListIds: string[] | null = null; // null means no filter, empty array means no matches
-  
+
   // Only filter by callListId if groupId or batchId filters are applied
-  const hasGroupOrBatchFilter = filters?.groupId || filters?.batchId;
+  const hasGroupOrBatchFilter = filters?.groupId || filters?.batchId || filters?.callerId;
   if (hasGroupOrBatchFilter) {
   // First, find call lists that match the filters
     // Include both group-specific call lists AND workspace-level call lists (groupId = null)
@@ -144,10 +144,33 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
   // If callListIds is null, don't add callListId filter - get all CallLogs in workspace
   // This happens when no groupId/batchId filters are applied
   
+  if (filters?.callerId) {
+    callLogWhere.assignedTo = filters.callerId;
+  }
+
   if (filters?.dateFrom || filters?.dateTo) {
     callLogWhere.callDate = {};
     if (filters.dateFrom) callLogWhere.callDate.gte = new Date(filters.dateFrom);
     if (filters.dateTo) callLogWhere.callDate.lte = new Date(filters.dateTo);
+  }
+
+  // Fetch connected status values for this workspace (isConnected = true)
+  const connectedStatuses = await prisma.callStatusOption.findMany({
+    where: { workspaceId, isConnected: true },
+    select: { value: true },
+  });
+  const connectedStatusValues = connectedStatuses.map((s) => s.value);
+
+  // Pending call list items (QUEUED + CALLING) — optionally filtered by caller
+  const pendingItemWhere: any = {
+    workspaceId,
+    state: { in: ['QUEUED', 'CALLING'] },
+  };
+  if (filters?.callerId) {
+    pendingItemWhere.assignedTo = filters.callerId;
+  }
+  if (callListIds !== null) {
+    pendingItemWhere.callListId = callListIds.length > 0 ? { in: callListIds } : { in: [] };
   }
 
   // Get counts
@@ -168,6 +191,9 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
     callsThisMonth,
     callLogsThisMonth,
     totalFollowUpCallLogs,
+    connectedCallLogs,
+    pendingCallItems,
+    filteredTotalCallLogs,
   ] = await Promise.all([
     // Total students (active)
     prisma.student.count({
@@ -228,17 +254,11 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         },
       },
     }),
-    // Call logs today (new CallLog model) - now with direct workspaceId
+    // Call logs today (new CallLog model)
     prisma.callLog.count({
       where: {
-        workspaceId,
-        ...(callListIds !== null 
-          ? (callListIds.length > 0 ? { callListId: { in: callListIds } } : { callListId: { in: [] } })
-          : {}), // No callListId filter if callListIds is null
-        callDate: {
-          gte: getStartOfDay(),
-          lte: getEndOfDay(),
-        },
+        ...callLogWhere,
+        callDate: { gte: getStartOfDay(), lte: getEndOfDay() },
       },
     }),
     // Calls this week (old Call model)
@@ -248,13 +268,10 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         callDate: { gte: getDaysAgo(7) },
       },
     }),
-    // Call logs this week (new CallLog model) - now with direct workspaceId
+    // Call logs this week (new CallLog model)
     prisma.callLog.count({
       where: {
-        workspaceId,
-        ...(callListIds !== null 
-          ? (callListIds.length > 0 ? { callListId: { in: callListIds } } : { callListId: { in: [] } })
-          : {}), // No callListId filter if callListIds is null
+        ...callLogWhere,
         callDate: { gte: getDaysAgo(7) },
       },
     }),
@@ -265,13 +282,10 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         callDate: { gte: getStartOfMonth() },
       },
     }),
-    // Call logs this month (new CallLog model) - now with direct workspaceId
+    // Call logs this month (new CallLog model)
     prisma.callLog.count({
       where: {
-        workspaceId,
-        ...(callListIds !== null 
-          ? (callListIds.length > 0 ? { callListId: { in: callListIds } } : { callListId: { in: [] } })
-          : {}), // No callListId filter if callListIds is null
+        ...callLogWhere,
         callDate: { gte: getStartOfMonth() },
       },
     }),
@@ -282,6 +296,19 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
         followUpRequired: true,
       },
     }),
+    // Connected call logs (status tagged isConnected=true)
+    connectedStatusValues.length > 0
+      ? prisma.callLog.count({
+          where: {
+            ...callLogWhere,
+            status: { in: connectedStatusValues },
+          },
+        })
+      : Promise.resolve(0),
+    // Pending call list items (QUEUED + CALLING)
+    (prisma.callListItem as any).count({ where: pendingItemWhere }),
+    // Filtered total call logs (same filter as connected — denominator for connected%)
+    prisma.callLog.count({ where: callLogWhere }),
   ]);
 
   // Combine old Call and new CallLog counts
@@ -318,6 +345,10 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
     ? Math.round((totalSuccessfulCalls / totalAllCallAttempts) * 10000) / 100 
     : 0;
 
+  const connectedPercent = filteredTotalCallLogs > 0
+    ? Math.round((connectedCallLogs / filteredTotalCallLogs) * 10000) / 100
+    : 0;
+
   return {
     overview: {
       totalStudents,
@@ -336,11 +367,14 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
       pending: pendingFollowups,
       overdue: overdueFollowups,
       total: totalFollowups,
-      totalFollowUpCalls: totalFollowUpCallLogs, // All follow-up calls for analytics
+      totalFollowUpCalls: totalFollowUpCallLogs,
     },
     metrics: {
       conversionRate: Math.round(conversionRate * 100) / 100,
       averageCallsPerDay: callsThisWeek > 0 ? Math.round((callsThisWeek / 7) * 100) / 100 : 0,
+      connectedCalls: connectedCallLogs,
+      connectedPercent,
+      pendingCalls: pendingCallItems,
     },
   };
 };
@@ -878,13 +912,68 @@ export const getCallLists = async (
 };
 
 /**
+ * Get assignee performance (calls + connected calls per caller, top 10)
+ */
+export const getAssigneePerformance = async (workspaceId: string, filters?: DashboardFiltersInput) => {
+  const where: any = { workspaceId };
+  if (filters?.callerId) where.assignedTo = filters.callerId;
+  if (filters?.dateFrom || filters?.dateTo) {
+    where.callDate = {};
+    if (filters?.dateFrom) where.callDate.gte = new Date(filters.dateFrom);
+    if (filters?.dateTo) where.callDate.lte = new Date(filters.dateTo);
+  }
+
+  const grouped = await prisma.callLog.groupBy({
+    by: ['assignedTo'],
+    where,
+    _count: { assignedTo: true },
+    orderBy: { _count: { assignedTo: 'desc' } },
+    take: 10,
+  });
+
+  if (grouped.length === 0) return [];
+
+  const assigneeIds = grouped.map((g) => g.assignedTo);
+
+  const connectedStatuses = await prisma.callStatusOption.findMany({
+    where: { workspaceId, isConnected: true },
+    select: { value: true },
+  });
+  const connectedValues = connectedStatuses.map((s) => s.value);
+
+  const members = await prisma.workspaceMember.findMany({
+    where: { id: { in: assigneeIds }, workspaceId },
+    include: { user: { select: { name: true, email: true } } },
+  });
+  const memberMap = Object.fromEntries(members.map((m) => [m.id, m.user.name || m.user.email]));
+
+  const connectedCounts: Record<string, number> = {};
+  if (connectedValues.length > 0) {
+    const connectedGrouped = await prisma.callLog.groupBy({
+      by: ['assignedTo'],
+      where: { ...where, status: { in: connectedValues }, assignedTo: { in: assigneeIds } },
+      _count: { assignedTo: true },
+    });
+    connectedGrouped.forEach((g) => { connectedCounts[g.assignedTo] = g._count.assignedTo; });
+  }
+
+  return grouped.map((g, i) => ({
+    rank: i + 1,
+    assigneeId: g.assignedTo,
+    assignee: memberMap[g.assignedTo] || 'Unknown',
+    totalCalls: g._count.assignedTo,
+    connectedCalls: connectedCounts[g.assignedTo] || 0,
+  }));
+};
+
+/**
  * Get dashboard summary (all KPIs and stats)
  */
 export const getDashboardSummary = async (
   workspaceId: string,
   filters?: DashboardFiltersInput
 ) => {
-  const [kpis, callsByStatus, followupsByStatus, studentsByGroup, studentsByBatch, callsTrend, followupsTrend, recentActivity, callLists] =
+  const [kpis, callsByStatus, followupsByStatus, studentsByGroup, studentsByBatch, callsTrend, followupsTrend, recentActivity, callLists, assigneePerformance] =
     await Promise.all([
       getKPIs(workspaceId, filters),
       getCallsByStatus(workspaceId, filters),
@@ -895,6 +984,7 @@ export const getDashboardSummary = async (
       getFollowupsTrend(workspaceId, filters, filters?.period),
       getRecentActivity(workspaceId),
       getCallLists(workspaceId, filters),
+      getAssigneePerformance(workspaceId, filters),
     ]);
 
   return {
@@ -911,6 +1001,7 @@ export const getDashboardSummary = async (
     },
     recentActivity,
     callLists,
+    assigneePerformance,
   };
 };
 

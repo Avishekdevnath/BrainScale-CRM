@@ -41,7 +41,7 @@ export const StudentDataSchema = z.object({
 
 export const CreateCallListSchema = z
   .object({
-    groupId: z.string().min(1, 'Group is required'),
+    groupId: z.string().optional(),
     batchId: z.string().optional(),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   source: z.enum(['IMPORT', 'FILTER', 'MANUAL']),

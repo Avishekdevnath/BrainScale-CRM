@@ -46,6 +46,12 @@ export default function SettingsPage() {
   const aiFeature = useFeature("ai");
   const tasksFeature = useFeature("tasks");
   const revenueFeature = useFeature("revenue");
+  const callsFeature = useFeature("calls");
+  const followupsFeature = useFeature("followups");
+  const groupsFeature = useFeature("groups");
+  const learningFeature = useFeature("learning");
+  const teamChatFeature = useFeature("teamChat");
+  const formsFeature = useFeature("forms");
 
   // Feedback form state
   const [fbMessage, setFbMessage] = React.useState("");
@@ -349,28 +355,37 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Modules (Admin Only) — Tasks & Revenue feature toggles */}
+      {/* Modules (Admin Only) — all workspace feature toggles */}
       {isAdmin && (
         <Card variant="groups1" className="gap-1">
           <CardHeader className="gap-1 pb-1 pt-2">
             <CardTitle>Modules</CardTitle>
           </CardHeader>
-          <CardContent variant="groups1" className="space-y-3 pt-1">
+          <CardContent variant="groups1" className="space-y-3 pt-1 divide-y divide-[var(--groups1-card-border-inner)]">
             {([
+              ["calls", "Calls & Call Lists", callsFeature, settings?.callsEnabled] as const,
+              ["followups", "Follow-ups", followupsFeature, settings?.followupsEnabled] as const,
+              ["groups", "Groups", groupsFeature, settings?.groupsEnabled] as const,
+              ["learning", "Courses & Learning", learningFeature, settings?.learningEnabled] as const,
+              ["teamChat", "Team Chat", teamChatFeature, settings?.teamChatEnabled] as const,
+              ["forms", "Forms", formsFeature, settings?.formsEnabled] as const,
               ["tasks", "Tasks", tasksFeature, settings?.tasksEnabled] as const,
               ["revenue", "Revenue Tracking", revenueFeature, settings?.revenueEnabled] as const,
+              ["ai", "AI Features (Brain)", aiFeature, settings?.aiFeaturesEnabled] as const,
             ]).map(([key, label, feat, value]) => (
-              <div key={key} className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-[var(--groups1-text)]">{label}</Label>
+              <div key={key} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <div>
+                  <Label className="text-sm font-medium text-[var(--groups1-text)]">{label}</Label>
+                </div>
                 {feat.disabledBy === "platform" ? (
                   <span className="text-xs px-2 py-0.5 rounded-lg border border-red-500/40 text-red-500">
                     Disabled by platform
                   </span>
                 ) : (
                   <Switch
-                    checked={value ?? true}
+                    checked={value ?? false}
                     disabled={isUpdating}
-                    onCheckedChange={(checked) => updateSettings({ [key + "Enabled"]: checked } as any)}
+                    onCheckedChange={(checked) => updateSettings({ [key === "ai" ? "aiFeaturesEnabled" : key + "Enabled"]: checked } as any)}
                   />
                 )}
               </div>

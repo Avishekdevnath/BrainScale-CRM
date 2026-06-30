@@ -22,6 +22,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FeatureGuard } from "@/components/common/FeatureGuard";
 
 const TYPE_LABELS: Record<string, string> = {
   general: "General",
@@ -67,7 +68,7 @@ function getDescriptionPreview(raw?: string | null): string {
   return raw.replace(/\s{2,}/g, " ").trim();
 }
 
-export default function FormsPage() {
+function FormsPageContent() {
   const router = useRouter();
   usePageTitle("Forms");
 
@@ -500,5 +501,13 @@ export default function FormsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function FormsPage() {
+  return (
+    <FeatureGuard feature="forms">
+      <FormsPageContent />
+    </FeatureGuard>
   );
 }

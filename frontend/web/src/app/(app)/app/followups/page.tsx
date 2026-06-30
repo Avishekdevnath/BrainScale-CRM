@@ -13,6 +13,7 @@ import { FilterToggleButton } from "@/components/common/FilterToggleButton";
 import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { Loader2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { ListFollowupsParams } from "@/types/followups.types";
+import { FeatureGuard } from "@/components/common/FeatureGuard";
 
 function FollowupsPageContent() {
   const router = useRouter();
@@ -202,17 +203,19 @@ function FollowupsPageContent() {
 
 export default function FollowupsPage() {
   return (
-    <Suspense fallback={
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
-        <Card variant="groups1">
-          <CardContent variant="groups1" className="py-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
-          </CardContent>
-        </Card>
-      </div>
-    }>
-      <FollowupsPageContent />
-    </Suspense>
+    <FeatureGuard feature="followups">
+      <Suspense fallback={
+        <div className="space-y-6">
+          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Follow-ups</h1>
+          <Card variant="groups1">
+            <CardContent variant="groups1" className="py-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[var(--groups1-text-secondary)] mx-auto" />
+            </CardContent>
+          </Card>
+        </div>
+      }>
+        <FollowupsPageContent />
+      </Suspense>
+    </FeatureGuard>
   );
 }

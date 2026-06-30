@@ -42,18 +42,26 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
   );
 }
 
+const POLARITY_LABELS: Record<string, string> = {
+  positive: 'Positive',
+  negative: 'Negative',
+  neutral: 'Neutral',
+};
+
 function StatusRow({
   option,
   onEdit,
   onDelete,
 }: {
   option: CallStatusOption;
-  onEdit: (id: string, label: string, color: string) => Promise<void>;
+  onEdit: (id: string, label: string, color: string, isConnected: boolean, polarity: 'positive' | 'negative' | 'neutral') => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [label, setLabel] = React.useState(option.label);
   const [color, setColor] = React.useState(option.color);
+  const [isConnected, setIsConnected] = React.useState(option.isConnected ?? false);
+  const [polarity, setPolarity] = React.useState<'positive' | 'negative' | 'neutral'>(option.polarity ?? 'neutral');
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
@@ -61,11 +69,19 @@ function StatusRow({
     if (!label.trim()) return;
     setSaving(true);
     try {
-      await onEdit(option.id, label.trim(), color);
+      await onEdit(option.id, label.trim(), color, isConnected, polarity);
       setEditing(false);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setLabel(option.label);
+    setColor(option.color);
+    setIsConnected(option.isConnected ?? false);
+    setPolarity(option.polarity ?? 'neutral');
+    setEditing(false);
   };
 
   const handleDelete = async () => {
@@ -87,25 +103,49 @@ function StatusRow({
             onChange={(e) => setLabel(e.target.value)}
             className="h-8 text-sm flex-1"
             autoFocus
-            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
           />
           <Button variant="ghost" size="sm" onClick={handleSave} disabled={saving || !label.trim()} className="h-8 w-8 p-0">
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3 text-green-500" />}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setLabel(option.label); setColor(option.color); setEditing(false); }} className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={handleCancel} className="h-8 w-8 p-0">
             <X className="w-3 h-3" />
           </Button>
         </div>
         <ColorPicker value={color} onChange={setColor} />
+        <div className="flex items-center gap-4 pt-1 border-t border-[var(--groups1-border)]">
+          <label className="flex items-center gap-2 cursor-pointer text-xs text-[var(--groups1-text)]">
+            <input
+              type="checkbox"
+              checked={isConnected}
+              onChange={(e) => setIsConnected(e.target.checked)}
+              className="w-3.5 h-3.5 rounded"
+            />
+            Counts as Connected
+          </label>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-[var(--groups1-text-secondary)]">Outcome:</span>
+            <select
+              value={polarity}
+              onChange={(e) => setPolarity(e.target.value as 'positive' | 'negative' | 'neutral')}
+              className="h-6 text-xs rounded border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] px-1"
+            >
+              <option value="positive">Positive</option>
+              <option value="neutral">Neutral</option>
+              <option value="negative">Negative</option>
+            </select>
+          </div>
+        </div>
       </div>
     );
   }
 
   const hex = (c: string, a: string) => c + a;
+  const polarityColor = polarity === 'positive' ? '#15803d' : polarity === 'negative' ? '#b91c1c' : '#6b7280';
 
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] group hover:border-[var(--groups1-primary)] transition-colors">
-      {/* Live badge preview — matches how the status renders in calls */}
+      {/* Live badge preview */}
       <span
         className="inline-flex items-center gap-1.5 rounded-full text-[11.5px] font-semibold px-2.5 py-1 flex-shrink-0"
         style={{
@@ -118,6 +158,16 @@ function StatusRow({
         {option.label}
       </span>
       <code className="text-[11px] text-[var(--groups1-text-secondary)] truncate flex-1">{option.value}</code>
+      {/* Connected badge */}
+      {(option.isConnected ?? false) && (
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">
+          Connected
+        </span>
+      )}
+      {/* Outcome badge */}
+      <span className="text-[10px] font-semibold flex-shrink-0" style={{ color: polarityColor }}>
+        {POLARITY_LABELS[option.polarity ?? 'neutral']}
+      </span>
       {option.isDefault && (
         <span className="text-[11px] text-[var(--groups1-text-secondary)] flex items-center gap-1 flex-shrink-0">
           <Lock className="w-3 h-3" /> Default
@@ -149,8 +199,8 @@ export function CallStatusOptionsManager() {
   const [adding, setAdding] = React.useState(false);
   const [showAddForm, setShowAddForm] = React.useState(false);
 
-  const handleEdit = async (id: string, label: string, color: string) => {
-    await apiClient.updateCallStatusOption(id, { label, color });
+  const handleEdit = async (id: string, label: string, color: string, isConnected: boolean, polarity: 'positive' | 'negative' | 'neutral') => {
+    await apiClient.updateCallStatusOption(id, { label, color, isConnected, polarity });
     toast.success("Status updated");
     await mutate();
   };

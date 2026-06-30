@@ -11,10 +11,12 @@ export interface FilterStripProps {
   onFiltersChange: (filters: DashboardFilters) => void;
   groups?: Array<{ id: string; name: string }>;
   batches?: Array<{ id: string; name: string }>;
+  callers?: Array<{ id: string; name: string }>;
   statusFilters?: string[];
   selectedStatuses?: string[];
   onStatusToggle?: (status: string) => void;
   onExport?: () => void;
+  showGroups?: boolean;
 }
 
 export function FilterStrip({
@@ -22,10 +24,12 @@ export function FilterStrip({
   onFiltersChange,
   groups = [],
   batches = [],
+  callers = [],
   statusFilters = ["NEW", "IN_PROGRESS", "FOLLOW_UP", "CONVERTED", "LOST"],
   selectedStatuses = [],
   onStatusToggle,
   onExport,
+  showGroups = true,
 }: FilterStripProps) {
   // Format date range for display
   const dateRangeDisplay = filters.dateFrom && filters.dateTo
@@ -59,6 +63,13 @@ export function FilterStrip({
     onFiltersChange({
       ...filters,
       batchId: e.target.value || undefined,
+    });
+  };
+
+  const handleCallerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onFiltersChange({
+      ...filters,
+      callerId: e.target.value || undefined,
     });
   };
 
@@ -97,30 +108,32 @@ export function FilterStrip({
         />
       </div>
 
-      {/* Groups Select */}
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
-          Group
-        </label>
-        <select
-          value={filters.groupId || ""}
-          onChange={handleGroupChange}
-          className={cn(
-            "min-w-[200px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
-            "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-            "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-            "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
-          )}
-          aria-label="Select group"
-        >
-          <option value="">All Groups</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Groups Select — only when groups feature enabled */}
+      {showGroups && (
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+            Group
+          </label>
+          <select
+            value={filters.groupId || ""}
+            onChange={handleGroupChange}
+            className={cn(
+              "min-w-[200px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+              "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+              "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+            )}
+            aria-label="Select group"
+          >
+            <option value="">All Groups</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Batch Select */}
       {batches.length > 0 && (
@@ -143,6 +156,33 @@ export function FilterStrip({
             {batches.map((batch) => (
               <option key={batch.id} value={batch.id}>
                 {batch.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Caller Select */}
+      {callers.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] font-medium text-[var(--groups1-text-secondary)] uppercase tracking-wide">
+            Caller
+          </label>
+          <select
+            value={filters.callerId || ""}
+            onChange={handleCallerChange}
+            className={cn(
+              "min-w-[180px] px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
+              "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
+              "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+            )}
+            aria-label="Select caller"
+          >
+            <option value="">All Callers</option>
+            {callers.map((caller) => (
+              <option key={caller.id} value={caller.id}>
+                {caller.name}
               </option>
             ))}
           </select>

@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const DashboardFiltersSchema = z.object({
   groupId: z.string().optional(),
   batchId: z.string().optional(),
+  callerId: z.string().optional(), // WorkspaceMember ID — filter by assigned caller
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   period: z.enum(['day', 'week', 'month', 'year']).optional().default('month'),

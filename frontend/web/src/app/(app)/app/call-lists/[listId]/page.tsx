@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,14 +11,14 @@ import { CollapsibleStatsCard } from "@/components/call-lists/CollapsibleStatsCa
 import { CallListItemsTable } from "@/components/call-lists/CallListItemsTable";
 import { CallListBulkActionsToolbar } from "@/components/call-lists/CallListBulkActionsToolbar";
 import { CallListActionsMenu } from "@/components/call-lists/CallListActionsMenu";
-import { CollapsibleCallListDetails } from "@/components/call-lists/CollapsibleCallListDetails";
 import { CollapsibleFilterCriteria } from "@/components/call-lists/CollapsibleFilterCriteria";
 import { CallListFormDialog } from "@/components/call-lists/CallListFormDialog";
 import { AddStudentsDialog } from "@/components/call-lists/AddStudentsDialog";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useBatch } from "@/hooks/useBatches";
 import { apiClient } from "@/lib/api-client";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { extractQuestions } from "@/lib/call-list-utils";
+import { Loader2, ArrowLeft, Info, MessageSquare, HelpCircle, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useHasPermission } from "@/hooks/useHasPermission";
 
@@ -36,6 +36,7 @@ function CallListDetailPageContent() {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isAddStudentsDialogOpen, setIsAddStudentsDialogOpen] = useState(false);
+  const [isCallScriptOpen, setIsCallScriptOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectionMeta, setSelectionMeta] = useState<{ assignedToMe: number; unassigned: number; assignedToOthers: number } | null>(null);
@@ -120,13 +121,13 @@ function CallListDetailPageContent() {
   }
 
   return (
-    <div className="space-y-3 pb-24 md:pb-0">
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+    <div className="space-y-1.5 pb-24 md:pb-0">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
         <div>
           <Button
             variant="ghost"
             size="sm"
-            className="mb-1 inline-flex items-center gap-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] h-7"
+            className="mb-0.5 inline-flex items-center gap-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] h-6 text-xs"
             onClick={() => {
               if (groupId) {
                 router.push(`/app/groups/${groupId}/call-lists`);
@@ -138,10 +139,27 @@ function CallListDetailPageContent() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Call Lists
           </Button>
-          <h1 className="text-xl font-bold text-[var(--groups1-text)] leading-tight">
-            {callList.name}
-          </h1>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-[var(--groups1-text)] leading-tight">
+              {callList.name}
+            </h1>
+            {(() => {
+              const questions = extractQuestions(callList);
+              const hasScript = !!callList.description || (callList.messages && callList.messages.length > 0) || questions.length > 0;
+              if (!hasScript) return null;
+              return (
+                <button
+                  type="button"
+                  onClick={() => setIsCallScriptOpen(true)}
+                  title="View call script"
+                  className="flex-shrink-0 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-primary)] transition-colors"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+              );
+            })()}
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             {callList.groupId ? (
               <>
                 <span className="text-xs text-[var(--groups1-text-secondary)]">
@@ -168,38 +186,34 @@ function CallListDetailPageContent() {
             </span>
           </div>
         </div>
-        {canShowActions && (
-          <div className="self-start">
+        <div className="self-start flex items-center gap-2">
+          {canEditList && (
+            <Button
+              size="sm"
+              onClick={() => setIsAddStudentsDialogOpen(true)}
+              className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:opacity-90 text-xs h-8"
+            >
+              <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+              Add Students
+            </Button>
+          )}
+          {canShowActions && (
             <CallListActionsMenu
               onEdit={handleEdit}
               onAddStudents={() => setIsAddStudentsDialogOpen(true)}
               onViewFollowups={() => router.push(`/app/followups?callListId=${listId}`)}
-              onViewDetails={() => {
-                // Details are now inline, scroll to them
-                const detailsElement = document.getElementById("call-list-details");
-                if (detailsElement) {
-                  detailsElement.scrollIntoView({ behavior: "smooth", block: "start" });
-                  // Expand all sections
-                  const buttons = detailsElement.querySelectorAll("button");
-                  buttons.forEach((btn) => btn.click());
-                }
-              }}
+              onViewDetails={() => setIsCallScriptOpen(true)}
               onDelete={handleDelete}
               canEdit={canEditList}
               canAddStudents={canEditList}
               canDelete={canDeleteList}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Collapsible Stats Card */}
+      {/* Stats strip — always expanded */}
       <CollapsibleStatsCard items={items} isLoading={false} />
-
-      {/* Collapsible Call List Details */}
-      <div id="call-list-details">
-        <CollapsibleCallListDetails callList={callList} />
-      </div>
 
       {/* Collapsible Filter Criteria (if FILTER source) */}
       {callList.source === "FILTER" && callList.meta?.filters && (
@@ -270,6 +284,77 @@ function CallListDetailPageContent() {
               {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Delete
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Call Script modal — triggered by ⓘ icon in header */}
+      <Dialog open={isCallScriptOpen} onOpenChange={setIsCallScriptOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Call Script</DialogTitle>
+            <DialogClose onClose={() => setIsCallScriptOpen(false)} />
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {callList.description && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] mb-2">Description</p>
+                <p className="text-sm text-[var(--groups1-text)] whitespace-pre-wrap">{callList.description}</p>
+              </div>
+            )}
+            {callList.messages && callList.messages.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] mb-2 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5" /> Messages to Convey
+                </p>
+                <ul className="space-y-1.5">
+                  {callList.messages.map((msg, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-[var(--groups1-text)]">
+                      <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-[var(--groups1-secondary)] flex items-center justify-center text-[10px] font-bold text-[var(--groups1-text-secondary)]">
+                        {i + 1}
+                      </span>
+                      {msg}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(() => {
+              const questions = extractQuestions(callList).sort((a, b) => a.order - b.order);
+              if (questions.length === 0) return null;
+              return (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] mb-2 flex items-center gap-1.5">
+                    <HelpCircle className="w-3.5 h-3.5" /> Questions ({questions.length})
+                  </p>
+                  <div className="space-y-2">
+                    {questions.map((q, i) => (
+                      <div key={q.id} className="flex items-start gap-3 p-3 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)]">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[var(--groups1-primary)] flex items-center justify-center text-[10px] font-bold text-[var(--groups1-btn-primary-text)] mt-0.5">
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-[var(--groups1-text)]">
+                            {q.question}
+                            {q.required && <span className="text-red-500 ml-1">*</span>}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)]">
+                              {q.type.replace("_", " ")}
+                            </span>
+                            {q.type === "multiple_choice" && q.options && (
+                              <span className="text-[10px] text-[var(--groups1-text-secondary)]">
+                                {q.options.join(" · ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

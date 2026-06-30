@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { format, isToday, isYesterday, isThisWeek, differenceInDays } from "date-fns";
 import type { ChatMessage } from "@/types/ai-chat.types";
 import { useChatStore } from "@/store/chat";
+import { FeatureGuard } from "@/components/common/FeatureGuard";
 
 const STARTER_QUESTIONS = [
   "How many students do we have?",
@@ -36,7 +37,7 @@ interface GroupedMessages {
   messages: ChatMessage[];
 }
 
-export default function AIChatPage() {
+function AIChatPageContent() {
   usePageTitle("AI Chat");
 
   const { selectedChatId, chats, setChats, addChat, updateChat, setSelectedChatId } = useChatStore();
@@ -653,5 +654,13 @@ export default function AIChatPage() {
         chatId={selectedChatId || undefined}
       />
     </div>
+  );
+}
+
+export default function AIChatPage() {
+  return (
+    <FeatureGuard feature="ai">
+      <AIChatPageContent />
+    </FeatureGuard>
   );
 }

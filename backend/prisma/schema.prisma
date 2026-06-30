@@ -76,8 +76,14 @@ model Workspace {
   aiFeatures               Json? // Array of enabled AI features: ["summary", "sentiment"]
   scheduleTaskSyncEnabled  Boolean  @default(false)  // Enable/disable auto task creation from schedule
   callSystemV2             Boolean  @default(false)  // Call-management version flag (per-workspace)
-  tasksEnabled             Boolean  @default(true)   // Per-workspace Tasks feature flag
-  revenueEnabled           Boolean  @default(true)   // Per-workspace Revenue feature flag
+  tasksEnabled             Boolean  @default(false)  // Per-workspace Tasks feature flag
+  revenueEnabled           Boolean  @default(false)  // Per-workspace Revenue feature flag
+  callsEnabled             Boolean  @default(true)   // Per-workspace Calls feature flag
+  followupsEnabled         Boolean  @default(false)  // Per-workspace Follow-ups feature flag
+  groupsEnabled            Boolean  @default(false)  // Per-workspace Groups feature flag
+  learningEnabled          Boolean  @default(false)  // Per-workspace Courses/Learning feature flag
+  teamChatEnabled          Boolean  @default(false)  // Per-workspace Team Chat feature flag
+  formsEnabled             Boolean  @default(false)  // Per-workspace Forms feature flag
   deletedAt                DateTime?                  // Soft delete; null = active
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -361,6 +367,7 @@ model Call {
 model Followup {
   id                String   @id @default(cuid()) @map("_id")
   workspaceId       String
+  followupNumber    Int?     // Workspace-scoped sequential display ID
   studentId         String
   groupId           String
   callListId        String? // Link to originating call list
@@ -474,6 +481,7 @@ model CallLog {
   sentimentScore   Float? // Confidence score 0.0 to 1.0
   aiProcessedAt    DateTime? // Timestamp when AI processing completed
   aiProcessingStatus String? // AI processing status: 'pending', 'completed', 'failed'
+  callNumber       Int? // Workspace-scoped sequential display ID (safe, human-referenceable)
   followUpDate     DateTime? // When to follow up
   followUpRequired Boolean   @default(false)
   createdAt        DateTime  @default(now())
@@ -493,6 +501,7 @@ model CallLog {
   @@index([workspaceId, callListId, callDate]) // For call list history
   @@index([callListItemId, callDate]) // For efficient querying by item and date
   @@index([workspaceId, status]) // For status-based queries
+  @@index([workspaceId, callNumber]) // For display ID lookup
 }
 
 // Server-synced draft of an in-progress call submission. One per (callListItem, user).
@@ -1169,6 +1178,8 @@ model CallStatusOption {
   color       String   @default("#6b7280")
   isDefault   Boolean  @default(false)
   order       Int      @default(0)
+  isConnected Boolean  @default(false) // counts as a "connected" call in dashboard metrics
+  polarity    String   @default("neutral") // positive | negative | neutral (UI: "Outcome")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

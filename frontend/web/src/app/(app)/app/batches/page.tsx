@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { mutate } from "swr";
-import { KPICard } from "@/components/ui/kpi-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -71,31 +70,10 @@ export default function BatchesPage() {
     { id: "inactive", label: "Inactive", count: batches.filter((b) => !b.isActive).length },
   ];
 
-  // Calculate KPIs
-  const totalBatches = batches.length;
-  const activeBatches = batches.filter((b) => b.isActive).length;
   const totalStudents = batches.reduce(
     (sum, b) => sum + (b._count?.studentBatches || 0),
     0
   );
-
-  const batchKPIs = [
-    {
-      label: "Total Batches",
-      value: totalBatches.toString(),
-      trend: { value: "", type: "neutral" as const },
-    },
-    {
-      label: "Active Batches",
-      value: activeBatches.toString(),
-      trend: { value: "", type: "neutral" as const },
-    },
-    {
-      label: "Total Students",
-      value: totalStudents.toLocaleString(),
-      trend: { value: "", type: "neutral" as const },
-    },
-  ];
 
   const handleCreate = () => {
     setEditingBatch(null);
@@ -192,40 +170,19 @@ export default function BatchesPage() {
         }
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {isLoading ? (
-          <>
-            <div className="rounded-xl border bg-[var(--groups1-surface)] border-[var(--groups1-card-border)] p-4 shadow-sm animate-pulse">
-              <div className="h-3 w-24 bg-[var(--groups1-secondary)] rounded mb-3" />
-              <div className="h-8 w-16 bg-[var(--groups1-secondary)] rounded" />
-            </div>
-            <div className="rounded-xl border bg-[var(--groups1-surface)] border-[var(--groups1-card-border)] p-4 shadow-sm animate-pulse">
-              <div className="h-3 w-24 bg-[var(--groups1-secondary)] rounded mb-3" />
-              <div className="h-8 w-16 bg-[var(--groups1-secondary)] rounded" />
-            </div>
-            <div className="rounded-xl border bg-[var(--groups1-surface)] border-[var(--groups1-card-border)] p-4 shadow-sm animate-pulse">
-              <div className="h-3 w-24 bg-[var(--groups1-secondary)] rounded mb-3" />
-              <div className="h-8 w-16 bg-[var(--groups1-secondary)] rounded" />
-            </div>
-          </>
-        ) : (
-          batchKPIs.map((kpi) => (
-            <KPICard
-              key={kpi.label}
-              label={kpi.label}
-              value={kpi.value}
-              trend={kpi.trend}
-            />
-          ))
-        )}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <StatusTabBar
+          tabs={STATUS_TABS}
+          activeId={statusFilter}
+          onChange={(id) => setStatusFilter(id as "all" | "active" | "inactive")}
+        />
+        <div className="text-xs text-[var(--groups1-text-secondary)]">
+          Total Students:{" "}
+          <span className="font-semibold text-[var(--groups1-text)]">
+            {totalStudents.toLocaleString()}
+          </span>
+        </div>
       </div>
-
-      <StatusTabBar
-        tabs={STATUS_TABS}
-        activeId={statusFilter}
-        onChange={(id) => setStatusFilter(id as "all" | "active" | "inactive")}
-      />
 
       <FilterBar
         searchValue={searchQuery}

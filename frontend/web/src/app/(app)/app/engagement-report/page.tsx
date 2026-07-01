@@ -10,6 +10,7 @@ import { useWorkspaceMembers } from "@/hooks/useMembers";
 import type { WorkspaceMember } from "@/types/members.types";
 import { useGroupStore } from "@/store/group";
 import { useWorkspaceStore } from "@/store/workspace";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ export default function EngagementReportPage() {
   usePageTitle("Engagement Report");
   const { current: currentGroup } = useGroupStore();
   const workspaceId = useWorkspaceStore((state) => state.current?.id ?? null);
+  const groupsFeature = useFeature("groups");
   const [filters, setFilters] = useState<DashboardFilters>({
     period: "month",
     groupId: currentGroup?.id,
@@ -87,7 +89,7 @@ export default function EngagementReportPage() {
   const callLists = summary?.callLists ?? [];
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6 max-w-[1400px] mx-auto">
+    <div className="flex flex-col gap-6 p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -111,7 +113,7 @@ export default function EngagementReportPage() {
         onFiltersChange={setFilters}
         groups={groups}
         callers={callers}
-        showGroups
+        showGroups={groupsFeature.enabled}
       />
 
       {/* KPI Row */}
@@ -199,11 +201,11 @@ export default function EngagementReportPage() {
                       return (
                         <tr key={a.assigneeId} className="hover:bg-[var(--groups1-secondary)] transition-colors">
                           <td className="px-3 py-2.5 border-b border-[var(--groups1-card-border-inner)]">
-                            <span className={cn("inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold", getRankBadgeClass(a.rank))}>
+                            <span className={cn("inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-full text-xs font-bold", getRankBadgeClass(a.rank))}>
                               {a.rank}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{a.assignee}</td>
+                          <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)] max-w-[180px] truncate" title={a.assignee}>{a.assignee}</td>
                           <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{a.totalCalls}</td>
                           <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{a.connectedCalls}</td>
                           <td className="px-3 py-2.5 text-sm font-semibold border-b border-[var(--groups1-card-border-inner)]">
@@ -240,7 +242,12 @@ export default function EngagementReportPage() {
                   const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
                   return (
                     <div key={item.status} className="flex items-center gap-3">
-                      <span className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 capitalize">{item.status.toLowerCase().replace("_", " ")}</span>
+                      <span
+                        className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 truncate capitalize"
+                        title={item.status.toLowerCase().replace("_", " ")}
+                      >
+                        {item.status.toLowerCase().replace("_", " ")}
+                      </span>
                       <div className="flex-1 h-2 rounded-full bg-[var(--groups1-secondary)] overflow-hidden">
                         <div
                           className="h-full rounded-full bg-[var(--groups1-primary)]"
@@ -273,7 +280,12 @@ export default function EngagementReportPage() {
                   const isOverdue = item.status.toLowerCase().includes("overdue");
                   return (
                     <div key={item.status} className="flex items-center gap-3">
-                      <span className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 capitalize">{item.status.toLowerCase().replace("_", " ")}</span>
+                      <span
+                        className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 truncate capitalize"
+                        title={item.status.toLowerCase().replace("_", " ")}
+                      >
+                        {item.status.toLowerCase().replace("_", " ")}
+                      </span>
                       <div className="flex-1 h-2 rounded-full bg-[var(--groups1-secondary)] overflow-hidden">
                         <div
                           className={cn("h-full rounded-full", isOverdue ? "bg-[var(--groups1-error)]" : "bg-[var(--groups1-primary)]")}
@@ -311,8 +323,8 @@ export default function EngagementReportPage() {
                 <tbody>
                   {callLists.map((list) => (
                     <tr key={list.id} className="hover:bg-[var(--groups1-secondary)] transition-colors">
-                      <td className="px-3 py-2.5 text-sm font-medium text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{list.name}</td>
-                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)]">{list.group?.name ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-sm font-medium text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)] max-w-[220px] truncate" title={list.name}>{list.name}</td>
+                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)] max-w-[160px] truncate" title={list.group?.name ?? undefined}>{list.group?.name ?? "—"}</td>
                       <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{list.itemCount}</td>
                       <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)] capitalize">{list.source.toLowerCase()}</td>
                       <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)]">

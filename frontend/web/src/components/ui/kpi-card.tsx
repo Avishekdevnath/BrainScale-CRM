@@ -17,26 +17,26 @@ const KPICard = React.forwardRef<HTMLDivElement, KPICardProps>(
       <div
         ref={ref}
         className={cn(
-          "rounded-xl border bg-[var(--groups1-surface)] border-[var(--groups1-card-border)] p-4 shadow-sm",
+          "min-w-0 overflow-hidden rounded-xl border bg-[var(--groups1-surface)] border-[var(--groups1-card-border)] p-4 shadow-sm",
           className
         )}
         {...props}
       >
-        <div className="text-xs text-[var(--groups1-text-secondary)] mb-2 uppercase tracking-wide">
+        <div className="text-xs text-[var(--groups1-text-secondary)] mb-2 uppercase tracking-wide truncate" title={label}>
           {label}
         </div>
-        <div className="text-2xl font-bold text-[var(--groups1-text)] mb-1">
+        <div className="text-2xl font-bold text-[var(--groups1-text)] mb-1 truncate" title={String(value)}>
           {value}
         </div>
         {breakdown && (
-          <div className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+          <div className="text-xs text-[var(--groups1-text-secondary)] mt-1 truncate">
             {breakdown}
           </div>
         )}
         {trend && !breakdown && (
           <div
             className={cn(
-              "text-xs font-medium",
+              "text-xs font-medium truncate",
               trend.type === "positive" && "text-[var(--groups1-success)]",
               trend.type === "negative" && "text-[var(--groups1-error)]",
               trend.type === "neutral" && "text-[var(--groups1-text-secondary)]"

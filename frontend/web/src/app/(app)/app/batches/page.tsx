@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { mutate } from "swr";
 import { KPICard } from "@/components/ui/kpi-card";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { useBatches } from "@/hooks/useBatches";
@@ -192,12 +192,6 @@ export default function BatchesPage() {
         }
       />
 
-      <StatusTabBar
-        tabs={STATUS_TABS}
-        activeId={statusFilter}
-        onChange={(id) => setStatusFilter(id as "all" | "active" | "inactive")}
-      />
-
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {isLoading ? (
@@ -226,6 +220,12 @@ export default function BatchesPage() {
           ))
         )}
       </div>
+
+      <StatusTabBar
+        tabs={STATUS_TABS}
+        activeId={statusFilter}
+        onChange={(id) => setStatusFilter(id as "all" | "active" | "inactive")}
+      />
 
       <FilterBar
         searchValue={searchQuery}
@@ -274,46 +274,43 @@ export default function BatchesPage() {
       />
 
       {/* Batches Table */}
-      <Card variant="groups1">
-        <CardHeader variant="groups1">
-          <CardTitle>Batches</CardTitle>
-        </CardHeader>
-        <CardContent variant="groups1" className="pb-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-[var(--groups1-text-secondary)]" />
-            </div>
-          ) : filteredBatches.length === 0 ? (
-            <div className="text-center py-8 text-[var(--groups1-text-secondary)]">
-              {searchQuery ? "No batches match your search" : "No batches found"}
-            </div>
-          ) : (
+      <div className="bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-[var(--groups1-text-secondary)]" />
+          </div>
+        ) : filteredBatches.length === 0 ? (
+          <div className="text-center py-10 text-sm text-[var(--groups1-text-secondary)]">
+            {searchQuery ? "No batches match your search" : "No batches found"}
+          </div>
+        ) : (
+          <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[var(--groups1-border)]">
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                  <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-secondary)]/40">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Name
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Description
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Start Date
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       End Date
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Groups
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Students
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Status
                     </th>
-                    <th className="text-right py-3 px-4 text-xs font-medium text-[var(--groups1-text-secondary)] uppercase">
+                    <th className="text-right py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -322,9 +319,9 @@ export default function BatchesPage() {
                   {filteredBatches.map((batch) => (
                     <tr
                       key={batch.id}
-                      className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)] transition-colors"
+                      className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]/50 transition-colors"
                     >
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-3 text-xs">
                         <Link
                           href={`/app/batches/${batch.id}`}
                           className="font-medium text-[var(--groups1-text)] hover:text-[var(--groups1-primary)]"
@@ -332,22 +329,22 @@ export default function BatchesPage() {
                           {batch.name}
                         </Link>
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
+                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
                         {batch.description || "—"}
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
+                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
                         {formatDate(batch.startDate)}
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--groups1-text-secondary)]">
+                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
                         {formatDate(batch.endDate)}
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
+                      <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">
                         {batch._count?.groups || 0}
                       </td>
-                      <td className="py-3 px-4 text-sm text-[var(--groups1-text)]">
+                      <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">
                         {batch._count?.studentBatches || 0}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-3 text-xs">
                         <StatusBadge
                           variant={batch.isActive ? "success" : "warning"}
                           size="sm"
@@ -355,7 +352,7 @@ export default function BatchesPage() {
                           {batch.isActive ? "Active" : "Inactive"}
                         </StatusBadge>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-2 px-3 text-right">
                         <RowActionsMenu
                           actions={[
                             {
@@ -389,38 +386,37 @@ export default function BatchesPage() {
                 </tbody>
               </table>
             </div>
-          )}
 
-          {/* Pagination */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--groups1-border)]">
-              <div className="text-sm text-[var(--groups1-text-secondary)]">
-                Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+            {pagination && pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--groups1-border)]">
+                <span className="text-xs text-[var(--groups1-text-secondary)]">
+                  Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1 || isLoading}
+                    className="bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
+                    disabled={currentPage === pagination.totalPages || isLoading}
+                    className="bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1 || isLoading}
-                  className="bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))}
-                  disabled={currentPage === pagination.totalPages || isLoading}
-                  className="bg-[var(--groups1-surface)] border-[var(--groups1-border)]"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Form Dialog */}
       <BatchFormDialog

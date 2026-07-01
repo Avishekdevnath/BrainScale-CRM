@@ -49,6 +49,7 @@ export default function EngagementReportPage() {
   const { current: currentGroup } = useGroupStore();
   const workspaceId = useWorkspaceStore((state) => state.current?.id ?? null);
   const groupsFeature = useFeature("groups");
+  const followupsFeature = useFeature("followups");
   const [filters, setFilters] = useState<DashboardFilters>({
     period: "month",
     groupId: currentGroup?.id,
@@ -117,25 +118,29 @@ export default function EngagementReportPage() {
       />
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className={cn("grid grid-cols-2 md:grid-cols-4 gap-3", followupsFeature.enabled ? "lg:grid-cols-6" : "lg:grid-cols-4")}>
         {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => <KPISkeleton key={i} />)
+          Array.from({ length: followupsFeature.enabled ? 6 : 4 }).map((_, i) => <KPISkeleton key={i} />)
         ) : (
           <>
             <KPICard label="Total Calls" value={totalCalls.toLocaleString()} />
             <KPICard label="Connected" value={connectedCalls.toLocaleString()} breakdown={`${connectedPercent.toFixed(1)}%`} />
             <KPICard label="Conversion Rate" value={`${conversionRate.toFixed(1)}%`} />
             <KPICard label="Today" value={callsToday.toLocaleString()} />
-            <KPICard
-              label="Pending Follow-ups"
-              value={pendingFollowups.toLocaleString()}
-              trend={pendingFollowups > 0 ? { value: "Action needed", type: "negative" } : undefined}
-            />
-            <KPICard
-              label="Overdue"
-              value={overdueFollowups.toLocaleString()}
-              trend={overdueFollowups > 0 ? { value: "Overdue", type: "negative" } : undefined}
-            />
+            {followupsFeature.enabled && (
+              <>
+                <KPICard
+                  label="Pending Follow-ups"
+                  value={pendingFollowups.toLocaleString()}
+                  trend={pendingFollowups > 0 ? { value: "Action needed", type: "negative" } : undefined}
+                />
+                <KPICard
+                  label="Overdue"
+                  value={overdueFollowups.toLocaleString()}
+                  trend={overdueFollowups > 0 ? { value: "Overdue", type: "negative" } : undefined}
+                />
+              </>
+            )}
           </>
         )}
       </div>
@@ -184,40 +189,42 @@ export default function EngagementReportPage() {
             ) : assigneePerformance.length === 0 ? (
               <p className="text-sm text-[var(--groups1-text-secondary)] text-center py-8">No caller data for this period</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      {["#", "Caller", "Total Calls", "Connected", "Rate %"].map((h) => (
-                        <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wide border-b border-[var(--groups1-card-border-inner)]">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assigneePerformance.map((a) => {
-                      const rate = a.totalCalls > 0 ? ((a.connectedCalls / a.totalCalls) * 100).toFixed(1) : "0.0";
-                      return (
-                        <tr key={a.assigneeId} className="hover:bg-[var(--groups1-secondary)] transition-colors">
-                          <td className="px-3 py-2.5 border-b border-[var(--groups1-card-border-inner)]">
-                            <span className={cn("inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-full text-xs font-bold", getRankBadgeClass(a.rank))}>
-                              {a.rank}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)] max-w-[180px] truncate" title={a.assignee}>{a.assignee}</td>
-                          <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{a.totalCalls}</td>
-                          <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{a.connectedCalls}</td>
-                          <td className="px-3 py-2.5 text-sm font-semibold border-b border-[var(--groups1-card-border-inner)]">
-                            <span className={cn(parseFloat(rate) >= 50 ? "text-[var(--groups1-success)]" : "text-[var(--groups1-warning)]")}>
-                              {rate}%
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div className="bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-secondary)]/40">
+                        {["#", "Caller", "Total Calls", "Connected", "Rate %"].map((h) => (
+                          <th key={h} className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assigneePerformance.map((a) => {
+                        const rate = a.totalCalls > 0 ? ((a.connectedCalls / a.totalCalls) * 100).toFixed(1) : "0.0";
+                        return (
+                          <tr key={a.assigneeId} className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]/50 transition-colors">
+                            <td className="py-2 px-3">
+                              <span className={cn("inline-flex items-center justify-center min-w-6 h-6 px-1 rounded-full text-xs font-bold", getRankBadgeClass(a.rank))}>
+                                {a.rank}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-xs text-[var(--groups1-text)] max-w-[180px] truncate" title={a.assignee}>{a.assignee}</td>
+                            <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">{a.totalCalls}</td>
+                            <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">{a.connectedCalls}</td>
+                            <td className="py-2 px-3 text-xs font-semibold">
+                              <span className={cn(parseFloat(rate) >= 50 ? "text-[var(--groups1-success)]" : "text-[var(--groups1-warning)]")}>
+                                {rate}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </CardContent>
@@ -225,7 +232,7 @@ export default function EngagementReportPage() {
       </div>
 
       {/* Call Status + Follow-up Status */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 gap-4", followupsFeature.enabled && "md:grid-cols-2")}>
         <Card variant="groups1">
           <CardHeader variant="groups1">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Call Status Breakdown</CardTitle>
@@ -263,43 +270,45 @@ export default function EngagementReportPage() {
           </CardContent>
         </Card>
 
-        <Card variant="groups1">
-          <CardHeader variant="groups1">
-            <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Follow-up Health</CardTitle>
-          </CardHeader>
-          <CardContent variant="groups1">
-            {isLoading ? (
-              <TableSkeleton rows={3} />
-            ) : followupsByStatus.length === 0 ? (
-              <p className="text-sm text-[var(--groups1-text-secondary)] text-center py-6">No follow-up data</p>
-            ) : (
-              <div className="space-y-2">
-                {followupsByStatus.map((item) => {
-                  const total = followupsByStatus.reduce((s, c) => s + c.count, 0);
-                  const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
-                  const isOverdue = item.status.toLowerCase().includes("overdue");
-                  return (
-                    <div key={item.status} className="flex items-center gap-3">
-                      <span
-                        className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 truncate capitalize"
-                        title={item.status.toLowerCase().replace("_", " ")}
-                      >
-                        {item.status.toLowerCase().replace("_", " ")}
-                      </span>
-                      <div className="flex-1 h-2 rounded-full bg-[var(--groups1-secondary)] overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full", isOverdue ? "bg-[var(--groups1-error)]" : "bg-[var(--groups1-primary)]")}
-                          style={{ width: `${pct}%` }}
-                        />
+        {followupsFeature.enabled && (
+          <Card variant="groups1">
+            <CardHeader variant="groups1">
+              <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Follow-up Health</CardTitle>
+            </CardHeader>
+            <CardContent variant="groups1">
+              {isLoading ? (
+                <TableSkeleton rows={3} />
+              ) : followupsByStatus.length === 0 ? (
+                <p className="text-sm text-[var(--groups1-text-secondary)] text-center py-6">No follow-up data</p>
+              ) : (
+                <div className="space-y-2">
+                  {followupsByStatus.map((item) => {
+                    const total = followupsByStatus.reduce((s, c) => s + c.count, 0);
+                    const pct = total > 0 ? ((item.count / total) * 100).toFixed(0) : 0;
+                    const isOverdue = item.status.toLowerCase().includes("overdue");
+                    return (
+                      <div key={item.status} className="flex items-center gap-3">
+                        <span
+                          className="text-sm text-[var(--groups1-text-secondary)] w-28 shrink-0 truncate capitalize"
+                          title={item.status.toLowerCase().replace("_", " ")}
+                        >
+                          {item.status.toLowerCase().replace("_", " ")}
+                        </span>
+                        <div className="flex-1 h-2 rounded-full bg-[var(--groups1-secondary)] overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full", isOverdue ? "bg-[var(--groups1-error)]" : "bg-[var(--groups1-primary)]")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium text-[var(--groups1-text)] w-12 text-right">{item.count}</span>
                       </div>
-                      <span className="text-sm font-medium text-[var(--groups1-text)] w-12 text-right">{item.count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Active Call Lists */}
@@ -309,31 +318,38 @@ export default function EngagementReportPage() {
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Active Call Lists</CardTitle>
           </CardHeader>
           <CardContent variant="groups1">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    {["Name", "Group", "Students", "Source", "Created"].map((h) => (
-                      <th key={h} className="px-3 py-2 text-left text-[11px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wide border-b border-[var(--groups1-card-border-inner)]">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {callLists.map((list) => (
-                    <tr key={list.id} className="hover:bg-[var(--groups1-secondary)] transition-colors">
-                      <td className="px-3 py-2.5 text-sm font-medium text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)] max-w-[220px] truncate" title={list.name}>{list.name}</td>
-                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)] max-w-[160px] truncate" title={list.group?.name ?? undefined}>{list.group?.name ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">{list.itemCount}</td>
-                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)] capitalize">{list.source.toLowerCase()}</td>
-                      <td className="px-3 py-2.5 text-sm text-[var(--groups1-text-secondary)] border-b border-[var(--groups1-card-border-inner)]">
-                        {new Date(list.createdAt).toLocaleDateString()}
-                      </td>
+            <div className="bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-secondary)]/40">
+                      {(groupsFeature.enabled
+                        ? ["Name", "Group", "Students", "Source", "Created"]
+                        : ["Name", "Students", "Source", "Created"]
+                      ).map((h) => (
+                        <th key={h} className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {callLists.map((list) => (
+                      <tr key={list.id} className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]/50 transition-colors">
+                        <td className="py-2 px-3 text-xs font-medium text-[var(--groups1-text)] max-w-[220px] truncate" title={list.name}>{list.name}</td>
+                        {groupsFeature.enabled && (
+                          <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)] max-w-[160px] truncate" title={list.group?.name ?? undefined}>{list.group?.name ?? "—"}</td>
+                        )}
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">{list.itemCount}</td>
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)] capitalize">{list.source.toLowerCase()}</td>
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
+                          {new Date(list.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </CardContent>
         </Card>

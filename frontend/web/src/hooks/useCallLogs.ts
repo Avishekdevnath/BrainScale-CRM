@@ -7,8 +7,27 @@ import { useWorkspaceStore } from "@/store/workspace";
 import type {
   CallLog,
   CallLogsResponse,
+  CallLogStats,
   GetCallLogsParams,
 } from "@/types/call-lists.types";
+
+export function useCallLogStats(params?: Omit<GetCallLogsParams, 'page' | 'size' | 'status'>) {
+  const workspaceId = useWorkspaceStore((state) => state.current?.id);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const key = workspaceId && accessToken
+    ? `${workspaceId}:call-log-stats-${JSON.stringify(params ?? {})}`
+    : null;
+
+  return useSWR<CallLogStats>(
+    key,
+    async () => apiClient.getCallLogStats(params),
+    {
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 5000,
+    }
+  );
+}
 
 export function useCallLogs(params?: GetCallLogsParams) {
   const workspaceId = useWorkspaceStore((state) => state.current?.id);

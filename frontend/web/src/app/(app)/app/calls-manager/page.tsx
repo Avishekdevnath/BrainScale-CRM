@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { formatAnswer, validateCallLog } from "@/lib/call-list-utils";
 import { QuestionsBuilder } from "@/components/call-lists/QuestionsBuilder";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 // --- Draft persistence (localStorage) ---
 const DRAFT_PREFIX = "calls-manager:drafts:";
@@ -261,6 +262,7 @@ function StatusSelect({
 
 export default function CallsManagerPage() {
   usePageTitle("Calls Manager");
+  const groupsFeature = useFeature("groups");
 
   const [mounted, setMounted] = useState(false);
   const [needsDefaultCallList, setNeedsDefaultCallList] = useState(false);
@@ -1145,7 +1147,7 @@ export default function CallsManagerPage() {
         />
 
         {/* Active filter chips */}
-        {groupId && (
+        {groupId && groupsFeature.enabled && (
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[var(--groups1-secondary)] text-[var(--groups1-text)] border border-[var(--groups1-border)] flex-shrink-0">
             Group: {(groupsData ?? []).find(g => g.id === groupId)?.name ?? groupId}
             <button onClick={() => { setGroupId(""); setPage(1); }} className="hover:text-red-500 ml-0.5">
@@ -1193,17 +1195,19 @@ export default function CallsManagerPage() {
               <div className="absolute top-full left-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg overflow-hidden py-2">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] px-3 py-1.5">Filter by</div>
                 {/* Group */}
-                <div className="px-2 pb-1">
-                  <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Group</div>
-                  <select
-                    value={draftGroupId}
-                    onChange={(e) => { setDraftGroupId(e.target.value); setDraftCallListId(""); }}
-                    className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
-                  >
-                    <option value="">All groups</option>
-                    {(groupsData ?? []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
+                {groupsFeature.enabled && (
+                  <div className="px-2 pb-1">
+                    <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Group</div>
+                    <select
+                      value={draftGroupId}
+                      onChange={(e) => { setDraftGroupId(e.target.value); setDraftCallListId(""); }}
+                      className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+                    >
+                      <option value="">All groups</option>
+                      {(groupsData ?? []).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+                )}
                 {/* Batch */}
                 <div className="px-2 pb-1">
                   <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Batch</div>

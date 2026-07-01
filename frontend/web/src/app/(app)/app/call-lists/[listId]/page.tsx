@@ -21,8 +21,10 @@ import { extractQuestions } from "@/lib/call-list-utils";
 import { Loader2, ArrowLeft, Info, MessageSquare, HelpCircle, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useHasPermission } from "@/hooks/useHasPermission";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 function CallListDetailPageContent() {
+  const groupsFeature = useFeature("groups");
   // OWNER/ADMIN bypass inside useHasPermission; members gated by DB permissions
   const canEditList = useHasPermission("call_lists", "update");
   const canDeleteList = useHasPermission("call_lists", "delete");
@@ -129,7 +131,7 @@ function CallListDetailPageContent() {
             size="sm"
             className="mb-0.5 inline-flex items-center gap-2 text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] h-6 text-xs"
             onClick={() => {
-              if (groupId) {
+              if (groupId && groupsFeature.enabled) {
                 router.push(`/app/groups/${groupId}/call-lists`);
               } else {
                 router.push("/app/call-lists");
@@ -163,7 +165,12 @@ function CallListDetailPageContent() {
             {callList.groupId ? (
               <>
                 <span className="text-xs text-[var(--groups1-text-secondary)]">
-                  Group: <Link href={`/app/groups/${callList.groupId}`} className="hover:underline text-[var(--groups1-text)]">{callList.group?.name || "Unknown"}</Link>
+                  Group:{" "}
+                  {groupsFeature.enabled ? (
+                    <Link href={`/app/groups/${callList.groupId}`} className="hover:underline text-[var(--groups1-text)]">{callList.group?.name || "Unknown"}</Link>
+                  ) : (
+                    <span className="text-[var(--groups1-text)]">{callList.group?.name || "Unknown"}</span>
+                  )}
                 </span>
                 {callList.group?.batch && (
                   <span className="text-xs text-[var(--groups1-text-secondary)]">

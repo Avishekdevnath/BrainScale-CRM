@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const SubmitFeedbackBody = z.object({
+  title: z.string().min(1).max(120).optional(),
   message: z.string().min(10).max(2000),
   type: z.enum(['BUG', 'ISSUE', 'SUGGESTION', 'OTHER']).optional(),
 });

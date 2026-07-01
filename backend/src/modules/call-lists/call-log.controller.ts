@@ -57,6 +57,14 @@ export const getCallListCallLogs = asyncHandler(async (req: AuthRequest, res: Re
   res.json(result);
 });
 
+export const getCallLogStats = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await callLogService.getCallLogStats(
+    req.user!.workspaceId!,
+    req.query as any
+  );
+  res.json(result);
+});
+
 export const createFollowupCallLog = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await callLogService.createFollowupCallLog(
     req.user!.workspaceId!,

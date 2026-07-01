@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Loader2, Phone, Eye } from "lucide-react";
 import Link from "next/link";
 import type { Followup } from "@/types/followups.types";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 export interface FollowupsTableProps {
   followups: Followup[];
@@ -19,6 +20,7 @@ export function FollowupsTable({
   onMakeCall,
   onViewDetails,
 }: FollowupsTableProps) {
+  const groupsFeature = useFeature("groups");
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -87,15 +89,14 @@ export function FollowupsTable({
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--groups1-text)]">
                   {followup.group ? (
-                    <Link
-                      href={`/app/groups/${followup.groupId}`}
-                      className="text-[var(--groups1-primary)] hover:underline"
-                    >
-                      {followup.group.name}
-                    </Link>
-                  ) : (
-                    "-"
-                  )}
+                    groupsFeature.enabled ? (
+                      <Link href={`/app/groups/${followup.groupId}`} className="text-[var(--groups1-primary)] hover:underline">
+                        {followup.group.name}
+                      </Link>
+                    ) : (
+                      <span>{followup.group.name}</span>
+                    )
+                  ) : "-"}
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--groups1-text)]">
                   {followup.callList ? (

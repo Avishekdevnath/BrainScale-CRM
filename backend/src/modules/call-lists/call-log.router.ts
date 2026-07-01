@@ -175,6 +175,14 @@ router.post(
   callLogController.createFollowupCallLog
 );
 
+router.get(
+  '/stats',
+  authGuard,
+  tenantGuard,
+  requirePermission('calls', 'read'),
+  callLogController.getCallLogStats
+);
+
 /**
  * @openapi
  * /call-logs/{logId}:

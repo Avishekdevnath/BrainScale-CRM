@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Loader2, X, Plus, UserPlus, ChevronDown, ChevronUp } from "lucide-react";
 import { useGroups } from "@/hooks/useGroups";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 import { StudentSelector } from "./StudentSelector";
 import { BatchSelector } from "./BatchSelector";
 
@@ -71,6 +72,7 @@ export function CallListFormDialog({
   });
   const { data: groups, isLoading: groupsLoading } = useGroups();
   const isAdmin = useIsAdmin();
+  const groupsFeature = useFeature("groups");
 
   const isEditMode = !!callList;
 
@@ -521,60 +523,63 @@ export function CallListFormDialog({
             </div>
           )}
 
-          <div>
-            <Label
-              htmlFor="call-list-group"
-              className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
-            >
-              Group <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-            </Label>
-            <select
-              id="call-list-group"
-              value={form.groupId || ""}
-              onChange={(e) => {
-                const newGroupId = e.target.value || "";
-                // Clear batch if group changes and batch doesn't match new group
-                let newBatchId = form.batchId;
-                if (newGroupId && groups) {
-                  const selectedGroup = groups.find(g => g.id === newGroupId);
-                  if (selectedGroup && selectedGroup.batchId !== form.batchId) {
-                    newBatchId = "";
+          {groupsFeature.enabled && (
+            <div>
+              <Label
+                htmlFor="call-list-group"
+                className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
+              >
+                Group <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+              </Label>
+              <select
+                id="call-list-group"
+                value={form.groupId || ""}
+                onChange={(e) => {
+                  const newGroupId = e.target.value || "";
+                  let newBatchId = form.batchId;
+                  if (newGroupId && groups) {
+                    const selectedGroup = groups.find(g => g.id === newGroupId);
+                    if (selectedGroup && selectedGroup.batchId !== form.batchId) {
+                      newBatchId = "";
+                    }
                   }
-                }
-                setForm({ ...form, groupId: newGroupId, batchId: newBatchId });
-              }}
-              className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
-              disabled={saving || groupsLoading || isEditMode}
-              aria-label="Select group"
-            >
-              <option value="">No group (workspace-wide)</option>
-              {groups?.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-          </div>
+                  setForm({ ...form, groupId: newGroupId, batchId: newBatchId });
+                }}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-[var(--groups1-text)] focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)] appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
+                disabled={saving || groupsLoading || isEditMode}
+                aria-label="Select group"
+              >
+                <option value="">No group (workspace-wide)</option>
+                {groups?.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div>
-            <Label
-              htmlFor="call-list-batch"
-              className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
-            >
-              Batch <span className="text-gray-400 text-xs">(Optional)</span>
-            </Label>
-            <BatchSelector
-              value={form.batchId || undefined}
-              onChange={(batchId) => setForm({ ...form, batchId: batchId || "" })}
-              groupId={form.groupId || undefined}
-              disabled={saving || isEditMode}
-            />
-            {form.groupId && form.batchId && (
-              <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
-                If both group and batch are selected, the group must belong to the selected batch.
-              </p>
-            )}
-          </div>
+          {groupsFeature.enabled && (
+            <div>
+              <Label
+                htmlFor="call-list-batch"
+                className="block text-left text-sm font-medium text-[var(--groups1-text)] mb-1"
+              >
+                Batch <span className="text-gray-400 text-xs">(Optional)</span>
+              </Label>
+              <BatchSelector
+                value={form.batchId || undefined}
+                onChange={(batchId) => setForm({ ...form, batchId: batchId || "" })}
+                groupId={form.groupId || undefined}
+                disabled={saving || isEditMode}
+              />
+              {form.groupId && form.batchId && (
+                <p className="text-xs text-[var(--groups1-text-secondary)] mt-1">
+                  If both group and batch are selected, the group must belong to the selected batch.
+                </p>
+              )}
+            </div>
+          )}
 
           {!isEditMode && (
             <>

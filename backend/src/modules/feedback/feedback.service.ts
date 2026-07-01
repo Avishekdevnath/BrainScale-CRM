@@ -21,7 +21,7 @@ export const submitFeedback = async (
   }
 
   const created = await prisma.feedback.create({
-    data: { userId, workspaceId, message: input.message, type: input.type ?? 'OTHER' },
+    data: { userId, workspaceId, title: input.title ?? null, message: input.message, type: input.type ?? 'OTHER' },
   });
   return { id: created.id };
 };
@@ -30,6 +30,6 @@ export const getMyFeedback = async (userId: string) => {
   return prisma.feedback.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, type: true, status: true, message: true, reply: true, repliedAt: true, createdAt: true },
+    select: { id: true, title: true, type: true, status: true, message: true, reply: true, repliedAt: true, createdAt: true },
   });
 };

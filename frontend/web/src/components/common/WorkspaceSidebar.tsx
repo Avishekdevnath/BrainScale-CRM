@@ -89,7 +89,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/app/students", label: "Students", icon: Users },
       { href: "/app/group-management", label: "Groups", icon: FolderOpen, feature: "groups" },
-      { href: "/app/batches", label: "Batches", icon: Layers, adminOnly: true, feature: "learning" },
+      { href: "/app/batches", label: "Batches", icon: Layers },
       { href: "/app/enrollments", label: "Enrollments", icon: GraduationCap, feature: "learning" },
       { href: "/app/courses", label: "Courses", icon: BookOpen, feature: "learning" },
       { href: "/app/modules", label: "Modules", icon: FileText, feature: "learning" },
@@ -106,7 +106,6 @@ const navSections: NavSection[] = [
       { href: "/app/calls", label: "All Calls", icon: Phone },
       { href: "/app/call-lists", label: "Call Lists", icon: PhoneCall },
       { href: "/app/forms", label: "Forms", icon: ClipboardList, permission: "forms:read", feature: "forms" },
-      { href: "/app/call-logs", label: "Call Logs", icon: FileCheck },
       { href: "/app/followups", label: "Follow-ups", icon: Clock, feature: "followups" },
       { href: "/app/engagement-report", label: "Report", icon: BarChart2 },
     ],
@@ -214,9 +213,6 @@ export function WorkspaceSidebar({ mode = "desktop", onNavigate }: WorkspaceSide
     }
     if (href === "/app/call-lists") {
       return pathname === "/app/call-lists" || pathname?.startsWith("/app/call-lists/");
-    }
-    if (href === "/app/call-logs") {
-      return pathname === "/app/call-logs" || pathname?.startsWith("/app/call-logs/");
     }
     return pathname?.startsWith(href);
   };

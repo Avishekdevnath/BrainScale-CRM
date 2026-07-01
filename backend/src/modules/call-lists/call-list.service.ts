@@ -1,4 +1,13 @@
 import { prisma } from '../../db/client';
+
+const nextListNumber = async (workspaceId: string): Promise<number> => {
+  const max = await prisma.callList.findFirst({
+    where: { workspaceId, listNumber: { not: null } },
+    orderBy: { listNumber: 'desc' },
+    select: { listNumber: true },
+  });
+  return (max?.listNumber ?? 0) + 1;
+};
 import { AppError } from '../../middleware/error-handler';
 import { parseTextData } from '../../utils/file-parser';
 import { normalizePhoneQuery } from '../../utils/phone';
@@ -597,15 +606,17 @@ export const createCallList = async (
   }
 
   // Create call list (with or without groupId)
+  const listNumber = await nextListNumber(workspaceId);
   const createData: any = {
     workspaceId,
       name: data.name,
       source: data.source,
+    listNumber,
     description: data.description,
     messages: data.messages || [],
     meta: Object.keys(metaData).length > 0 ? metaData : null,
   };
-  
+
   if (groupId) {
     createData.groupId = groupId;
   }
@@ -1957,6 +1968,7 @@ export const createCallListFromBulkPaste = async (
     workspaceId,
     name: data.name,
     source: 'IMPORT',
+    listNumber: await nextListNumber(workspaceId),
     description: data.description,
     messages: data.messages || [],
     meta: Object.keys(metaData).length > 0 ? metaData : null,
@@ -2273,6 +2285,7 @@ export const createCallListFromFollowups = async (
       workspaceId,
       name: data.name,
       source: data.source || 'FILTER',
+      listNumber: await nextListNumber(workspaceId),
       description: data.description,
       messages,
       meta: Object.keys(metaData).length > 0 ? metaData : null,

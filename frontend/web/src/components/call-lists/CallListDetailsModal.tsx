@@ -11,6 +11,7 @@ import { Loader2, Phone, Eye, ExternalLink, FolderOpen, Users, ChevronDown, Chev
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { CallListItem } from "@/types/call-lists.types";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 export interface CallListDetailsModalProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function CallListDetailsModal({
   callListId,
 }: CallListDetailsModalProps) {
   const router = useRouter();
+  const groupsFeature = useFeature("groups");
   const [selectedItem, setSelectedItem] = useState<CallListItem | null>(null);
   const [isItemDetailsOpen, setIsItemDetailsOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(true);
@@ -111,12 +113,13 @@ export function CallListDetailsModal({
                       {callList.groupId ? (
                         <div>
                           <span className="text-gray-500">Group:</span>{" "}
-                          <Link
-                            href={`/app/groups/${callList.groupId}`}
-                            className="font-medium text-[var(--groups1-primary)] hover:underline"
-                          >
-                            {callList.group?.name || "Unknown"}
-                          </Link>
+                          {groupsFeature.enabled ? (
+                            <Link href={`/app/groups/${callList.groupId}`} className="font-medium text-[var(--groups1-primary)] hover:underline">
+                              {callList.group?.name || "Unknown"}
+                            </Link>
+                          ) : (
+                            <span className="font-medium text-[var(--groups1-text)]">{callList.group?.name || "Unknown"}</span>
+                          )}
                         </div>
                       ) : (
                         <div>

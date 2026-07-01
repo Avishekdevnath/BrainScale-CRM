@@ -646,9 +646,11 @@ function StudentsPageContent() {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                         Phone
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
-                        Groups
-                      </th>
+                      {groupsFeature.enabled && (
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
+                          Groups
+                        </th>
+                      )}
                       <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase border-b border-[var(--groups1-card-border-inner)]">
                         Batches
                       </th>
@@ -708,29 +710,31 @@ function StudentsPageContent() {
                           <td className="px-4 py-3 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">
                             {primaryPhone?.phone || "-"}
                           </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">
-                        {hasEnrollments ? (
-                          <div className="space-y-1">
-                            {student.enrollments?.map((enrollment) => (
-                              <div key={enrollment.id} className="flex items-center gap-2">
-                                <span>{enrollment.group?.name ?? "-"}</span>
-                                {typeof enrollment.isActive === "boolean" && (
-                                  <StatusBadge
-                                    variant={enrollment.isActive ? "success" : "warning"}
-                                    size="sm"
-                                  >
-                                    {enrollment.isActive ? "Active" : "Inactive"}
-                                  </StatusBadge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <StatusBadge variant="warning" size="sm">
-                            Not enrolled
-                          </StatusBadge>
-                        )}
-                      </td>
+                      {groupsFeature.enabled && (
+                        <td className="px-4 py-3 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">
+                          {hasEnrollments ? (
+                            <div className="space-y-1">
+                              {student.enrollments?.map((enrollment) => (
+                                <div key={enrollment.id} className="flex items-center gap-2">
+                                  <span>{enrollment.group?.name ?? "-"}</span>
+                                  {typeof enrollment.isActive === "boolean" && (
+                                    <StatusBadge
+                                      variant={enrollment.isActive ? "success" : "warning"}
+                                      size="sm"
+                                    >
+                                      {enrollment.isActive ? "Active" : "Inactive"}
+                                    </StatusBadge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <StatusBadge variant="warning" size="sm">
+                              Not enrolled
+                            </StatusBadge>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-sm text-[var(--groups1-text)] border-b border-[var(--groups1-card-border-inner)]">
                         {batchNames.length > 0 ? (
                           <div className="flex flex-wrap gap-1">

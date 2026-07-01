@@ -74,6 +74,7 @@ export interface CallList {
   workspaceId: string;
   groupId: string | null; // null for workspace-level call lists
   name: string;
+  listNumber?: number | null;
   source: CallListSource;
   description: string | null; // Optional description text
   messages: string[]; // Array of messages to convey during calls
@@ -146,6 +147,7 @@ export interface CallListItem {
   callList?: {
     id: string;
     name: string;
+    listNumber?: number | null;
     description: string | null;
     messages: string[];
     questions?: Question[];
@@ -307,6 +309,7 @@ export interface CallLog {
   callList?: {
     id: string;
     name: string;
+    listNumber?: number | null;
     description: string | null;
     messages: string[];
     questions?: Question[];
@@ -424,6 +427,20 @@ export interface GetCallLogsParams {
   batchId?: string; // Optional
   groupId?: string; // Optional
   q?: string; // Optional, search by student name/email/phone
+  callNumberFrom?: number; // Optional
+  callNumberTo?: number; // Optional
+  sortBy?: 'callDate' | 'callNumber'; // Optional, default: callDate
+  sortOrder?: 'asc' | 'desc'; // Optional, default: desc
+}
+
+export interface CallLogStats {
+  total: number;
+  completed: number;
+  missed: number;
+  no_answer: number;
+  busy: number;
+  voicemail: number;
+  other: number;
 }
 
 export interface CallLogsResponse {

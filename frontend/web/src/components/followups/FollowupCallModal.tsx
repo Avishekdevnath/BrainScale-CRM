@@ -14,6 +14,7 @@ import { QuestionAnswerForm } from "@/components/followups/QuestionAnswerForm";
 import { validateCallLog, formatCallDuration } from "@/lib/call-list-utils";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 import type { Answer, CallLogStatus } from "@/types/call-lists.types";
 
 const STATUS_OPTIONS: Array<{ value: CallLogStatus; label: string }> = [
@@ -38,6 +39,7 @@ export function FollowupCallModal({
   followupId,
   onSuccess,
 }: FollowupCallModalProps) {
+  const groupsFeature = useFeature("groups");
   const [submitting, setSubmitting] = useState(false);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState("");
@@ -267,12 +269,13 @@ export function FollowupCallModal({
                 {followup.group && (
                   <div>
                     <span className="text-gray-500">Group:</span>{" "}
-                    <Link
-                      href={`/app/groups/${followup.group.id}`}
-                      className="font-medium text-[var(--groups1-primary)] hover:underline"
-                    >
-                      {followup.group.name}
-                    </Link>
+                    {groupsFeature.enabled ? (
+                      <Link href={`/app/groups/${followup.group.id}`} className="font-medium text-[var(--groups1-primary)] hover:underline">
+                        {followup.group.name}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-[var(--groups1-text)]">{followup.group.name}</span>
+                    )}
                   </div>
                 )}
                 {callList && (

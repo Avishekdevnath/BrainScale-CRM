@@ -58,6 +58,7 @@ import type {
   CreateCallLogRequest,
   UpdateCallLogRequest,
   CallLogsResponse,
+  CallLogStats,
   GetCallLogsParams,
   GetMyCallsParams,
   MyCallsResponse,
@@ -618,7 +619,7 @@ export class ApiClient {
       method: "PATCH", body: JSON.stringify({ status }),
     });
   }
-  submitFeedback(body: { message: string; type?: string }) {
+  submitFeedback(body: { title?: string; message: string; type?: string }) {
     return this.request<{ id: string }>(`/feedback`, {
       method: "POST", body: JSON.stringify(body),
     });
@@ -645,7 +646,7 @@ export class ApiClient {
   }
   getMyFeedback() {
     return this.request<Array<{
-      id: string; type: string; status: string; message: string;
+      id: string; title: string | null; type: string; status: string; message: string;
       reply: string | null; repliedAt: string | null; createdAt: string;
     }>>(`/feedback/mine`, { method: "GET" });
   }
@@ -2306,6 +2307,24 @@ export class ApiClient {
     });
   }
 
+  getCallLogStats(params?: Omit<GetCallLogsParams, 'page' | 'size' | 'status'>): Promise<CallLogStats> {
+    const queryString = buildQueryString({
+      studentId: params?.studentId,
+      callListId: params?.callListId,
+      assignedTo: params?.assignedTo,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
+      batchId: params?.batchId,
+      groupId: params?.groupId,
+      q: params?.q,
+      callNumberFrom: params?.callNumberFrom,
+      callNumberTo: params?.callNumberTo,
+    });
+    return this.request<CallLogStats>(`/call-logs/stats${queryString}`, {
+      method: "GET",
+    });
+  }
+
   getCallLogs(params?: GetCallLogsParams): Promise<CallLogsResponse> {
     const queryString = buildQueryString({
       page: params?.page,
@@ -2319,6 +2338,10 @@ export class ApiClient {
       batchId: params?.batchId,
       groupId: params?.groupId,
       q: params?.q,
+      callNumberFrom: params?.callNumberFrom,
+      callNumberTo: params?.callNumberTo,
+      sortBy: params?.sortBy,
+      sortOrder: params?.sortOrder,
     });
     return this.request<CallLogsResponse>(`/call-logs${queryString}`, {
       method: "GET",

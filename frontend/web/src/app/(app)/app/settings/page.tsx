@@ -54,18 +54,20 @@ export default function SettingsPage() {
   const formsFeature = useFeature("forms");
 
   // Feedback form state
+  const [fbTitle, setFbTitle] = React.useState("");
   const [fbMessage, setFbMessage] = React.useState("");
   const [fbType, setFbType] = React.useState<"BUG" | "ISSUE" | "SUGGESTION" | "OTHER">("OTHER");
   const [fbSubmitting, setFbSubmitting] = React.useState(false);
-  const { data: myFeedback, mutate: mutateFeedback } = useMyFeedback();
+  const { mutate: mutateFeedback } = useMyFeedback();
 
   const submitFeedback = async () => {
     const msg = fbMessage.trim();
     if (msg.length < 10) { toast.error("Message must be at least 10 characters"); return; }
     setFbSubmitting(true);
     try {
-      await apiClient.submitFeedback({ message: msg, type: fbType });
+      await apiClient.submitFeedback({ title: fbTitle.trim() || undefined, message: msg, type: fbType });
       toast.success("Feedback submitted — thank you!");
+      setFbTitle("");
       setFbMessage("");
       setFbType("OTHER");
       mutateFeedback();
@@ -276,9 +278,19 @@ export default function SettingsPage() {
       {/* Feedback */}
       <Card variant="groups1" className="gap-1">
         <CardHeader className="gap-1 pb-1 pt-2">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
-            <CardTitle>Feedback</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-[var(--groups1-text-secondary)]" />
+              <CardTitle>Feedback</CardTitle>
+            </div>
+            <Link href="/app/my-feedback">
+              <button
+                type="button"
+                className="text-xs font-medium text-[var(--groups1-primary)] hover:underline flex items-center gap-1"
+              >
+                View all &amp; replies →
+              </button>
+            </Link>
           </div>
         </CardHeader>
         <CardContent variant="groups1" className="space-y-4 pt-1">
@@ -300,6 +312,14 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+            <input
+              type="text"
+              value={fbTitle}
+              onChange={(e) => setFbTitle(e.target.value)}
+              maxLength={120}
+              placeholder="Title (optional)"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-background)] text-sm text-[var(--groups1-text)] outline-none focus:ring-2 focus:ring-[var(--groups1-primary)]"
+            />
             <textarea
               value={fbMessage}
               onChange={(e) => setFbMessage(e.target.value)}
@@ -320,38 +340,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* History */}
-          {myFeedback && myFeedback.length > 0 && (
-            <div className="space-y-3 border-t border-[var(--groups1-card-border-inner)] pt-3">
-              <p className="text-xs font-medium text-[var(--groups1-text-secondary)]">Your submissions</p>
-              {myFeedback.map((f) => (
-                <div key={f.id} className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs text-[var(--groups1-text-secondary)]">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg border border-[var(--groups1-border)]">{f.type}</span>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-lg border ${
-                        f.status === "OPEN"
-                          ? "border-blue-500/40 text-blue-500"
-                          : "border-emerald-500/40 text-emerald-600"
-                      }`}
-                    >
-                      {f.status === "OPEN" ? "Open" : "Resolved"}
-                    </span>
-                    <span>{new Date(f.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  <p className="text-sm text-[var(--groups1-text)]">{f.message}</p>
-                  {f.reply && (
-                    <div className="ml-3 pl-3 border-l-2 border-[var(--groups1-primary)]/40 space-y-0.5">
-                      <p className="text-xs text-[var(--groups1-text-secondary)]">
-                        Reply from BrainScale{f.repliedAt ? ` · ${new Date(f.repliedAt).toLocaleDateString()}` : ""}
-                      </p>
-                      <p className="text-sm text-[var(--groups1-text)]">{f.reply}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 

@@ -399,6 +399,7 @@ model CallList {
   workspaceId String
   groupId     String?
   name        String
+  listNumber  Int?     // Workspace-scoped sequential display ID
   source      String
   description String? // Optional description for the call list
   messages    String[] @default([]) // Array of messages to convey during calls
@@ -1193,6 +1194,7 @@ model Feedback {
   id              String    @id @default(cuid()) @map("_id")
   userId          String
   workspaceId     String?   // nullable — used only for notification scoping
+  title           String?   // Optional short title
   message         String
   type            String    @default("OTHER") // BUG | ISSUE | SUGGESTION | OTHER
   status          String    @default("OPEN")  // OPEN | RESOLVED

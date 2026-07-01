@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
@@ -18,15 +18,15 @@ import { CallListDetailsModal } from "@/components/call-lists/CallListDetailsMod
 import { BulkPasteCallListDialog } from "@/components/call-lists/BulkPasteCallListDialog";
 import { mutate } from "swr";
 import { Plus, Pencil, Trash2, Loader2, Search, Eye, FileText, CheckCircle2, RotateCcw, Archive, RefreshCw, Settings } from "lucide-react";
-import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type { CallList } from "@/types/call-lists.types";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 
 function CallListsPageContent() {
   const isAdmin = useIsAdmin();
+  const groupsFeature = useFeature("groups");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
@@ -52,7 +52,6 @@ function CallListsPageContent() {
   const [isReopening, setIsReopening] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [viewingCallListId, setViewingCallListId] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
 
   usePageTitle("Call Lists");
 
@@ -240,8 +239,6 @@ function CallListsPageContent() {
       await mutateAllCallLists();
       setIsArchiveDialogOpen(false);
       setArchivingCallList(null);
-      // Switch to archived tab after archiving
-      setActiveTab('archived');
     } catch (error: any) {
       const errorMessage = error?.message || "Failed to archive call list";
       if (error?.status === 403) {
@@ -322,7 +319,7 @@ function CallListsPageContent() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md md:max-w-none space-y-4 md:space-y-6 pb-24 md:pb-0" suppressHydrationWarning>
+    <div className="mx-auto w-full max-w-md md:max-w-none space-y-4 md:space-y-6 pb-24 md:pb-0 overflow-x-hidden" suppressHydrationWarning>
       {/* Header (Mobile) */}
       <div className="md:hidden px-1 space-y-3" suppressHydrationWarning>
         <div className="flex items-start justify-between gap-3" suppressHydrationWarning>
@@ -344,7 +341,6 @@ function CallListsPageContent() {
               Create and manage call lists for outreach.
             </p>
           </div>
-          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -396,7 +392,6 @@ function CallListsPageContent() {
           </p>
         </div>
         <div className="flex items-center gap-2" suppressHydrationWarning>
-          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
           <Button
             onClick={() => setIsBulkPasteDialogOpen(true)}
             variant="outline"
@@ -426,119 +421,95 @@ function CallListsPageContent() {
         </div>
       </div>
 
-      {/* Filters */}
-      <CollapsibleFilters open={showFilters} contentClassName="py-3">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <div className="md:col-span-4">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Search
-            </label>
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--groups1-text-secondary)]" />
-              <Input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search call lists by name"
-                className={cn("pl-9", "bg-[var(--groups1-surface)]")}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Batch
-            </label>
-            <BatchFilter value={batchId} onChange={setBatchId} placeholder="All batches" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--groups1-text-secondary)] mb-1">
-              Group
-            </label>
-            <select
-              value={groupId || ""}
-              onChange={(e) => setGroupId(e.target.value || null)}
-              className={cn(
-                "w-full px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
-              )}
-            >
-              <option value="">All groups</option>
-              {(groups ?? []).map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* Filters + Tabs — single row */}
+      <div className="flex flex-wrap items-center gap-2 min-w-0 border-b border-[var(--groups1-border)] pb-2" suppressHydrationWarning>
+        <div className="relative min-w-0 w-48">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-[var(--groups1-text-secondary)]" />
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name"
+            className={cn("pl-9", "bg-[var(--groups1-surface)]")}
+          />
         </div>
-      </CollapsibleFilters>
-
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-[var(--groups1-border)] pb-2" suppressHydrationWarning>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setActiveTab("active")}
-          className={cn(
-            "rounded-full",
-            activeTab === "active"
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Active ({activeCount})
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setActiveTab("completed")}
-          className={cn(
-            "rounded-full",
-            activeTab === "completed"
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Completed ({completedCount})
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => setActiveTab("archived")}
-          className={cn(
-            "rounded-full",
-            activeTab === "archived"
-              ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
-              : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
-          )}
-        >
-          Archived ({archivedCount})
-        </Button>
+        <div className="w-36 shrink-0">
+          <BatchFilter value={batchId} onChange={setBatchId} placeholder="All batches" />
+        </div>
+        {groupsFeature.enabled && (
+          <select
+            value={groupId || ""}
+            onChange={(e) => setGroupId(e.target.value || null)}
+            className={cn(
+              "w-36 shrink-0 px-3 py-1.5 text-sm rounded-md border border-[var(--groups1-border)]",
+              "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
+              "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]"
+            )}
+          >
+            <option value="">All groups</option>
+            {(groups ?? []).map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="flex gap-2 ml-auto">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab("active")}
+            className={cn(
+              "rounded-full",
+              activeTab === "active"
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Active ({activeCount})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab("completed")}
+            className={cn(
+              "rounded-full",
+              activeTab === "completed"
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Completed ({completedCount})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab("archived")}
+            className={cn(
+              "rounded-full",
+              activeTab === "archived"
+                ? "bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] border-transparent hover:bg-[var(--groups1-primary-hover)]"
+                : "bg-[var(--groups1-surface)] border-[var(--groups1-border)] text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+            )}
+          >
+            Archived ({archivedCount})
+          </Button>
+        </div>
       </div>
 
       {/* Call Lists Table */}
       <Card variant="groups1" suppressHydrationWarning>
-        <CardHeader variant="groups1" suppressHydrationWarning>
-          <CardTitle>
-            {isLoading 
-              ? `${activeTab === 'active' ? 'Active' : activeTab === 'completed' ? 'Completed' : 'Archived'} Call Lists` 
-              : `${activeTab === 'active' ? 'Active' : activeTab === 'completed' ? 'Completed' : 'Archived'} Call Lists (${filteredCallLists.length})`}
-          </CardTitle>
-        </CardHeader>
-        <CardContent variant="groups1" className="pb-6" suppressHydrationWarning>
+        <CardContent variant="groups1" className="p-0" suppressHydrationWarning>
           {isLoading ? (
-            <div className="py-8 text-center" suppressHydrationWarning>
+            <div className="py-10 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-[var(--groups1-text-secondary)]" />
               <p className="mt-2 text-sm text-[var(--groups1-text-secondary)]">Loading call lists...</p>
             </div>
           ) : filteredCallLists.length === 0 ? (
-            <div className="py-8 text-center" suppressHydrationWarning>
+            <div className="py-10 text-center">
               <p className="text-sm text-[var(--groups1-text-secondary)]">No call lists found.</p>
               <Button onClick={handleCreate} variant="link" className="mt-2">
                 Create the first call list
@@ -550,7 +521,7 @@ function CallListsPageContent() {
               <div className="md:hidden space-y-3" suppressHydrationWarning>
                 {filteredCallLists.map((callList) => {
                   const detailUrl = `/app/call-lists/${callList.id}`;
-                  const subtitle = callList.groupId
+                  const subtitle = callList.groupId && groupsFeature.enabled
                     ? `${callList.group?.name || "Group"}${callList.group?.batch?.name ? ` • ${callList.group.batch.name}` : ""}`
                     : "Workspace-wide";
                   const itemsCount = callList._count?.items ?? 0;
@@ -603,7 +574,7 @@ function CallListsPageContent() {
                         </div>
                       </div>
 
-                      <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-3 flex flex-wrap gap-2">
+                      <div className="bg-[var(--groups1-background)] border-t border-[var(--groups1-border)] px-4 py-2 flex flex-wrap gap-2">
                         <Button asChild variant="outline" size="sm" className="flex-1 h-9">
                           <Link href={detailUrl}>Open</Link>
                         </Button>
@@ -717,164 +688,97 @@ function CallListsPageContent() {
 
               {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto" suppressHydrationWarning>
-              <table className="min-w-full divide-y divide-[var(--groups1-card-border-inner)]">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Group
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Batch
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Source
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Items
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Created
-                    </th>
-                    {activeTab === 'completed' && (
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                        Completed
-                      </th>
-                    )}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-[var(--groups1-text-secondary)] uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCallLists.map((callList) => (
-                    <tr key={callList.id} className="hover:bg-[var(--groups1-secondary)]">
-                      <td className="px-4 py-3 text-sm font-medium text-[var(--groups1-text)] whitespace-nowrap">
-                        <Link href={`/app/call-lists/${callList.id}`} className="hover:underline">
-                          {callList.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text)]">
-                        {callList.groupId ? (
-                          callList.group?.name || "-"
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)]">
-                            Workspace-wide
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text-secondary)]">
-                        {callList.group?.batch?.name || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text-secondary)]">
-                        {callList.source}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text)]">
-                        {callList._count?.items ?? 0}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-[var(--groups1-text-secondary)] whitespace-nowrap">
-                        {new Date(callList.createdAt).toLocaleDateString()}
-                      </td>
-                      {activeTab === 'completed' && (
-                        <td className="px-4 py-3 text-sm text-[var(--groups1-text-secondary)] whitespace-nowrap">
-                          {callList.completedAt 
-                            ? new Date(callList.completedAt).toLocaleDateString() 
-                            : '-'}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleViewDetails(callList)}
-                            aria-label="View call list details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {isAdmin && (
-                            <>
-                              {activeTab === 'active' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleMarkComplete(callList)}
-                                    className="text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-950"
-                                  >
-                                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                                    Mark Complete
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleArchive(callList)}
-                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950"
-                                  >
-                                    <Archive className="w-4 h-4 mr-1.5" />
-                                    Archive
-                                  </Button>
-                                </>
-                              )}
-                              {activeTab === 'completed' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleReopen(callList)}
-                                    className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950"
-                                  >
-                                    <RotateCcw className="w-4 h-4 mr-1.5" />
-                                    Reopen
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleArchive(callList)}
-                                    className="text-orange-600 border-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:hover:bg-orange-950"
-                                  >
-                                    <Archive className="w-4 h-4 mr-1.5" />
-                                    Archive
-                                  </Button>
-                                </>
-                              )}
-                              {activeTab === 'archived' && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleUnarchive(callList)}
-                                  className="text-purple-600 border-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:hover:bg-purple-950"
-                                >
-                                  <RotateCcw className="w-4 h-4 mr-1.5" />
-                                  Unarchive
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => handleEdit(callList)}
-                                aria-label="Edit call list"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => handleDelete(callList)}
-                                aria-label="Delete call list"
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--groups1-border)] bg-[var(--groups1-secondary)]/40">
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">#</th>
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Name</th>
+                      {groupsFeature.enabled && <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Group</th>}
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Batch</th>
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Source</th>
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Numbers</th>
+                      <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Created</th>
+                      {activeTab === 'completed' && <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Completed</th>}
+                      <th className="text-right py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredCallLists.map((callList) => (
+                      <tr key={callList.id} className="border-b border-[var(--groups1-border)] hover:bg-[var(--groups1-secondary)]/50 transition-colors">
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          {callList.listNumber != null
+                            ? <span className="font-mono text-[11px] text-[var(--groups1-text-secondary)]">#{callList.listNumber}</span>
+                            : <span className="text-[var(--groups1-text-secondary)]">—</span>}
+                        </td>
+                        <td className="py-2 px-3 text-xs font-medium text-[var(--groups1-text)] whitespace-nowrap">
+                          <Link href={`/app/call-lists/${callList.id}`} className="hover:underline">
+                            {callList.name}
+                          </Link>
+                        </td>
+                        {groupsFeature.enabled && (
+                          <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">
+                            {callList.groupId ? callList.group?.name || "-" : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[var(--groups1-secondary)] text-[var(--groups1-text-secondary)] border border-[var(--groups1-border)]">
+                                Workspace-wide
+                              </span>
+                            )}
+                          </td>
+                        )}
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">{callList.group?.batch?.name || "—"}</td>
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">{callList.source}</td>
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">{callList._count?.items ?? 0}</td>
+                        <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)] whitespace-nowrap">{new Date(callList.createdAt).toLocaleDateString()}</td>
+                        {activeTab === 'completed' && (
+                          <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)] whitespace-nowrap">
+                            {callList.completedAt ? new Date(callList.completedAt).toLocaleDateString() : '—'}
+                          </td>
+                        )}
+                        <td className="py-2 px-3 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon-sm" onClick={() => handleViewDetails(callList)} aria-label="View call list details">
+                              <Eye className="w-3.5 h-3.5" />
+                            </Button>
+                            {isAdmin && (
+                              <>
+                                {activeTab === 'active' && (
+                                  <>
+                                    <Button variant="ghost" size="icon-sm" onClick={() => handleMarkComplete(callList)} aria-label="Mark complete" className="text-green-600 hover:text-green-700">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon-sm" onClick={() => handleArchive(callList)} aria-label="Archive" className="text-orange-500 hover:text-orange-600">
+                                      <Archive className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                                {activeTab === 'completed' && (
+                                  <>
+                                    <Button variant="ghost" size="icon-sm" onClick={() => handleReopen(callList)} aria-label="Reopen" className="text-blue-600 hover:text-blue-700">
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon-sm" onClick={() => handleArchive(callList)} aria-label="Archive" className="text-orange-500 hover:text-orange-600">
+                                      <Archive className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                                {activeTab === 'archived' && (
+                                  <Button variant="ghost" size="icon-sm" onClick={() => handleUnarchive(callList)} aria-label="Unarchive" className="text-purple-600 hover:text-purple-700">
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(callList)} aria-label="Edit call list">
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(callList)} aria-label="Delete call list">
+                                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </>
           )}

@@ -105,7 +105,7 @@ export default function ChangePasswordPage() {
     : `${newPasswordValidation.strength.charAt(0).toUpperCase()}${newPasswordValidation.strength.slice(1)}`;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6 lg:py-8">
+    <div className="w-full space-y-6 px-4 py-6 sm:px-6 lg:py-8">
       <div className="rounded-xl border border-[var(--groups1-card-border)] bg-[var(--groups1-surface)] p-4 sm:p-5">
         <div className="flex items-start gap-3">
           <div className="rounded-lg border border-[var(--groups1-card-border)] bg-[var(--groups1-background)] p-2 text-[var(--groups1-primary)]">

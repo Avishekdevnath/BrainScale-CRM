@@ -2,18 +2,30 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useCallLogs } from "@/hooks/useCallLogs";
+import { mutate as globalMutate } from "swr";
+import { useCallLogs, useCallLog } from "@/hooks/useCallLogs";
 import { PhoneHistoryDrawer } from "@/components/calls/PhoneHistoryDrawer";
-import { Loader2, ChevronLeft, ChevronRight, Calendar, X } from "lucide-react";
+import { CallLogDetailsModal } from "@/components/call-lists/CallLogDetailsModal";
+import { EditCallLogDialog } from "@/components/call-lists/EditCallLogDialog";
+import { Loader2, ChevronLeft, ChevronRight, Calendar, X, MoreVertical, Eye, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CallLog, GetCallLogsParams } from "@/types/call-lists.types";
 import { useFeature } from "@/hooks/usePlatformFeatures";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 export interface CallsTableProps {
   callListId?: string | null;
   searchQuery?: string;
   status?: string | null;
   assignedTo?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  batchId?: string | null;
+  groupId?: string | null;
+  callNumberFrom?: number | null;
+  callNumberTo?: number | null;
+  sortBy?: 'callDate' | 'callNumber';
+  sortOrder?: 'asc' | 'desc';
   onRefresh?: () => void;
 }
 
@@ -30,13 +42,21 @@ function callSummary(log: CallLog): string | null {
   return log.summaryNote?.trim() || log.callerNote?.trim() || log.notes?.trim() || null;
 }
 
-export function CallsTable({ callListId, searchQuery = "", status, assignedTo, onRefresh }: CallsTableProps) {
+function hasCallDetails(log: CallLog): boolean {
+  return !!(callSummary(log) || (log.answers && log.answers.length > 0));
+}
+
+export function CallsTable({ callListId, searchQuery = "", status, assignedTo, dateFrom, dateTo, batchId, groupId, callNumberFrom, callNumberTo, sortBy, sortOrder, onRefresh }: CallsTableProps) {
   const router = useRouter();
   const followupsFeature = useFeature("followups");
   const [historyPhone, setHistoryPhone] = React.useState<{ phone: string; name?: string | null } | null>(null);
   const [openSummaryId, setOpenSummaryId] = React.useState<string | null>(null);
   const [pageSize] = React.useState<number>(20);
   const [page, setPage] = React.useState<number>(1);
+  const [selectedLogId, setSelectedLogId] = React.useState<string | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = React.useState(false);
+  const [editingLog, setEditingLog] = React.useState<CallLog | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
 
   const params: GetCallLogsParams = React.useMemo(() => ({
     page,
@@ -45,16 +65,46 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
     q: searchQuery.trim() || undefined,
     status: (status as any) || undefined,
     assignedTo: assignedTo || undefined,
-  }), [page, pageSize, callListId, searchQuery, status, assignedTo]);
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    batchId: batchId || undefined,
+    groupId: groupId || undefined,
+    callNumberFrom: callNumberFrom ?? undefined,
+    callNumberTo: callNumberTo ?? undefined,
+    sortBy: sortBy || undefined,
+    sortOrder: sortOrder || undefined,
+  }), [page, pageSize, callListId, searchQuery, status, assignedTo, dateFrom, dateTo, batchId, groupId, callNumberFrom, callNumberTo, sortBy, sortOrder]);
 
-  React.useEffect(() => { setPage(1); }, [callListId, searchQuery, status, assignedTo]);
+  React.useEffect(() => { setPage(1); }, [callListId, searchQuery, status, assignedTo, dateFrom, dateTo, batchId, groupId, callNumberFrom, callNumberTo, sortBy, sortOrder]);
 
-  const { data, isLoading, error } = useCallLogs(params);
+  const { data, isLoading, error, mutate: mutateLogs } = useCallLogs(params);
+  const { data: selectedLog } = useCallLog(selectedLogId);
 
   const logs = data?.logs || [];
   const pagination = data?.pagination;
   const totalItems = pagination?.total ?? 0;
   const totalPages = pagination?.totalPages ?? 1;
+
+  const handleViewDetails = (logId: string) => {
+    setSelectedLogId(logId);
+    setIsDetailsModalOpen(true);
+  };
+
+  const handleEditCall = (log: CallLog) => {
+    setEditingLog(log);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSuccess = async () => {
+    await mutateLogs();
+    setEditingLog(null);
+    await globalMutate(
+      (key) => typeof key === "string" && key.startsWith("dashboard/"),
+      undefined,
+      { revalidate: true }
+    );
+    onRefresh?.();
+  };
 
   const thClass = "text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap";
   const tdClass = "py-2 px-3 text-xs text-[var(--groups1-text)]";
@@ -83,13 +133,14 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                     <th className={thClass}>ID</th>
                     <th className={thClass}>Student</th>
                     <th className={thClass}>Phone</th>
-                    <th className={thClass}>Call List</th>
+                    <th className={thClass}>Call List No.</th>
                     <th className={thClass}>Batch</th>
                     <th className={thClass}>Caller</th>
                     <th className={thClass}>Status</th>
                     <th className={thClass}>Summary</th>
                     {followupsFeature.enabled && <th className={thClass}>Follow-up</th>}
                     <th className={thClass}>Date</th>
+                    <th className={cn(thClass, "text-right")}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,7 +189,13 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                             );
                           })() : <span className="text-[var(--groups1-text-secondary)]">N/A</span>}
                         </td>
-                        <td className={tdClass}>{callList?.name || "—"}</td>
+                        <td className={tdClass}>
+                          {callList
+                            ? callList.listNumber != null
+                              ? <span className="font-mono text-[11px]">#{callList.listNumber}</span>
+                              : callList.name
+                            : "—"}
+                        </td>
                         <td className={tdClass}>{(callList?.group as any)?.batch?.name || "—"}</td>
                         <td className={tdClass}>
                           {log.assignee
@@ -153,10 +210,11 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                         <td className={cn(tdClass, "max-w-[260px]")}>
                           {(() => {
                             const summary = callSummary(log);
-                            if (!summary) {
+                            if (!hasCallDetails(log)) {
                               return <span className="text-[var(--groups1-text-secondary)]">—</span>;
                             }
                             const isOpen = openSummaryId === log.id;
+                            const preview = summary ?? (log.answers?.length ? `${log.answers.length} answer${log.answers.length > 1 ? 's' : ''}` : null);
                             return (
                               <div className="relative">
                                 <button
@@ -164,15 +222,15 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                                   onClick={() => setOpenSummaryId(isOpen ? null : log.id)}
                                   className="block w-full truncate text-left text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)]"
                                 >
-                                  {summary}
+                                  {preview}
                                 </button>
                                 {isOpen && (
                                   <>
                                     <div className="fixed inset-0 z-40" onClick={() => setOpenSummaryId(null)} />
-                                    <div className="absolute top-full left-0 mt-1.5 z-50 w-80 max-w-[80vw] bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg p-3">
+                                    <div className="absolute top-full right-0 mt-1.5 z-50 w-72 bg-[var(--groups1-surface)] border border-[var(--groups1-border)] rounded-xl shadow-lg p-3">
                                       <div className="flex items-start justify-between gap-2 mb-1.5">
                                         <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)]">
-                                          Summary
+                                          Call Details
                                         </span>
                                         <button
                                           type="button"
@@ -182,9 +240,26 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                                           <X className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
-                                      <p className="text-xs text-[var(--groups1-text)] whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
-                                        {summary}
-                                      </p>
+                                      {log.answers && log.answers.length > 0 && (
+                                        <div className="mb-2 space-y-1.5">
+                                          {log.answers.map((a, i) => (
+                                            <div key={i} className="text-xs">
+                                              <span className="text-[var(--groups1-text-secondary)]">{a.question}: </span>
+                                              <span className="text-[var(--groups1-text)] font-medium">{String(a.answer)}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {summary && (
+                                        <>
+                                          {log.answers && log.answers.length > 0 && (
+                                            <div className="border-t border-[var(--groups1-border)] my-1.5" />
+                                          )}
+                                          <p className="text-xs text-[var(--groups1-text)] whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+                                            {summary}
+                                          </p>
+                                        </>
+                                      )}
                                     </div>
                                   </>
                                 )}
@@ -206,6 +281,46 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
                         )}
                         <td className={cn(tdClass, "text-[var(--groups1-text-secondary)] whitespace-nowrap")}>
                           {new Date(log.callDate).toLocaleDateString()}
+                        </td>
+                        <td className={cn(tdClass, "text-right")}>
+                          <DropdownMenu.Root>
+                            <DropdownMenu.Trigger asChild>
+                              <button
+                                type="button"
+                                className="p-1 rounded-lg text-[var(--groups1-text-secondary)] hover:text-[var(--groups1-text)] hover:bg-[var(--groups1-secondary)]"
+                                aria-label="Call actions"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Portal>
+                              <DropdownMenu.Content
+                                className="z-50 min-w-[160px] rounded-md border border-[var(--groups1-border)] bg-[var(--groups1-surface)] p-1 shadow-lg"
+                                align="end"
+                              >
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleEditCall(log);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                  Edit Call
+                                </DropdownMenu.Item>
+                                <DropdownMenu.Item
+                                  className="flex cursor-pointer select-none items-center gap-2 rounded px-2 py-2 text-sm text-[var(--groups1-text)] outline-none hover:bg-[var(--groups1-secondary)]"
+                                  onSelect={(e) => {
+                                    e.preventDefault();
+                                    handleViewDetails(log.id);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View Call
+                                </DropdownMenu.Item>
+                              </DropdownMenu.Content>
+                            </DropdownMenu.Portal>
+                          </DropdownMenu.Root>
                         </td>
                       </tr>
                     );
@@ -251,6 +366,25 @@ export function CallsTable({ callListId, searchQuery = "", status, assignedTo, o
         onOpenChange={(open) => { if (!open) setHistoryPhone(null); }}
         phone={historyPhone?.phone ?? null}
         studentName={historyPhone?.name ?? null}
+      />
+
+      <CallLogDetailsModal
+        open={isDetailsModalOpen}
+        onOpenChange={(open) => {
+          setIsDetailsModalOpen(open);
+          if (!open) setSelectedLogId(null);
+        }}
+        callLog={selectedLog || null}
+      />
+
+      <EditCallLogDialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setEditingLog(null);
+        }}
+        callLog={editingLog}
+        onSuccess={handleEditSuccess}
       />
     </>
   );

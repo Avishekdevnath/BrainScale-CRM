@@ -12,6 +12,15 @@ import { logger } from '../../config/logger';
 import * as aiService from '../ai/ai.service';
 import { createNotification } from '../notifications/notification.service';
 
+const nextCallNumber = async (workspaceId: string): Promise<number> => {
+  const maxLog = await prisma.callLog.findFirst({
+    where: { workspaceId, callNumber: { not: null } },
+    orderBy: { callNumber: 'desc' },
+    select: { callNumber: true },
+  });
+  return (maxLog?.callNumber ?? 0) + 1;
+};
+
 /**
  * Create a call log
  */
@@ -110,12 +119,7 @@ export const createCallLog = async (
   }
 
   // Assign workspace-scoped sequential call number
-  const maxLog = await prisma.callLog.findFirst({
-    where: { workspaceId },
-    orderBy: { callNumber: 'desc' },
-    select: { callNumber: true },
-  });
-  const callNumber = (maxLog?.callNumber ?? 0) + 1;
+  const callNumber = await nextCallNumber(workspaceId);
 
   // Create call log
   const callLog = await prisma.callLog.create({
@@ -547,6 +551,13 @@ export const listCallLogs = async (
     };
   }
 
+  // Filter by call number range
+  if (options.callNumberFrom != null || options.callNumberTo != null) {
+    where.callNumber = {};
+    if (options.callNumberFrom != null) where.callNumber.gte = options.callNumberFrom;
+    if (options.callNumberTo != null) where.callNumber.lte = options.callNumberTo;
+  }
+
   // Pagination
   const page = options.page || 1;
   const size = Math.min(options.size || 20, 100);
@@ -596,7 +607,7 @@ export const listCallLogs = async (
           },
         },
       },
-      orderBy: { callDate: 'desc' },
+      orderBy: { [options.sortBy || 'callDate']: options.sortOrder || 'desc' },
       skip,
       take: size,
     }),
@@ -612,6 +623,52 @@ export const listCallLogs = async (
       totalPages: Math.ceil(total / size),
     },
   };
+};
+
+/**
+ * Get call log status counts (respects same filters as listCallLogs)
+ */
+export const getCallLogStats = async (
+  workspaceId: string,
+  options: Omit<ListCallLogsInput, 'page' | 'size' | 'status'>
+) => {
+  const base: any = { workspaceId };
+
+  if (options.studentId) base.studentId = options.studentId;
+  if (options.callListId) base.callListId = options.callListId;
+  if (options.assignedTo) base.assignedTo = options.assignedTo;
+  if (options.dateFrom || options.dateTo) {
+    base.callDate = {};
+    if (options.dateFrom) base.callDate.gte = new Date(options.dateFrom);
+    if (options.dateTo) base.callDate.lte = new Date(options.dateTo);
+  }
+  if (options.batchId) base.callList = { group: { batchId: options.batchId } };
+  if (options.groupId) base.callList = { ...(base.callList || {}), groupId: options.groupId };
+  if (options.q) {
+    const q = options.q.trim();
+    if (q) {
+      base.OR = [
+        { student: { name: { contains: q, mode: 'insensitive' } } },
+        { student: { email: { contains: q, mode: 'insensitive' } } },
+        { student: { phones: { some: { phone: { contains: q } } } } },
+        { assignee: { user: { name: { contains: q, mode: 'insensitive' } } } },
+        { assignee: { user: { email: { contains: q, mode: 'insensitive' } } } },
+        { callList: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+  }
+
+  const [total, completed, missed, no_answer, busy, voicemail, other] = await Promise.all([
+    prisma.callLog.count({ where: base }),
+    prisma.callLog.count({ where: { ...base, status: 'completed' } }),
+    prisma.callLog.count({ where: { ...base, status: 'missed' } }),
+    prisma.callLog.count({ where: { ...base, status: 'no_answer' } }),
+    prisma.callLog.count({ where: { ...base, status: 'busy' } }),
+    prisma.callLog.count({ where: { ...base, status: 'voicemail' } }),
+    prisma.callLog.count({ where: { ...base, status: 'other' } }),
+  ]);
+
+  return { total, completed, missed, no_answer, busy, voicemail, other };
 };
 
 /**
@@ -817,6 +874,9 @@ export const createFollowupCallLog = async (
     }
   }
 
+  // Assign workspace-scoped sequential call number
+  const callNumber = await nextCallNumber(workspaceId);
+
   // Create call log with determined caller
   const callLog = await prisma.callLog.create({
     data: {
@@ -833,6 +893,7 @@ export const createFollowupCallLog = async (
       callerNote: data.callerNote,
       followUpDate,
       followUpRequired: data.followUpRequired === true, // Explicitly set to false if not true
+      callNumber,
     },
     include: {
       callListItem: true,

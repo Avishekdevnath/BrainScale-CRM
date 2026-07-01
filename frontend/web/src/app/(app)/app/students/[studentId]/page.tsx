@@ -19,12 +19,14 @@ import { useWorkspaceStore } from "@/store/workspace";
 import { formatCallDuration, getStatusLabel, getStatusColor } from "@/lib/call-list-utils";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 import { toast } from "sonner";
 import type { CallLogStatus } from "@/types/call-lists.types";
 
 export default function StudentProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const groupsFeature = useFeature("groups");
   const studentId = params?.studentId as string | undefined;
   const { data: student, isLoading, error: swrError, mutate: mutateStudent } = useStudent(studentId);
   const error = swrError ? (swrError instanceof Error ? swrError.message : "Failed to load student profile") : null;
@@ -605,7 +607,7 @@ export default function StudentProfilePage() {
                               </StatusBadge>
                             )}
                           </div>
-                          {enrollment.group?.id && (
+                          {enrollment.group?.id && groupsFeature.enabled && (
                             <div className="flex flex-col gap-2 text-xs text-[var(--groups1-text-secondary)]">
                               <Link
                                 href={`/app/groups/${enrollment.group.id}/students`}
@@ -672,12 +674,16 @@ export default function StudentProfilePage() {
                                   </StatusBadge>
                                 )}
                                 {log.callList?.group && (
-                                  <Link
-                                    href={`/app/groups/${log.callList.group.id}/students`}
-                                    className="text-xs text-[var(--groups1-primary)] hover:underline"
-                                  >
-                                    {log.callList.group.name}
-                                  </Link>
+                                  groupsFeature.enabled ? (
+                                    <Link
+                                      href={`/app/groups/${log.callList.group.id}/students`}
+                                      className="text-xs text-[var(--groups1-primary)] hover:underline"
+                                    >
+                                      {log.callList.group.name}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-xs text-[var(--groups1-text-secondary)]">{log.callList.group.name}</span>
+                                  )
                                 )}
                                 {log.callList?.group?.batch && (
                                   <Link

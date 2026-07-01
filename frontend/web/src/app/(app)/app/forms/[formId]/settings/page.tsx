@@ -42,7 +42,7 @@ export default function FormSettingsPage() {
     <div className="min-h-screen p-6" style={{
       backgroundColor: `hsl(var(--groups1-background))`
     }}>
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full">
         <h1 className="text-3xl font-bold mb-2" style={{color: `hsl(var(--groups1-text))`}}>Form Settings</h1>
         <p className="mb-6" style={{color: `hsl(var(--groups1-text-secondary))`}}>Customize how your form looks and behaves</p>
         <FormSettings

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api-client";
 import { AddStudentsToCallListDialog } from "@/components/students/AddStudentsToCallListDialog";
+import { useFeature } from "@/hooks/usePlatformFeatures";
 import type { Student, StudentDetail, StudentPhoneInput, UpdateStudentPayload } from "@/types/students.types";
 import { toast } from "sonner";
 
@@ -28,6 +29,7 @@ interface FormState {
 }
 
 export function StudentActionsMenu({ student, onChanged, contextGroupId }: StudentActionsMenuProps) {
+  const groupsFeature = useFeature("groups");
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addToCallListOpen, setAddToCallListOpen] = useState(false);
@@ -387,7 +389,7 @@ export function StudentActionsMenu({ student, onChanged, contextGroupId }: Stude
                               {enrollment.status ?? "N/A"}
                             </span>
                           </div>
-                          {groupId && (
+                          {groupId && groupsFeature.enabled && (
                             <Link
                               href={`/app/groups/${groupId}/students`}
                               className="mt-2 inline-flex items-center text-[var(--groups1-primary)] hover:underline"

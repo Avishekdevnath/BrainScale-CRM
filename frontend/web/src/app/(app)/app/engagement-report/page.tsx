@@ -143,8 +143,8 @@ export default function EngagementReportPage() {
       {/* Trend + Caller Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Calls Trend */}
-        <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pt-4 pb-2 flex flex-row items-center justify-between">
+        <Card variant="groups1">
+          <CardHeader variant="groups1" className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Calls Trend</CardTitle>
             <div className="flex gap-1">
               {(["day", "week", "month", "year"] as const).map((p) => (
@@ -163,7 +163,7 @@ export default function EngagementReportPage() {
               ))}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent variant="groups1">
             <CallsTrendChart
               data={callsTrend}
               isLoading={trendLoading}
@@ -174,11 +174,11 @@ export default function EngagementReportPage() {
         </Card>
 
         {/* Caller Performance */}
-        <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pt-4 pb-2">
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Caller Performance</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent variant="groups1">
             {isLoading ? (
               <TableSkeleton />
             ) : assigneePerformance.length === 0 ? (
@@ -226,11 +226,11 @@ export default function EngagementReportPage() {
 
       {/* Call Status + Follow-up Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pt-4 pb-2">
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Call Status Breakdown</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent variant="groups1">
             {isLoading ? (
               <TableSkeleton rows={4} />
             ) : callsByStatus.length === 0 ? (
@@ -263,11 +263,11 @@ export default function EngagementReportPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pt-4 pb-2">
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Follow-up Health</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent variant="groups1">
             {isLoading ? (
               <TableSkeleton rows={3} />
             ) : followupsByStatus.length === 0 ? (
@@ -304,11 +304,11 @@ export default function EngagementReportPage() {
 
       {/* Active Call Lists */}
       {callLists.length > 0 && (
-        <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pt-4 pb-2">
+        <Card variant="groups1">
+          <CardHeader variant="groups1">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Active Call Lists</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent variant="groups1">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>

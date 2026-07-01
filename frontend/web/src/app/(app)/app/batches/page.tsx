@@ -121,15 +121,6 @@ export default function BatchesPage() {
     await mutate("batches");
   };
 
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "—";
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return "—";
-    }
-  };
-
   if (error) {
     return (
       <div className="space-y-6">
@@ -250,15 +241,6 @@ export default function BatchesPage() {
                       Name
                     </th>
                     <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
-                      Description
-                    </th>
-                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
-                      Start Date
-                    </th>
-                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
-                      End Date
-                    </th>
-                    <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
                       Groups
                     </th>
                     <th className="text-left py-2 px-3 text-[10px] font-semibold text-[var(--groups1-text-secondary)] uppercase tracking-wider whitespace-nowrap">
@@ -285,15 +267,6 @@ export default function BatchesPage() {
                         >
                           {batch.name}
                         </Link>
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
-                        {batch.description || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
-                        {formatDate(batch.startDate)}
-                      </td>
-                      <td className="py-2 px-3 text-xs text-[var(--groups1-text-secondary)]">
-                        {formatDate(batch.endDate)}
                       </td>
                       <td className="py-2 px-3 text-xs text-[var(--groups1-text)]">
                         {batch._count?.groups || 0}

@@ -384,28 +384,32 @@ export const getKPIs = async (workspaceId: string, filters?: DashboardFiltersInp
  */
 export const getCallsByStatus = async (workspaceId: string, filters?: DashboardFiltersInput) => {
   const where: any = { workspaceId };
-  
-  if (filters?.groupId) {
-    where.groupId = filters.groupId;
-  }
 
-  // Handle batchId filter by finding groups first
-  if (filters?.batchId && !filters?.groupId) {
-    const groups = await prisma.group.findMany({
-      where: {
-        workspaceId,
-        batchId: filters.batchId,
-        isActive: true,
-      },
+  // CallLog has no direct groupId/batchId — resolve via CallList first, same as getKPIs
+  if (filters?.groupId || filters?.batchId) {
+    const callListWhere: any = {
+      workspaceId,
+      OR: [{ groupId: null }],
+    };
+    if (filters.groupId) {
+      callListWhere.OR.push({ groupId: filters.groupId });
+    }
+    if (filters.batchId) {
+      const groups = await prisma.group.findMany({
+        where: { workspaceId, batchId: filters.batchId, isActive: true },
+        select: { id: true },
+      });
+      const groupIds = groups.map((g) => g.id);
+      if (groupIds.length > 0) {
+        callListWhere.OR.push({ groupId: { in: groupIds } });
+      }
+    }
+    const matchingCallLists = await prisma.callList.findMany({
+      where: callListWhere,
       select: { id: true },
     });
-    const groupIds = groups.map(g => g.id);
-    if (groupIds.length > 0) {
-      where.groupId = { in: groupIds };
-    } else {
-      // No groups found for this batch, return empty result
-      where.groupId = { in: [] };
-    }
+    const callListIds = matchingCallLists.map((cl) => cl.id);
+    where.callListId = callListIds.length > 0 ? { in: callListIds } : { in: [] };
   }
 
   if (filters?.dateFrom || filters?.dateTo) {
@@ -418,8 +422,8 @@ export const getCallsByStatus = async (workspaceId: string, filters?: DashboardF
     }
   }
 
-  const calls = await prisma.call.groupBy({
-    by: ['callStatus'],
+  const calls = await prisma.callLog.groupBy({
+    by: ['status'],
     where,
     _count: {
       id: true,
@@ -427,7 +431,7 @@ export const getCallsByStatus = async (workspaceId: string, filters?: DashboardF
   });
 
   return calls.map((item) => ({
-    status: item.callStatus,
+    status: item.status,
     count: item._count.id,
   }));
 };

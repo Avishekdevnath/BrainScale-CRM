@@ -144,7 +144,7 @@ export default function EngagementReportPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Calls Trend */}
         <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pt-4 pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Calls Trend</CardTitle>
             <div className="flex gap-1">
               {(["day", "week", "month", "year"] as const).map((p) => (
@@ -175,7 +175,7 @@ export default function EngagementReportPage() {
 
         {/* Caller Performance */}
         <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Caller Performance</CardTitle>
           </CardHeader>
           <CardContent>
@@ -227,7 +227,7 @@ export default function EngagementReportPage() {
       {/* Call Status + Follow-up Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Call Status Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
@@ -264,7 +264,7 @@ export default function EngagementReportPage() {
         </Card>
 
         <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Follow-up Health</CardTitle>
           </CardHeader>
           <CardContent>
@@ -305,7 +305,7 @@ export default function EngagementReportPage() {
       {/* Active Call Lists */}
       {callLists.length > 0 && (
         <Card className="border-[var(--groups1-card-border)] shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader className="pt-4 pb-2">
             <CardTitle className="text-sm font-semibold text-[var(--groups1-text)]">Active Call Lists</CardTitle>
           </CardHeader>
           <CardContent>

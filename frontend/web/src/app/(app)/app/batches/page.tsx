@@ -8,15 +8,16 @@ import { KPICard } from "@/components/ui/kpi-card";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useBatches } from "@/hooks/useBatches";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { apiClient } from "@/lib/api-client";
 import { BatchFormDialog } from "@/components/batches/BatchFormDialog";
-import { Plus, Pencil, Trash2, Loader2, Search, Eye } from "lucide-react";
-import { FilterToggleButton } from "@/components/common/FilterToggleButton";
-import { CollapsibleFilters } from "@/components/common/CollapsibleFilters";
-import { cn } from "@/lib/utils";
+import { Plus, Pencil, Trash2, Loader2, Eye, Layers } from "lucide-react";
+import { ManagementPageHeader } from "@/components/management/ManagementPageHeader";
+import { StatusTabBar } from "@/components/management/StatusTabBar";
+import { FilterBar } from "@/components/management/FilterBar";
+import { FilterChips } from "@/components/management/FilterChips";
+import { RowActionsMenu } from "@/components/management/RowActionsMenu";
 import Link from "next/link";
 import type { Batch } from "@/types/batches.types";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -32,7 +33,7 @@ export default function BatchesPage() {
   const [deletingBatch, setDeletingBatch] = useState<Batch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showFilters, setShowFilters] = useState(false);
+  const [filterPopoverOpen, setFilterPopoverOpen] = useState(false);
   const pageSize = 20;
 
   usePageTitle("Batch Management");
@@ -56,6 +57,19 @@ export default function BatchesPage() {
         batch.description?.toLowerCase().includes(query)
     );
   }, [batches, searchQuery]);
+
+  const activeFilterCount = [!!searchQuery, statusFilter !== "all"].filter(Boolean).length;
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  const STATUS_TABS = [
+    { id: "all", label: "All", count: batches.length },
+    { id: "active", label: "Active", count: batches.filter((b) => b.isActive).length },
+    { id: "inactive", label: "Inactive", count: batches.filter((b) => !b.isActive).length },
+  ];
 
   // Calculate KPIs
   const totalBatches = batches.length;
@@ -160,16 +174,13 @@ export default function BatchesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--groups1-text)] mb-2">Batch Management</h1>
-          <p className="text-sm text-[var(--groups1-text-secondary)]">
-            Manage batches and organize your students
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <FilterToggleButton isOpen={showFilters} onToggle={() => setShowFilters(!showFilters)} />
-          {isAdmin && (
+      <ManagementPageHeader
+        icon={Layers}
+        title="Batch Management"
+        subtitle="Manage batches and organize your students"
+        onRefresh={() => mutateBatches()}
+        actions={
+          isAdmin ? (
             <Button
               onClick={handleCreate}
               className="bg-[var(--groups1-primary)] text-[var(--groups1-btn-primary-text)] hover:bg-[var(--groups1-primary-hover)]"
@@ -177,9 +188,15 @@ export default function BatchesPage() {
               <Plus className="w-4 h-4 mr-2" />
               Create Batch
             </Button>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
+
+      <StatusTabBar
+        tabs={STATUS_TABS}
+        activeId={statusFilter}
+        onChange={(id) => setStatusFilter(id as "all" | "active" | "inactive")}
+      />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -210,35 +227,51 @@ export default function BatchesPage() {
         )}
       </div>
 
-      {/* Filters */}
-      <CollapsibleFilters open={showFilters} contentClassName="pb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[var(--groups1-text-secondary)]" />
-              <Input
-                type="text"
-                placeholder="Search batches..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-[var(--groups1-background)] border-[var(--groups1-border)] text-[var(--groups1-text)]"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "active" | "inactive")}
-              className={cn(
-                "px-3 py-2 text-sm rounded-lg border border-[var(--groups1-border)]",
-                "bg-[var(--groups1-surface)] text-[var(--groups1-text)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--groups1-focus-ring)]",
-                "appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23134252%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpolyline points=%276 9 12 15 18 9%27%3E%3C/polyline%3E%3C/svg%3E')] bg-no-repeat bg-right-3 bg-[length:16px] pr-8"
-              )}
+      <FilterBar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search batches..."
+        activeFilterCount={activeFilterCount}
+        open={filterPopoverOpen}
+        onOpenChange={setFilterPopoverOpen}
+      >
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--groups1-text-secondary)] px-3 py-1.5">
+          Filters
+        </div>
+        <div className="px-2 pb-1">
+          <div className="text-xs font-medium text-[var(--groups1-text-secondary)] px-1 mb-1">Status</div>
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as "all" | "active" | "inactive");
+              setFilterPopoverOpen(false);
+            }}
+            className="w-full px-2 py-1.5 text-sm rounded-lg border border-[var(--groups1-border)] bg-[var(--groups1-surface)] text-[var(--groups1-text)] focus:outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        {activeFilterCount > 0 && (
+          <div className="border-t border-[var(--groups1-border)] mt-1 pt-1 px-2">
+            <button
+              onClick={() => { clearAllFilters(); setFilterPopoverOpen(false); }}
+              className="w-full text-left text-xs text-red-500 hover:text-red-600 px-1 py-1.5 rounded"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+              Clear all filters
+            </button>
           </div>
-      </CollapsibleFilters>
+        )}
+      </FilterBar>
+
+      <FilterChips
+        chips={[
+          ...(searchQuery ? [{ key: "search", label: `Search: ${searchQuery}`, onRemove: () => setSearchQuery("") }] : []),
+          ...(statusFilter !== "all" ? [{ key: "status", label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter("all") }] : []),
+        ]}
+        onClearAll={clearAllFilters}
+      />
 
       {/* Batches Table */}
       <Card variant="groups1">
@@ -322,38 +355,34 @@ export default function BatchesPage() {
                           {batch.isActive ? "Active" : "Inactive"}
                         </StatusBadge>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => router.push(`/app/batches/${batch.id}`)}
-                            aria-label="View batch"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          {isAdmin && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => handleEdit(batch)}
-                                aria-label="Edit batch"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => handleDelete(batch)}
-                                aria-label="Delete batch"
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                      <td className="py-3 px-4 text-right">
+                        <RowActionsMenu
+                          actions={[
+                            {
+                              key: "view",
+                              label: "View Batch",
+                              icon: Eye,
+                              onSelect: () => router.push(`/app/batches/${batch.id}`),
+                            },
+                            ...(isAdmin
+                              ? [
+                                  {
+                                    key: "edit",
+                                    label: "Edit Batch",
+                                    icon: Pencil,
+                                    onSelect: () => handleEdit(batch),
+                                  },
+                                  {
+                                    key: "delete",
+                                    label: "Delete Batch",
+                                    icon: Trash2,
+                                    onSelect: () => handleDelete(batch),
+                                    variant: "destructive" as const,
+                                  },
+                                ]
+                              : []),
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}

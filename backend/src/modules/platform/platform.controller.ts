@@ -65,3 +65,9 @@ export const replyFeedback = async (req: AuthRequest, res: Response, next: NextF
 export const setFeedbackStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try { res.json(await svc.setFeedbackStatus(req.user!.sub, req.params.id, req.validatedData.status)); } catch (e) { next(e); }
 };
+export const createAnnouncement = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.status(201).json(await svc.createAnnouncement(req.user!.sub, req.validatedData)); } catch (e) { next(e); }
+};
+export const listAnnouncements = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.listAnnouncements(req.validatedData)); } catch (e) { next(e); }
+};

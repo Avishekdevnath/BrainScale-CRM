@@ -44,6 +44,11 @@ export function usePlatformUser(id: string | null) {
   });
 }
 
+export function usePlatformAnnouncements(query: { page?: number; size?: number }) {
+  const key = `platform:announcements:${JSON.stringify(query)}`;
+  return useSWR(key, () => apiClient.platformListAnnouncements(query), { revalidateOnFocus: false });
+}
+
 export function usePlatformFeedback(query: Record<string, string | number | undefined>) {
   const key = `platform:feedback:${JSON.stringify(query)}`;
   // Revalidate on focus so new submissions appear when the admin returns to the inbox.

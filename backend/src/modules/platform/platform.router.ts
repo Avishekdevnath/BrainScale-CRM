@@ -20,6 +20,8 @@ import {
   ListFeedbackQuery,
   ReplyFeedbackBody,
   SetFeedbackStatusBody,
+  CreateAnnouncementBody,
+  ListAnnouncementsQuery,
 } from './platform.schemas';
 
 const router = Router();
@@ -52,6 +54,9 @@ router.patch('/users/:id', zodValidator(UpdateUserBody), ctrl.updateUser);
 router.get('/feedback', zodValidator(ListFeedbackQuery, 'query'), ctrl.listFeedback);
 router.patch('/feedback/:id/reply', zodValidator(ReplyFeedbackBody), ctrl.replyFeedback);
 router.patch('/feedback/:id/status', zodValidator(SetFeedbackStatusBody), ctrl.setFeedbackStatus);
+
+router.get('/announcements', zodValidator(ListAnnouncementsQuery, 'query'), ctrl.listAnnouncements);
+router.post('/announcements', zodValidator(CreateAnnouncementBody), ctrl.createAnnouncement);
 
 router.get('/features', featuresCtrl.getFeatures);
 router.patch('/features', zodValidator(PatchFeatureBody), featuresCtrl.patchFeature);

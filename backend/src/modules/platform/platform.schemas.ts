@@ -65,6 +65,23 @@ export const ReplyFeedbackBody = z.object({ reply: z.string().min(1).max(2000) }
 
 export const SetFeedbackStatusBody = z.object({ status: z.enum(['OPEN', 'RESOLVED']) });
 
+export const CreateAnnouncementBody = z
+  .object({
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(2000),
+    targetType: z.enum(['ALL', 'SELECTED']),
+    workspaceIds: z.array(z.string().min(1)).optional(),
+  })
+  .refine((d) => d.targetType === 'ALL' || (d.workspaceIds?.length ?? 0) > 0, {
+    message: 'workspaceIds required when targetType is SELECTED',
+    path: ['workspaceIds'],
+  });
+
+export const ListAnnouncementsQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 export type ListWorkspacesQueryInput = z.infer<typeof ListWorkspacesQuery>;
 export type CreateWorkspaceBodyInput = z.infer<typeof CreateWorkspaceBody>;
 export type UpdateWorkspaceBodyInput = z.infer<typeof UpdateWorkspaceBody>;
@@ -78,3 +95,5 @@ export type UpdateUserBodyInput = z.infer<typeof UpdateUserBody>;
 export type ListFeedbackQueryInput = z.infer<typeof ListFeedbackQuery>;
 export type ReplyFeedbackBodyInput = z.infer<typeof ReplyFeedbackBody>;
 export type SetFeedbackStatusBodyInput = z.infer<typeof SetFeedbackStatusBody>;
+export type CreateAnnouncementBodyInput = z.infer<typeof CreateAnnouncementBody>;
+export type ListAnnouncementsQueryInput = z.infer<typeof ListAnnouncementsQuery>;

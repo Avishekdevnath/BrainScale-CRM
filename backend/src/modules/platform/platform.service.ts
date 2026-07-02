@@ -14,6 +14,8 @@ import {
   ListAuditQueryInput,
   UpdateUserBodyInput,
   ListFeedbackQueryInput,
+  CreateAnnouncementBodyInput,
+  ListAnnouncementsQueryInput,
 } from './platform.schemas';
 import { createNotification } from '../notifications/notification.service';
 
@@ -638,4 +640,86 @@ export const setFeedbackStatus = async (
     metadata: { status },
   });
   return { id };
+};
+
+export const createAnnouncement = async (
+  actorUserId: string,
+  data: CreateAnnouncementBodyInput,
+) => {
+  // Resolve target workspaces, always excluding soft-deleted ones.
+  let workspaceIds: string[];
+  if (data.targetType === 'SELECTED') {
+    const found = await prisma.workspace.findMany({
+      where: { id: { in: data.workspaceIds! }, ...NOT_DELETED },
+      select: { id: true },
+    });
+    if (found.length === 0) throw new AppError(400, 'No valid workspaces selected');
+    workspaceIds = found.map((w) => w.id);
+  } else {
+    const all = await prisma.workspace.findMany({ where: NOT_DELETED, select: { id: true } });
+    workspaceIds = all.map((w) => w.id);
+  }
+
+  const members = await prisma.workspaceMember.findMany({
+    where: { workspaceId: { in: workspaceIds } },
+    select: { workspaceId: true, userId: true },
+  });
+
+  const announcement = await prisma.announcement.create({
+    data: {
+      title: data.title,
+      body: data.body,
+      targetType: data.targetType,
+      workspaceIds: data.targetType === 'SELECTED' ? workspaceIds : [],
+      sentById: actorUserId,
+    },
+  });
+
+  let recipientCount = 0;
+  if (members.length > 0) {
+    const created = await prisma.notification.createMany({
+      data: members.map((m) => ({
+        workspaceId: m.workspaceId,
+        userId: m.userId,
+        type: 'PLATFORM_ANNOUNCEMENT',
+        title: data.title,
+        body: data.body,
+        meta: { announcementId: announcement.id },
+      })),
+    });
+    recipientCount = created.count;
+  }
+
+  const updated = await prisma.announcement.update({
+    where: { id: announcement.id },
+    data: { recipientCount },
+  });
+
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'announcement.send',
+    targetType: 'announcement',
+    targetId: announcement.id,
+    metadata: { targetType: data.targetType, workspaceCount: workspaceIds.length, recipientCount },
+  });
+
+  return updated;
+};
+
+export const listAnnouncements = async (q: ListAnnouncementsQueryInput) => {
+  const [rows, total] = await Promise.all([
+    prisma.announcement.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip: (q.page - 1) * q.size,
+      take: q.size,
+      select: {
+        id: true, title: true, body: true, targetType: true, workspaceIds: true,
+        recipientCount: true, createdAt: true,
+        sentBy: { select: { id: true, email: true, name: true } },
+      },
+    }),
+    prisma.announcement.count(),
+  ]);
+
+  return { items: rows, page: q.page, size: q.size, total };
 };

@@ -16,6 +16,14 @@ router.get(
   notificationController.listNotifications
 );
 
+// GET /notifications/announcements/unread — unread platform announcements for app-open modal
+router.get(
+  '/announcements/unread',
+  authGuard,
+  tenantGuard,
+  notificationController.listUnreadAnnouncements
+);
+
 // GET /notifications/count — unread badge count (polled every 30s)
 router.get(
   '/count',

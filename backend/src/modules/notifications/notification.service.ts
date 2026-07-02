@@ -108,6 +108,18 @@ export async function listNotifications(
   };
 }
 
+/**
+ * Unread platform announcements for the current user, oldest first.
+ * Consumed by the announcement modal shown on app open.
+ */
+export async function listUnreadAnnouncements(workspaceId: string, userId: string) {
+  return prisma.notification.findMany({
+    where: { workspaceId, userId, type: 'PLATFORM_ANNOUNCEMENT', isRead: false },
+    orderBy: { createdAt: 'asc' },
+    take: 10,
+  });
+}
+
 /** Get only the unread count — used for badge polling. */
 export async function getUnreadCount(workspaceId: string, userId: string): Promise<number> {
   return prisma.notification.count({

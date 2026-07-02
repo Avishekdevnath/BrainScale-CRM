@@ -7,6 +7,7 @@ import {
   ClipboardList,
   FileText,
   MessageSquare,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import type { NotificationType } from "@/types/notifications.types";
@@ -87,6 +88,12 @@ export const NOTIFICATION_DISPLAY: Record<NotificationType, NotificationDisplayC
     icon: MessageSquare,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
+  },
+  // Platform
+  PLATFORM_ANNOUNCEMENT: {
+    icon: Megaphone,
+    color: "text-sky-500",
+    bg: "bg-sky-500/10",
   },
 };
 

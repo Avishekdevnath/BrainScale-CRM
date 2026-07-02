@@ -6,6 +6,7 @@ import { useGroupInitializer } from "@/hooks/useGroupInitializer";
 import { useWorkspaceInitializer } from "@/hooks/useWorkspaceInitializer";
 import { useChatInitializer } from "@/hooks/useChatInitializer";
 import { useNotificationCount } from "@/hooks/useNotifications";
+import { AnnouncementModal } from "@/components/announcements/AnnouncementModal";
 import { LayoutContent } from "./LayoutContent";
 import { AuthGuard } from "@/lib/auth-guard";
 
@@ -26,6 +27,7 @@ function AppLayoutInner({ children }: { children: ReactNode }) {
       </div>
     }>
       <LayoutContent>{children}</LayoutContent>
+      <AnnouncementModal />
     </Suspense>
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, LayoutDashboard, Building2, Users, ArrowLeft, Shield, ScrollText, MessageSquare, SlidersHorizontal } from "lucide-react";
+import { Loader2, LayoutDashboard, Building2, Users, ArrowLeft, Shield, ScrollText, MessageSquare, SlidersHorizontal, Megaphone } from "lucide-react";
 import { useCurrentUser } from "@/hooks/usePlatform";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserMenu } from "@/components/common/UserMenu";
@@ -43,6 +43,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     { href: "/platform/users", label: "Users", icon: Users },
     { href: "/platform/audit", label: "Audit Log", icon: ScrollText },
     { href: "/platform/feedback", label: "Feedback", icon: MessageSquare },
+    { href: "/platform/announcements", label: "Announcements", icon: Megaphone },
     { href: "/platform/features", label: "Features", icon: SlidersHorizontal },
   ];
 

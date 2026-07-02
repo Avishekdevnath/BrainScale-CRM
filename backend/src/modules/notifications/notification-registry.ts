@@ -43,6 +43,8 @@ export const NOTIFICATION_REGISTRY: NotificationRegistryEntry[] = [
   { type: 'FORM_RESPONSE_RECEIVED',  prefKey: 'formResponseReceived',  defaultEnabled: true  },
   // ─── Feedback ─────────────────────────────────────────────────────────────
   { type: 'FEEDBACK_REPLY',          prefKey: null,                    defaultEnabled: true  },
+  // ─── Platform ─────────────────────────────────────────────────────────────
+  { type: 'PLATFORM_ANNOUNCEMENT',   prefKey: null,                    defaultEnabled: true  },
 ];
 
 /** Fast O(1) lookup by type string. */

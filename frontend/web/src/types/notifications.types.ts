@@ -16,7 +16,9 @@ export type NotificationType =
   // Forms
   | 'FORM_RESPONSE_RECEIVED'
   // Feedback
-  | 'FEEDBACK_REPLY';
+  | 'FEEDBACK_REPLY'
+  // Platform
+  | 'PLATFORM_ANNOUNCEMENT';
 
 export interface NotificationMeta {
   entityId?: string;
@@ -30,6 +32,25 @@ export interface NotificationMeta {
   formId?: string;
   responseId?: string;
   formTitle?: string;
+  announcementId?: string;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  targetType: 'ALL' | 'SELECTED';
+  workspaceIds: string[];
+  recipientCount: number;
+  createdAt: string;
+  sentBy: { id: string; email: string; name: string | null };
+}
+
+export interface AnnouncementsListResponse {
+  items: Announcement[];
+  page: number;
+  size: number;
+  total: number;
 }
 
 export interface Notification {

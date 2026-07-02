@@ -12,6 +12,14 @@ export const listNotifications = asyncHandler(async (req: AuthRequest, res: Resp
   res.json(result);
 });
 
+export const listUnreadAnnouncements = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const notifications = await notificationService.listUnreadAnnouncements(
+    req.user!.workspaceId!,
+    req.user!.sub
+  );
+  res.json({ notifications });
+});
+
 export const getUnreadCount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const count = await notificationService.getUnreadCount(
     req.user!.workspaceId!,

@@ -56,6 +56,7 @@ model User {
   questionPresets         QuestionPreset[]
   platformAuditLogs       PlatformAuditLog[]  @relation("PlatformAuditActor")
   feedback                Feedback[]          @relation("UserFeedback")
+  announcementsSent       Announcement[]      @relation("AnnouncementSender")
   feedbackReplies         Feedback[]          @relation("FeedbackReplies")
 }
 
@@ -752,6 +753,22 @@ model Notification {
 
   @@index([workspaceId, userId, isRead])
   @@index([workspaceId, userId, createdAt])
+}
+
+model Announcement {
+  id             String   @id @default(cuid()) @map("_id")
+  title          String
+  body           String
+  targetType     String   // ALL | SELECTED
+  workspaceIds   String[] // empty when targetType is ALL
+  sentById       String
+  recipientCount Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  // Relations
+  sentBy User @relation("AnnouncementSender", fields: [sentById], references: [id])
+
+  @@index([createdAt])
 }
 
 model NotificationPreference {

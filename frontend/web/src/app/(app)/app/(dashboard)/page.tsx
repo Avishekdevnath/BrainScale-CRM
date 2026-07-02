@@ -28,7 +28,6 @@ import { mapKPIsToCards, mapRecentActivity } from "@/lib/dashboard-mappers";
 import type { DashboardFilters } from "@/types/dashboard.types";
 import type { FollowUpItem } from "@/components/dashboard/FollowUpList";
 import useSWR from "swr";
-import { useGroupStore } from "@/store/group";
 import { cn } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import Link from "next/link";
@@ -65,11 +64,10 @@ function ActivitySkeleton() {
 
 export default function WorkspaceDashboardPage() {
   const router = useRouter();
-  const { current: currentGroup } = useGroupStore();
   const currentWorkspaceId = useWorkspaceStore((state) => state.current?.id ?? null);
+  // Workspace-wide by default; group filtering applies only when the user picks one explicitly.
   const [filters, setFilters] = useState<DashboardFilters>({
     period: "month",
-    groupId: currentGroup?.id,
   });
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["NEW"]);
   const [isCallListCreatorOpen, setIsCallListCreatorOpen] = useState(false);

@@ -2,6 +2,7 @@ import { http } from "./http";
 import type {
   Announcement,
   AnnouncementsListResponse,
+  AnnouncementDetail,
 } from "@/types/notifications.types";
 
 export const platformApi = {
@@ -103,7 +104,7 @@ export const platformApi = {
       page: number; size: number; total: number;
     }>(`/platform/audit${qs ? `?${qs}` : ""}`, { method: "GET" });
   },
-  platformCreateAnnouncement(data: { title: string; body: string; targetType: 'ALL' | 'SELECTED'; workspaceIds?: string[] }) {
+  platformCreateAnnouncement(data: { title: string; body: string; bodyRich?: unknown; targetType: 'ALL' | 'SELECTED'; workspaceIds?: string[] }) {
     return http.request<Announcement>("/platform/announcements", {
       method: "POST",
       body: JSON.stringify(data),
@@ -114,6 +115,12 @@ export const platformApi = {
       Object.entries(query).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]),
     ).toString();
     return http.request<AnnouncementsListResponse>(`/platform/announcements${qs ? `?${qs}` : ""}`, { method: "GET" });
+  },
+  platformGetAnnouncement(id: string) {
+    return http.request<AnnouncementDetail>(`/platform/announcements/${id}`, { method: "GET" });
+  },
+  platformDeleteAnnouncement(id: string) {
+    return http.request<{ id: string }>(`/platform/announcements/${id}`, { method: "DELETE" });
   },
   platformListDeletedWorkspaces() {
     return http.request<Array<{
@@ -183,5 +190,36 @@ export const platformApi = {
   },
   getWorkspacePlatformFeatures() {
     return http.request<{ features: Record<string, boolean> }>(`/workspace/platform-features`, { method: "GET" });
+  },
+  platformUsageList(query: Record<string, string | number | boolean | undefined> = {}) {
+    const qs = new URLSearchParams(
+      Object.entries(query).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]),
+    ).toString();
+    return http.request<{
+      items: Array<{
+        id: string; email: string; name: string | null;
+        activeMinutes: number; lastActiveDate: string | null;
+        isLowUsage: boolean; lastNudgedAt: string | null; inCooldown: boolean;
+      }>;
+      page: number; size: number; total: number;
+      settings: { thresholdMinutes: number; windowDays: number; cooldownDays: number };
+      windowDays: number;
+    }>(`/platform/usage${qs ? `?${qs}` : ""}`, { method: "GET" });
+  },
+  platformUsageSettings() {
+    return http.request<{
+      settings: { thresholdMinutes: number; windowDays: number; cooldownDays: number };
+      defaults: { subject: string; body: string };
+    }>("/platform/usage/settings", { method: "GET" });
+  },
+  platformUpdateUsageSettings(body: { thresholdMinutes?: number; windowDays?: number; cooldownDays?: number }) {
+    return http.request<{ settings: { thresholdMinutes: number; windowDays: number; cooldownDays: number } }>(
+      "/platform/usage/settings", { method: "PATCH", body: JSON.stringify(body) },
+    );
+  },
+  platformSendNudges(body: { userIds: string[]; subject?: string; body?: string }) {
+    return http.request<{ sent: string[]; skipped: string[]; failed: string[] }>(
+      "/platform/usage/nudge", { method: "POST", body: JSON.stringify(body) },
+    );
   },
 };

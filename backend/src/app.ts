@@ -337,7 +337,9 @@ import taskRouter from './modules/tasks/task.router';
 import scheduleRouter from './modules/schedule/schedule.router';
 import auditLogRouter from './modules/audit-logs/audit-log.router';
 import teamChatRouter from './modules/team-chat/team-chat.router';
+import { usageBeat } from './middleware/usage-beat';
 
+app.use('/api/v1', usageBeat); // usage tracking beat (no-op for unauthenticated requests)
 app.use('/api/v1/auth', authRouter);
 // roleRouter MUST mount before workspaceRouter: its literal routes
 // (/available-permissions, /initialize-permissions) would otherwise be

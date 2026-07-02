@@ -69,6 +69,8 @@ export const CreateAnnouncementBody = z
   .object({
     title: z.string().min(1).max(200),
     body: z.string().min(1).max(2000),
+    // Tiptap JSON doc; structurally sanitized in the service (whitelist).
+    bodyRich: z.unknown().optional(),
     targetType: z.enum(['ALL', 'SELECTED']),
     workspaceIds: z.array(z.string().min(1)).optional(),
   })

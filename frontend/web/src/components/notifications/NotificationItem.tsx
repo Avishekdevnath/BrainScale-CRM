@@ -12,6 +12,8 @@ interface NotificationItemProps {
   notification: Notification;
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Open a detail view (used for platform announcements). */
+  onOpen?: (notification: Notification) => void;
   compact?: boolean;
 }
 
@@ -25,6 +27,7 @@ export function NotificationItem({
   notification,
   onRead,
   onDelete,
+  onOpen,
   compact = false,
 }: NotificationItemProps) {
   const config = getNotificationDisplay(notification.type);
@@ -68,6 +71,20 @@ export function NotificationItem({
             </p>
           </>
         );
+        if (notification.type === "PLATFORM_ANNOUNCEMENT" && onOpen) {
+          return (
+            <button
+              type="button"
+              onClick={() => {
+                if (!notification.isRead) onRead(notification.id);
+                onOpen(notification);
+              }}
+              className="flex-1 min-w-0 text-left cursor-pointer"
+            >
+              {inner}
+            </button>
+          );
+        }
         return href ? (
           <Link
             href={href}

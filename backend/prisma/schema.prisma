@@ -28,6 +28,7 @@ model User {
   verificationTokenExpiresAt DateTime?
   mustChangePassword         Boolean   @default(false)
   temporaryPassword          Boolean   @default(false)
+  lastNudgedAt               DateTime? // Last low-usage nudge email sent (cooldown anchor)
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 
@@ -58,6 +59,7 @@ model User {
   feedback                Feedback[]          @relation("UserFeedback")
   announcementsSent       Announcement[]      @relation("AnnouncementSender")
   feedbackReplies         Feedback[]          @relation("FeedbackReplies")
+  dailyUsage              UserDailyUsage[]
 }
 
 model Workspace {
@@ -608,9 +610,24 @@ model PlatformAuditLog {
 
 // Singleton document (id = "global") holding platform-wide feature flags.
 model PlatformSettings {
-  id        String   @id @default("global") @map("_id")
-  features  Json?    // { ai: true, tasks: false, ... } — missing key/null => enabled (opt-out)
-  updatedAt DateTime @updatedAt
+  id         String   @id @default("global") @map("_id")
+  features   Json?    // { ai: true, tasks: false, ... } — missing key/null => enabled (opt-out)
+  usageNudge Json?    // { thresholdMinutes, windowDays, cooldownDays } — missing/null => defaults
+  updatedAt  DateTime @updatedAt
+}
+
+// Per-user per-day active time, credited by the usage-beat middleware.
+model UserDailyUsage {
+  id              String   @id @default(cuid()) @map("_id")
+  userId          String
+  date            String   // "YYYY-MM-DD" in Asia/Dhaka
+  activeMinutes   Float    @default(0)
+  lastHeartbeatAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
 }
 
 // ============================================
@@ -758,7 +775,8 @@ model Notification {
 model Announcement {
   id             String   @id @default(cuid()) @map("_id")
   title          String
-  body           String
+  body           String   // plain text, extracted from bodyRich when present
+  bodyRich       Json?    // sanitized Tiptap doc (bold/italic/lists/links)
   targetType     String   // ALL | SELECTED
   workspaceIds   String[] // empty when targetType is ALL
   sentById       String

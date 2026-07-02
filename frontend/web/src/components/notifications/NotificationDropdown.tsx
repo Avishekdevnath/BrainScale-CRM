@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NotificationItem } from "./NotificationItem";
 import { NotificationPreferencesModal } from "./NotificationPreferencesModal";
+import { AnnouncementViewDialog } from "@/components/announcements/AnnouncementViewDialog";
+import type { Notification } from "@/types/notifications.types";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useNotificationStore } from "@/store/notifications";
 import { useWorkspaceStore } from "@/store/workspace";
@@ -18,6 +20,7 @@ import { apiClient } from "@/lib/api-client";
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
+  const [viewingAnnouncement, setViewingAnnouncement] = useState<Notification | null>(null);
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const { decrementUnread, clearUnread } = useNotificationStore();
@@ -163,6 +166,10 @@ export function NotificationDropdown() {
                       notification={n}
                       onRead={handleRead}
                       onDelete={handleDelete}
+                      onOpen={(notification) => {
+                        setViewingAnnouncement(notification);
+                        setOpen(false);
+                      }}
                     />
                   ))}
                 </div>
@@ -189,6 +196,10 @@ export function NotificationDropdown() {
       <NotificationPreferencesModal
         open={showPrefs}
         onOpenChange={setShowPrefs}
+      />
+      <AnnouncementViewDialog
+        notification={viewingAnnouncement}
+        onOpenChange={(o) => { if (!o) setViewingAnnouncement(null); }}
       />
     </>
   );

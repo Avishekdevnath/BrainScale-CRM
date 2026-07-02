@@ -7,6 +7,8 @@ import { Bell, Settings, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { NotificationPreferencesModal } from "@/components/notifications/NotificationPreferencesModal";
+import { AnnouncementViewDialog } from "@/components/announcements/AnnouncementViewDialog";
+import type { Notification } from "@/types/notifications.types";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useNotificationStore } from "@/store/notifications";
 import { useWorkspaceStore } from "@/store/workspace";
@@ -18,6 +20,7 @@ export default function NotificationsPage() {
   const [tab, setTab] = useState<FilterTab>("all");
   const [page, setPage] = useState(1);
   const [showPrefs, setShowPrefs] = useState(false);
+  const [viewingAnnouncement, setViewingAnnouncement] = useState<Notification | null>(null);
 
   const workspaceId = useWorkspaceStore((s) => s.current?.id);
   const { decrementUnread, clearUnread } = useNotificationStore();
@@ -153,6 +156,7 @@ export default function NotificationsPage() {
                 notification={n}
                 onRead={handleRead}
                 onDelete={handleDelete}
+                onOpen={setViewingAnnouncement}
               />
             ))}
           </div>
@@ -187,6 +191,10 @@ export default function NotificationsPage() {
       )}
 
       <NotificationPreferencesModal open={showPrefs} onOpenChange={setShowPrefs} />
+      <AnnouncementViewDialog
+        notification={viewingAnnouncement}
+        onOpenChange={(open) => { if (!open) setViewingAnnouncement(null); }}
+      />
     </div>
   );
 }

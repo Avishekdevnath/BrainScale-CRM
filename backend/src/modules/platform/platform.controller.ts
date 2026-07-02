@@ -71,3 +71,9 @@ export const createAnnouncement = async (req: AuthRequest, res: Response, next: 
 export const listAnnouncements = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try { res.json(await svc.listAnnouncements(req.validatedData)); } catch (e) { next(e); }
 };
+export const getAnnouncement = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.getAnnouncement(req.params.id)); } catch (e) { next(e); }
+};
+export const deleteAnnouncement = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { res.json(await svc.deleteAnnouncement(req.user!.sub, req.params.id)); } catch (e) { next(e); }
+};

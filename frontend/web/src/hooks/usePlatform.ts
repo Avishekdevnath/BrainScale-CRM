@@ -49,6 +49,23 @@ export function usePlatformAnnouncements(query: { page?: number; size?: number }
   return useSWR(key, () => apiClient.platformListAnnouncements(query), { revalidateOnFocus: false });
 }
 
+export function usePlatformAnnouncement(id: string | null) {
+  return useSWR(id ? `platform:announcement:${id}` : null, () => apiClient.platformGetAnnouncement(id as string), {
+    revalidateOnFocus: false,
+  });
+}
+
+export function usePlatformUsage(query: Record<string, string | number | boolean | undefined>) {
+  const key = `platform:usage:${JSON.stringify(query)}`;
+  return useSWR(key, () => apiClient.platformUsageList(query), { revalidateOnFocus: false });
+}
+
+export function usePlatformUsageSettings() {
+  return useSWR("platform:usage-settings", () => apiClient.platformUsageSettings(), {
+    revalidateOnFocus: false,
+  });
+}
+
 export function usePlatformFeedback(query: Record<string, string | number | undefined>) {
   const key = `platform:feedback:${JSON.stringify(query)}`;
   // Revalidate on focus so new submissions appear when the admin returns to the inbox.

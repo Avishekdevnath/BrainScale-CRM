@@ -6,6 +6,8 @@ import { zodValidator } from '../../middleware/validate';
 import * as ctrl from './platform.controller';
 import * as featuresCtrl from './platform-features.controller';
 import { PatchFeatureBody, ListFeatureWorkspacesQuery } from './platform-features.schemas';
+import * as usageCtrl from './platform-usage.controller';
+import { UsageListQuery, UpdateUsageSettingsBody, SendNudgeBody } from './platform-usage.schemas';
 import {
   ListWorkspacesQuery,
   CreateWorkspaceBody,
@@ -57,9 +59,16 @@ router.patch('/feedback/:id/status', zodValidator(SetFeedbackStatusBody), ctrl.s
 
 router.get('/announcements', zodValidator(ListAnnouncementsQuery, 'query'), ctrl.listAnnouncements);
 router.post('/announcements', zodValidator(CreateAnnouncementBody), ctrl.createAnnouncement);
+router.get('/announcements/:id', ctrl.getAnnouncement);
+router.delete('/announcements/:id', ctrl.deleteAnnouncement);
 
 router.get('/features', featuresCtrl.getFeatures);
 router.patch('/features', zodValidator(PatchFeatureBody), featuresCtrl.patchFeature);
 router.get('/features/workspaces', zodValidator(ListFeatureWorkspacesQuery, 'query'), featuresCtrl.listFeatureWorkspaces);
+
+router.get('/usage', zodValidator(UsageListQuery, 'query'), usageCtrl.listUsage);
+router.get('/usage/settings', usageCtrl.getSettings);
+router.patch('/usage/settings', zodValidator(UpdateUsageSettingsBody), usageCtrl.updateSettings);
+router.post('/usage/nudge', zodValidator(SendNudgeBody), usageCtrl.sendNudges);
 
 export default router;

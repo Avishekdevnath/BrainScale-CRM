@@ -33,15 +33,18 @@ export interface NotificationMeta {
   responseId?: string;
   formTitle?: string;
   announcementId?: string;
+  bodyRich?: unknown; // sanitized Tiptap doc for platform announcements
 }
 
 export interface Announcement {
   id: string;
   title: string;
   body: string;
+  bodyRich?: unknown; // sanitized Tiptap doc
   targetType: 'ALL' | 'SELECTED';
   workspaceIds: string[];
   recipientCount: number;
+  readCount?: number; // present in list responses
   createdAt: string;
   sentBy: { id: string; email: string; name: string | null };
 }
@@ -51,6 +54,20 @@ export interface AnnouncementsListResponse {
   page: number;
   size: number;
   total: number;
+}
+
+export interface AnnouncementDetail extends Announcement {
+  stats: {
+    deliveredCount: number;
+    readCount: number;
+    unreadCount: number;
+    workspaces: Array<{
+      id: string;
+      name: string;
+      delivered: number;
+      read: number;
+    }>;
+  };
 }
 
 export interface Notification {

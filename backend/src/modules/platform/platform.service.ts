@@ -18,6 +18,8 @@ import {
   ListAnnouncementsQueryInput,
 } from './platform.schemas';
 import { createNotification } from '../notifications/notification.service';
+import { sanitizeAnnouncementRich } from './announcement-rich';
+import { tiptapToPlainText } from '../../utils/tiptap';
 
 // "Not soft-deleted" — must match both an explicit null AND an unset field,
 // because documents created before `deletedAt` existed (or created without it)
@@ -646,6 +648,17 @@ export const createAnnouncement = async (
   actorUserId: string,
   data: CreateAnnouncementBodyInput,
 ) => {
+  // Rich body: sanitize structurally, derive the canonical plain text from it.
+  let bodyRich: ReturnType<typeof sanitizeAnnouncementRich> = null;
+  let bodyPlain = data.body;
+  if (data.bodyRich !== undefined) {
+    bodyRich = sanitizeAnnouncementRich(data.bodyRich);
+    if (!bodyRich) throw new AppError(400, 'Invalid rich text content');
+    bodyPlain = tiptapToPlainText(bodyRich);
+    if (!bodyPlain.trim()) throw new AppError(400, 'Announcement body is empty');
+    if (bodyPlain.length > 2000) throw new AppError(400, 'Announcement body exceeds 2000 characters');
+  }
+
   // Resolve target workspaces, always excluding soft-deleted ones.
   let workspaceIds: string[];
   if (data.targetType === 'SELECTED') {
@@ -668,7 +681,8 @@ export const createAnnouncement = async (
   const announcement = await prisma.announcement.create({
     data: {
       title: data.title,
-      body: data.body,
+      body: bodyPlain,
+      bodyRich: bodyRich as any,
       targetType: data.targetType,
       workspaceIds: data.targetType === 'SELECTED' ? workspaceIds : [],
       sentById: actorUserId,
@@ -683,8 +697,8 @@ export const createAnnouncement = async (
         userId: m.userId,
         type: 'PLATFORM_ANNOUNCEMENT',
         title: data.title,
-        body: data.body,
-        meta: { announcementId: announcement.id },
+        body: bodyPlain,
+        meta: { announcementId: announcement.id, ...(bodyRich ? { bodyRich } : {}) } as any,
       })),
     });
     recipientCount = created.count;
@@ -706,6 +720,87 @@ export const createAnnouncement = async (
   return updated;
 };
 
+export const getAnnouncement = async (id: string) => {
+  const announcement = await prisma.announcement.findUnique({
+    where: { id },
+    select: {
+      id: true, title: true, body: true, bodyRich: true, targetType: true, workspaceIds: true,
+      recipientCount: true, createdAt: true,
+      sentBy: { select: { id: true, email: true, name: true } },
+    },
+  });
+  if (!announcement) throw new AppError(404, 'Announcement not found');
+
+  // Read/unread counts per workspace. Notification.meta is Json, so the
+  // Mongo connector needs a raw pipeline to match on meta.announcementId.
+  const rows = (await prisma.notification.aggregateRaw({
+    pipeline: [
+      { $match: { 'meta.announcementId': id } },
+      { $group: { _id: { workspaceId: '$workspaceId', isRead: '$isRead' }, count: { $sum: 1 } } },
+    ],
+  })) as unknown as Array<{ _id: { workspaceId: string; isRead: boolean }; count: number }>;
+
+  let readCount = 0;
+  let deliveredCount = 0;
+  const byWorkspace = new Map<string, { delivered: number; read: number }>();
+  for (const row of rows) {
+    const ws = byWorkspace.get(row._id.workspaceId) ?? { delivered: 0, read: 0 };
+    ws.delivered += row.count;
+    if (row._id.isRead) ws.read += row.count;
+    byWorkspace.set(row._id.workspaceId, ws);
+    deliveredCount += row.count;
+    if (row._id.isRead) readCount += row.count;
+  }
+
+  const workspaceIds = [...byWorkspace.keys()];
+  const workspaces = workspaceIds.length
+    ? await prisma.workspace.findMany({
+        where: { id: { in: workspaceIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const nameById = new Map(workspaces.map((w) => [w.id, w.name]));
+
+  return {
+    ...announcement,
+    stats: {
+      deliveredCount,
+      readCount,
+      unreadCount: deliveredCount - readCount,
+      workspaces: workspaceIds.map((wid) => ({
+        id: wid,
+        name: nameById.get(wid) ?? 'Deleted workspace',
+        delivered: byWorkspace.get(wid)!.delivered,
+        read: byWorkspace.get(wid)!.read,
+      })),
+    },
+  };
+};
+
+export const deleteAnnouncement = async (actorUserId: string, id: string) => {
+  const announcement = await prisma.announcement.findUnique({ where: { id }, select: { id: true } });
+  if (!announcement) throw new AppError(404, 'Announcement not found');
+
+  // Remove the fan-out notifications first. meta is Json, so the Mongo
+  // connector cannot express meta.announcementId in a normal where — use a
+  // raw delete command scoped to exactly this announcement's notifications.
+  await prisma.$runCommandRaw({
+    delete: 'Notification',
+    deletes: [{ q: { 'meta.announcementId': id }, limit: 0 }],
+  });
+
+  await prisma.announcement.delete({ where: { id } });
+
+  await writePlatformAudit(prisma, {
+    actorUserId,
+    action: 'announcement.delete',
+    targetType: 'announcement',
+    targetId: id,
+  });
+
+  return { id };
+};
+
 export const listAnnouncements = async (q: ListAnnouncementsQueryInput) => {
   const [rows, total] = await Promise.all([
     prisma.announcement.findMany({
@@ -713,7 +808,7 @@ export const listAnnouncements = async (q: ListAnnouncementsQueryInput) => {
       skip: (q.page - 1) * q.size,
       take: q.size,
       select: {
-        id: true, title: true, body: true, targetType: true, workspaceIds: true,
+        id: true, title: true, body: true, bodyRich: true, targetType: true, workspaceIds: true,
         recipientCount: true, createdAt: true,
         sentBy: { select: { id: true, email: true, name: true } },
       },
@@ -721,5 +816,22 @@ export const listAnnouncements = async (q: ListAnnouncementsQueryInput) => {
     prisma.announcement.count(),
   ]);
 
-  return { items: rows, page: q.page, size: q.size, total };
+  // Read counts for this page in one aggregation (meta is Json — raw pipeline).
+  const ids = rows.map((r) => r.id);
+  const readRows = ids.length
+    ? ((await prisma.notification.aggregateRaw({
+        pipeline: [
+          { $match: { 'meta.announcementId': { $in: ids }, isRead: true } },
+          { $group: { _id: '$meta.announcementId', count: { $sum: 1 } } },
+        ],
+      })) as unknown as Array<{ _id: string; count: number }>)
+    : [];
+  const readById = new Map(readRows.map((r) => [r._id, r.count]));
+
+  return {
+    items: rows.map((r) => ({ ...r, readCount: readById.get(r.id) ?? 0 })),
+    page: q.page,
+    size: q.size,
+    total,
+  };
 };

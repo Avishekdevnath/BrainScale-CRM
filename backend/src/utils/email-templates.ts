@@ -570,3 +570,23 @@ export const resetPasswordOtpTemplate = (
   );
 };
 
+
+export const usageNudgeTemplate = (params: { name: string }) => {
+  const subject = 'Checking in from BrainScale';
+  const text = `Hi ${params.name},
+
+We noticed you haven't had much time in BrainScale lately — no pressure at all. We just wanted to check in and ask if anything is unclear or getting in your way.
+
+If something isn't working the way you'd expect, or you'd like a hand getting set up, simply reply to this email and we'll be happy to help.
+
+Warm regards,
+The BrainScale Team`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1f2937; line-height: 1.6;">
+      <p>Hi ${params.name},</p>
+      <p>We noticed you haven't had much time in BrainScale lately — no pressure at all. We just wanted to check in and ask if anything is unclear or getting in your way.</p>
+      <p>If something isn't working the way you'd expect, or you'd like a hand getting set up, simply reply to this email and we'll be happy to help.</p>
+      <p>Warm regards,<br/>The BrainScale Team</p>
+    </div>`;
+  return { subject, html, text };
+};
